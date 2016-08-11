@@ -20,7 +20,7 @@ TALKER_OBJS     = $(addprefix $(TALKER_OBJ_DIR)/,$(notdir $(TALKER_SRC:.c=.o)))
 IDENTD_SRC      = $(wildcard $(IDENTD_SRC_DIR)/*.c)
 IDENTD_OBJS     = $(addprefix $(IDENTD_OBJ_DIR)/,$(notdir $(IDENTD_SRC:.c=.o)))
 
-
+VENDOR_SRC_DIR  = $(CURDIR)/vendors
 
 UNAME           = $(shell uname)
 ifeq ($(UNAME), Darwin)
@@ -61,7 +61,7 @@ compile: $(TALKER_OBJS) $(IDENTD_OBJS)
 print-%: ; @echo $* = $($*)
 
 
-vpath %.c $(TALKER_SRC_DIR) $(TALKER_SRC_DIR)/commands $(IDENTD_SRC_DIR)
+vpath %.c $(TALKER_SRC_DIR) $(TALKER_SRC_DIR)/commands $(IDENTD_SRC_DIR) $(VENDOR_SRC_DIR)/sds
 
 
 $(BINDIR)/$(TALKER_BIN) $(BINDIR)/$(IDENTD_BIN): $(BINDIR)/%: %
