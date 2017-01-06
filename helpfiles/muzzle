@@ -1,10 +1,8 @@
 ~OLCommand :~RS muzzle
-~OLUsage   :~RS muzzle [<user>]
+~OLUsage   :~RS muzzle <user>
 
 Muzzles a user which prevents them speaking, shouting, emoting and mailing
 other people.  The muzzle levels are based upon the user level of whoever
-muzzled the user.  If a user is muzzled by a Deputy for instance he can be
-unmuzzled by any Sheriff or Marshall, if however he is muzzled by a Marshall
-only another Marshall can unmuzzle him.
-If you omit the user then you will be shown a list of the users currently
-logged on that are muzzled.
+muzzled the user.  If a user is muzzled by an ARCH for instance he can be
+unmuzzled by any ARCH or GOD, if however he is muzzled by a GOD then only
+another GOD can unmuzzle him.

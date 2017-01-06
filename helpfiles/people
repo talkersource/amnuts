@@ -1,4 +1,5 @@
 ~OLCommand :~RS people
 ~OLUsage   :~RS people
 
-This shows who is logged on and gives various stats for them.
+This shows who is logged on and gives various stats for them.  This will
+also show a user's logon site, port and various other stats.

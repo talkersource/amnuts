@@ -1,14 +1,13 @@
 +----------------------------------------------------+
-   ###          #   #  #   #  #####   ###   Andy's
-  #   #  ,# #,  ##  #  #   #    #    #      modified
-  #####  # V #  # # #  #   #    #     ###   NUTS
-  #   #  #   #  #  ##  #   #    #        #  
-  #   #  #   #  #   #  #####    #    ####   ver 1.4.1
+  ###          #   #  #   #  #####   ###    Andy's
+ #   #  ,# #,  ##  #  #   #    #    #       modified
+ #####  # V #  # # #  #   #    #     ###    NUTS
+ #   #  #   #  #  ##  #   #    #        #  
+ #   #  #   #  #   #  #####    #    ####    ver 2.0.0
 +----------------------------------------------------+
 Changed this for whatever your talker screen should be
 +----------------------------------------------------+
-   |   type 'who' at the prompt to see who is on  |
-   | type 'quit' at the prompt to quit your login |
-   \ talker based on NUTS 3.3.3, modified by Andy /
-    +--------------------------------------------+
+  |   type 'who' at the prompt to see who is on    |
+   \ type 'quit' at the prompt to quit your login /
+     +------------------------------------------+
 

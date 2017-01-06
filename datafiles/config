@@ -1,7 +1,7 @@
-# Main config file.
+# Main config file for Amnuts 2.0.0
 
 INIT:
-verification       amnuts140
+verification       amnuts200
 mainport           7000
 wizport            7001
 linkport           7002
@@ -11,11 +11,10 @@ heartbeat          2
 login_idle_time    180
 user_idle_time     3600
 time_out_afks      YES
-ban_swearing       NO
+ban_swearing       MIN
 auto_connect       YES
 password_echo      NO
 ignore_sigterm     NO
-allow_caps_in_name NO
 system_logging     ON
 colour_def         ON
 prompt_def         OFF
@@ -32,19 +31,22 @@ gatecrash_level    GOD
 time_out_maxlevel  WIZ
 crash_action       REBOOT
 auto_purge         NO
+allow_recaps       YES
+verbose_boot       YES
 
 ROOMS:
 dr drive    ha        PUB  CONNECT talker1
 ha hallway  dr,co,wz  PUB  
 wz wizroom  ha        PRIV
-co corridor ha,lg     
+co corridor ha,lg,ra     
 lg lounge   co        BOTH ACCEPT
+ja jail     wz        PRIV
+ra range    co        PUB
 
 TOPICS:
 drive       Welcome to the talker!
-wizroom     This is a room for ~OLwizzes only~RS.
 lounge      Chill and be cool.
-
+range       Bang! Bang!
 
 # Link to the 2nd talker. You may need to put the machine name rather than
 # localhost here when you're running the 2nd talker on the same machine, it

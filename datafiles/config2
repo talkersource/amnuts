@@ -24,6 +24,7 @@ ha hallway  dr,co,wz  PUB
 wz wizroom  ha        PRIV
 co corridor ha,lg     
 lg lounge   co        BOTH ACCEPT
+ja jail     wz        PRIV
 
 # Link back to talker 1
 SITES:

@@ -1,39 +1,61 @@
-*** COPYRIGHT ***
++------------------------------------------------------------------------------+
+     COPYRIGHT - COPYRIGHT - COPYRIGHT - COPYRIGHT - COPYRIGHT - COPYRIGHT
+       Copyright information for Amnuts 2.0.0 and the original NUTS code
++------------------------------------------------------------------------------+
 
-If you alter the code could you please leave the credits in the code (.help 
-credits) and also don't change the version so much that it doesn't say NUTS 
+Copyright for Amnuts code
+-------------------------
+
+The Amnuts code and files contain within the distribution are supplied as 
+freeware and not public domain.  I retain the copyright for all files included 
+with exception of: the ASCII picture files and any unmodified documentation 
+written by Neil Robertson.  I will take legal action against anyone/company who
+is found selling the code for their own commercial advantage, though if anyone 
+wishes to run a pay-to-use talker using the Amnuts code then they are welcome.
+If you wish to distribute the original Amnuts code to anyone else this must be 
+done with my express permission.
+You are free to modify the Amnuts code anyway you wish to suit your own needs 
+and distribute that.  You must not alter the .version so much that it does not 
+refer to the code being based on Amnuts or NUTS or that the code isn't 100% 
+original.  You must also leave the credits from Neil and myself in the code 
+(viewed by '.help credits'), and also the header information from both of us at 
+the top of the source code.
+Amnuts should be written in such a way that there is a capital 'A' and the other
+characters are lower case.  At no time should the 'nuts' part be written in all
+upper case as it is no longer the NUTS distribution (this is on request of Neil
+Robertson).
+Although every care has been taken to produce a bug-free talker system, this
+distribution is supplied as-is and I cannot be held responsible for damages
+incurred through any use of the Amnuts code or any other associated files.
+If you have any problems with this copyright notice then you should not use the
+code at all.
+
+Andrew Collington
+25th June, 1998
+
+
+Copyright for NUTS code
+-----------------------
+
+If you alter the code could you please leave the credits in the code (.help
+credits) and also don't change the version so much that it doesn't say NUTS
 anymore when a user does the .version command. I find it annoying that after 
 I've spent months of time working on this software someone comes along, changes
 a few commands then pretends its all their own work. If you have a problem 
 with any references to my name or the NUTS name being in your talker then 
 don't use my software, its that simple, go write your own from scratch. 
-
 This software is freeware, it is *NOT* public domain, I retain copyright, and 
 since there is code in here that I have used in a commercial system I have 
 written I will take legal action on anyone and their institution/employer who 
 I find using it to their own commercial advantage by way of selling the code
 of either this or a modified version. I have no problems with anyone running a 
 pay-to-use talker using NUTS however.
-	You are perfectly free to modify the code to suit your needs and 
-distribute modified versions *BUT* if you do could you please leave my name,
-the NUTS name and the code header in the code and also note the fact that the
-code isn't 100% original.
+You are perfectly free to modify the code to suit your needs and distribute 
+modified versions *BUT* if you do could you please leave my name, the NUTS
+name and the code header in the code and also note the fact that the code
+isn't 100% original.
 
-Neil Robertson - September 1996
+Neil Robertson
+September 1996
 
-
-*** Additional ***
-
-Ok, now as Amnuts is still based on the NUTS system (though extensively
-modified) I think it is only fair that any copyrights and so on still go
-to Neil.  BUT, I *do* want recognition for the work I have done on this,
-so you MUST leave Neils AND my credits in the code, and distribute these
-documents with my additions if you pass on the code that you have
-modified.
-The same stuff as above (in Neil's section) also applies to my modified
-version (ie, if you have any problems with references to Amnuts in your
-code, not to be used commercially, etc)
-I have emailed Neil and he is cool with me distributing this as "Amnuts",
-rather than "NUTS", but please refer to this code as "Amnuts" and NOT
-"AmNUTS".
-
++------------------------------------------------------------------------------+

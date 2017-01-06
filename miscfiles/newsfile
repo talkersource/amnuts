@@ -1,13 +1,17 @@
 +----------------------------------------------------------------------------+
-News dated: ~FR2nd November, 1997~RS
+News dated: ~FR25th June, 1998~RS
 +----------------------------------------------------------------------------+
 
-There have been a few changes, and a few commands added.  Some commands have
-also changed the way they act, specifically ~FTrmail~RS and ~FTrooms~RS.  Check out the
-help files for both of these.
+Welcome to this talker!
 
-Please read the help files for any commands you are not sure of, and if you
-are still unsure how they work then please ask on of the Wiz - they're there
-to help.
+As you can probably tell if you have been to this place before, it's had a
+few upgrades.  A lot of the changes you can't actually see because they
+have been made to the internal workings of the talker to make it run
+better, but there have been a few command changes too!  Probably best that
+read the helpfiles...
+
+If you are reading this newfiles, then you should probably bug your talker 
+wizzes to write their own newsfile to give you news on what has changed in
+the talker (instead of readin' this generic thing!)
 
 +----------------------------------------------------------------------------+

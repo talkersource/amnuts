@@ -1,4 +1,7 @@
-*** Compiling and running the talker ***
++------------------------------------------------------------------------------+
+     COMPILING - COMPILING - COMPILING - COMPILING - COMPILING - COMPILING
+               Compiling and running the Amnuts 2.0.0 talker
++------------------------------------------------------------------------------+
 
 I had thought of dividing this version of NUTS up into separate source files
 then compiling and linking them together using a makefile but in the end
@@ -12,13 +15,15 @@ it seems to work fine though I have not done soak tests on these systems.
 
 To compile:
 
-Linux & AIX: cc nuts333.c
-IRIX & OSF : ditto above?
-HP-UX      : cc -Ae nuts333.c  (you need the ANSI compiler)
-SCO 3.2    : cc nuts333.c -lsocket -lcrypt_i  
-DYNIX 4    : cc nuts333.c -lsocket -lnsl
-Solaris    : cc -lsocket -lnsl nuts333.c  (not guaranteed to work)
-SunOS 4    : dont even bother unless you have gcc
+Linux & AIX    : cc amnuts200.c
+IRIX & OSF     : ditto above?
+HP-UX          : cc -Ae amnuts200.c  (you need the ANSI compiler)
+SCO 3.2        : cc amnuts200.c -lsocket -lcrypt_i  
+DYNIX 4        : cc amnuts200.c -lsocket -lnsl
+Solaris        : cc -lsocket -lnsl amnuts200.c  (not guaranteed to work)
+SunOS 4        : dont even bother unless you have gcc
+FreeBSD        : cc -lcrypt amnuts200.c
+RedHat Linux 5 : gcc -lcrypt amnuts200.c
 
 Running...
 
@@ -28,7 +33,7 @@ but they are more of a guide as to how to set up talker links rather than
 being genuine links themselves. 
 	To start the talker just type "go" and it will boot and automatically 
 run itself in the background. All its actions are written to the syslog file. 
-To log in you then just telnet to port 7000 and log in as "fred" with the 
+To log in you then just telnet to port 7000 and log in as "test" with the 
 password "test" as this is an account set up with GOD status. The "go" script
 assumes the executable is called a.out.
 
@@ -38,3 +43,4 @@ link together. The only file that need to be different is the config file.
 Move config2 into the 2nd datafiles directory as config and run the 2nd 
 talker.
 
++------------------------------------------------------------------------------+

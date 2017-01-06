@@ -1,0 +1,33 @@
++------------------------------------------------------------------------------+
+    IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT
+        Information for the running of a talker based on Amnuts 2.0.0
++------------------------------------------------------------------------------+
+
+Ok, now I know how most of you just loathe reading these things, but as you may
+have gathered by now, this one is important.  Please, no groaning!  This is
+information that will help you setup and run your talker - or rather it concerns
+the setup of the directory structure.
+
+Amnuts 2.0.0 now stores the user files in a directory which is named after that
+user's level.  If these directories do not exist then the user files won't be
+loaded, saved, read or any of the very basic other things.
+
+What you must do, if you change the level names, is to rename the directories
+contained within 'userfiles' to the EXACT same name.  Eg, if you change the
+level 'WIZ' to 'Wizardz' in the header file than you must also rename the
+directory 'userfiles/WIZ' to 'userfiles/Wizardz'.  Please note that all the caps
+must remain the same (seeing as Unix is case-sensitive).
+
+The reason for this change (for those already familiar with previous version of
+Amnuts) is that it makes it easier and quicker to count the amount of user of a
+particular level, it's tidier (IMO) than keeping everything bunched up in the
+one directory, and it also has to do with the way Amnuts now keeps track of
+user names. (ie, the LEVEL_LISTs are now a thing of the past).
+
+For futher information on the directory structure, please see 'about_dirs', in
+the DOCS directory.  Also, please read the other very useful information
+while you're there.
+
+                                                              Andrew Collington
+                                                                25th June, 1998
++------------------------------------------------------------------------------+

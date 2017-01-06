@@ -1,4 +1,116 @@
-***  Differences in Amnuts version  ***
++------------------------------------------------------------------------------+
+     DIFFERENCES - DIFFERENCES - DIFFERENCES - DIFFERENCES - DIFFERENCES
+        Information on the changes between different version of Amnuts
++------------------------------------------------------------------------------+
+
+2.0.0
+-----
+
+Now store all the user's names and level in a dynamically linked list on
+start-up.  This allows quick scrolling through the users rather than reading a
+file, and it also means that the user's files can be split up into different
+directories (the directories having the same names as the talker levels).
+Commands are also stored in a linked list now.
+
+I kept a record of (almost) everything I changed for version 2.0.0, but as there
+is a lot of text I'm not even going to bother to format it nicely just yet. If
+you don't like it, then bite me ;)
+
+changed count_users() to use dynamic directory reading instead or reading a list.
+updated clean_files() to take a 'level' parameter.
+removed add_level_list() and clean_level_list() as they're now redundant.
+removed all instances (calls) to the above 2 procedures.
+updated show_version()
+added the procedures: find_user_directory(), in_user_directory(), add_user_level(), rem_user_level()
+removed the procedures: in_userlist(), clean_userlist(), add_userlist()
+changed all calls to open USERFILES to incorporate the level name
+added command line variables for when booting the talker, also allowing automatic setup of the directories and quiet boot up.
+added procedure: process_command_line(), setup_directory_structure()
+added procedure: move_files(), change_user_directory()
+added proper grammer (eg, '1 message' instead of '1 messages', or 'there is 1' rather than 'there are 1')
+added an ! to the prompt to show if ignoring anything (though doesn't represent what)
+changed toggle_colour() to display_colour
+added the command 'memcount'
+changed the "colour code display" character '%' to a '^' as this seemed to cause an obscure bug (though not harmful)
+improved '.last' to also display the last x users to log on, also added new structure to header file for this and the procedures record_last_login() and record_last_logout()
+added procedures count_lines, remove_top_bottom()
+added the ability to toggle on/off room descriptions (.set rdesc)
+changed procedure command_order() to parse_commands() and dynamically loaded memory for each command.  Stored the commands in a linked list (ordered).
+changed user variable hwrap_com to hwrap_id and added hwrap_same and hwrap_func
+reworked the help_commands() procedure so that: 1) it worked with the linked list and 2) fixed a little bug that might appear on some terminals that didn't handle the \r escape code correctly.
+added the options 'rdesc' and 'command' to the set command.
+added the int 'cmd_type' to the user structure and updated load_user_details and save_user_details procedures accordingly.
+Done a little re-arranging to misc_ops to make things in a better order.
+added the ability to change how the commands are listed - either the traditional method (ie, by level) or by function.
+made wizlist work with the user structure.
+added the ability to have a full swear ban, where it gives you a message saying you cannot swear, or a min swear ban where it will replace any of the swear words with a default string (see below).
+fixed it in say() so that you can no longer swear through a netlink or clone even if the swear_ban is on.
+added new swear_ban check to procedures say, shout, tell, emote, semote, pemote, echo, wizshout, wizemote, mutter, think_it, sing_it
+added the procedures: censor_swear_words, replace_string
+added a new #define's to the header file called 'swear_censor', 'OFF', 'MIN', and 'MAX'
+added new procedure 'minmax_check'
+changed 'ban_swearing' in the config file so that it reads either OFF, MIN or MAX (rather than YES or NO)
+updated 'swban' to incorporate the new levels of banning and renamed it 'toggle_swearban'
+purge procedure updated to use linked user directory list - reduced size of procedure
+added a version check for users so that you no longer have to nuke any old user structures as they load up properly and same as the new format.
+added procedure: load_oldversion_user
+add 'version' to user structure
+added 'talker_name' to the header file.
+completely rearranged code and made it more tidy
+changed sug_num to suggestion_count
+added command 'cmdcount' to show command statistics, also added show_command_counts procedure
+added procedure 'ordinal_text' to return the ordinal of an int.
+added procedure 'reset_user' to put all user attributes to a default value - including name.
+The above fixes a bug which could either be useful, or annoying - depending on how you looked at it.  The bug was as follows:
+  If a user entered a wizzes name at the login prompt, messed up the password and then done a 'who' then they could see any invis users.
+  Then, if that user logged in as a newbie the newbie character would possess the wizzes stats - login time, number, age, email, etc.  though NOT their level.
+added the #defines LOGIN_NAME, LOGIN_PASSWD, LOGIN_CONFIRM, LOGIN_PROMPT, LOGIN_ATTEMPTS and updated attempts() and login() to use them
+added user_page_pos and user_page_lev to user structure
+updated exec_com to incriment the number of times a command has been used.
+added crypt_salt to header file
+added command 'rcountu' and procedure 'recount_users' to re-read all of the users and check if they are listed or not.
+added 'date' variable to the user_dir_struct and user_struct and the command add_user_date_node
+updated connect_user to show if user is ignoring anything when they logon
+added 'recap' to the user structure and made changes through-out the code so that the recap name is show.
+removed allow_caps_in_name and anything associated with it as that option has now been made redundant by .set recap - instead has been replaced with 'allow_recaps' as a config option.
+added the command 'recaps' to toggle the allow_recap status
+fix bug in editor that would show the users name even when they were invis
+changed the command name 'plead' to 'sos'
+added verbose_boot to the config file and count_users()
+added recap to user structure, the set command, and used it throughout the code.
+removed the 'new_banned' procedure and integrated it with 'site_banned'.  Removed a big bug out of 'site_banned' that would cause a file pointer to remaing floating around if a match had been found.
+added the procedure 'pattern_match' to do recursive matching for a pattern in a string.
+updated the mutter() procedure to use write_room_except (thanks Squirt for pointing that one out)
+added the command 'setcmdlev' and the procedure 'set_command_level()' to go with it.
+added the command 'grepu' to search for user's names using pattern matching
+added 'default_shoot' to the header file.  Also added the command 'shoot' and 'reload', and the procedures 'shoot_user' and 'reload_gun'.  Updated the ustat to show fight stats.
+changed lmail option 'admin' to 'wizzes' as many people use ADMIN as a level name
+removed all LEVEL_LISTs from the header file, with exception of the RETIRE_LIST
+added the option 'retired' to the viewlog command
+tidied up code more - removing redundant calls, and unused variables.
+updated all of the help files.
+updated a few things in ban_site and ban_new procedures
+made cosmetic changes to some commands
+added the procedure 'check_directories' to make sure that the directory structure is correct
+updated 'samesite' so that it now works with wildcards * and ?
+
+sent out code for beta testing
+
+fixed bugs in del_user_ndoe and remove_command procedures that would cause bug if first node in list was removed
+fixed a small bug in the load_olduser_details procedure and made it compatible with Amnuts 1.4.2 user structures
+
+
+1.4.2
+-----
+
+Made it compatible with compiling under FreeBSD servers.
+Updated some docs and sorted out the version numbers which I screwed up in
+some places.
+Fixed some small bugs, and also fixed a hole in promote() that allowed you
+to promote a jailed user.
+Added some utilities to the distribution as standard.
+Tided up the code to remove any variables that were unused in any of the
+functions.
 
 1.4.1
 -----
@@ -28,6 +140,67 @@ A user can now choose to see their password when logging in.
 
 First proper release to those who asked for it...
 Differences between Amnuts and NUTS 3.3.3:
+These may not be 100%, but you get the general idea of things that have changed
 
-  Too many to list right now, but will write this one day!
+Display rules when logging in (if rules file exists)
+Can review what has been typed in the editor before saving
+Help commands are paged
+Selective wipe of boards and deleting of mail
+Users can wipe their own messages of the boards
+Can read specific mail and board messages
+Can set up more things in the user profile
+Can ban just new users from a site, allowing existing users from that site to still log in
+Can have smail autoforwarded to an email address
+Can ustat a person even if they are not logged on
+Decent name abbreviation parsing when talking to users logged on
+Can have macros
+Can have level specific rooms
+Purges user files automatically or manually when running.  purges can be turned on/off at bootup
+Level specific rooms can be viewed along with default rooms
+Room listing is paged
+Has a buffer for tells when in the line editor
+Has a buffer for tells when AFK
+Can use wild cards when banning new users from a site or full site ban
+Ignores are saved when logging out
+Send copies of mail to users on the talker or a remote talker
+Send one mail message to individual levels, admin or all users
+Can views users stats when they are not logged on
+General apperance changes
+Levels can have aliases (when listed in .who, etc)
+Can check users of the same site when they are logged on or not
+Abbreviations for commands shown on the command list, and also more added
+Be alerted when friend log on
+Screen wrap that works with colour codes (ie, doesn't chop one off half way through)
+Pager length can be altered
+Another level added as standard
+Keeps count of number of users logged on, of what level, overall, etc.
 
+New commands added:
+purge, history, expire, bbcast, show, ranks, wizlist,
+time, ctopic, copyto, nocopys, set, mutter, makevis,
+makeinvis, plead, ptell, preview, picture, greet, think,
+sing, ewiz, suggest, rsug, dsug, last, macros, rules,
+uninvite, lmail, arrest, unarrest, verify, addhistory,
+forwarding, revshout, cshout, ctells, monitor, call, uncall,
+ignlist, ignpics, ignwiz, igngreets, ignlogons, ignuser,
+create, bfrom, samesite, save, shackle, unshackle, join,
+cemote, revafk, cafk, revedit, cedit, listen, hangman, 
+guess, retire, unretire
+
+Command names changed:
+inphr is now inmsg
+outphr is now outmsg
+letmein is now knock
+status is now ustat
+rmst is now rooms
+rmsn is now rnet
+listbans is now lban
+wizshout is now twiz
+revclr is now cbuff
+delete is now nuke
+
+Commands that have altered how they work:
+help, read, wipe, ustat, version, rmail, dmail, from,
+rooms, ban, unban, viewlog, colour, bcast
+
++------------------------------------------------------------------------------+

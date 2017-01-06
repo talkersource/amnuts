@@ -1,6 +1,9 @@
-**** About colour and the embedded colour commands ****
++------------------------------------------------------------------------------+
+   COLOUR - COLOR - COLOUR - COLOR - COLOUR - COLOR - COLOUR - COLOR - COLOUR
+            Information about colour and the embedded colour commands
++------------------------------------------------------------------------------+
 
-The colour within the talker is its shipped is set up to look good on a
+The colour within the talker as its shipped is set up to look good on a
 white text on black backgroup type of terminal/xterm eg the Linux console.
 If you're using a black text on white backgroup (ie a crap xterm) then the
 colour scheme may not look so good. Tough :) You'll have to change it yourself.
@@ -77,3 +80,4 @@ Not everyones terminal supports ANSI colour codes. It'll either ignore
 them or will produce some very strange effects. Bear this in mind if you
 decide to set the user colour default to ON.
 
++------------------------------------------------------------------------------+

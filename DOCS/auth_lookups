@@ -1,4 +1,7 @@
-*** Auth lookups ***
++------------------------------------------------------------------------------+
+ LOOKUPS - LOOKUPS - LOOKUPS - LOOKUPS - LOOKUPS - LOOKUPS - LOOKUPS - LOOKUPS
+                      Information about Auth lookups
++------------------------------------------------------------------------------+
 
 This version gives you the remote port number of the user connected to the 
 talker via the .site and .examine commands and is also stored in the syslog
@@ -42,3 +45,4 @@ as the majority of sites do not have auth daemons in the first place eg a
 windows PC is very unlikely to have one :) so the effort would not be worth
 it , besides doing the lookup could hang the talker if there's net lag.
 
++------------------------------------------------------------------------------+

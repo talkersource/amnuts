@@ -3,7 +3,7 @@
 
 This gives a manual way of purging all the user files so that the users who
 have not logged in for a given period of time, and who have expire set to YES,
-will have all theif files deleted.
+will have all their files deleted.
 A purge is automatically done when the talker is booted, and also everytime
 the non-use period has expired after the boot.
 CAUTION:  With a purge the system may be terporarily lagged.

@@ -30,13 +30,6 @@ This directory also contains the level lists (<level name>.lst) and the
 full user list (contains all the user names).
 
 
-miscfiles
----------
-
-This contains any files that could not be classed into the other
-directories.
-
-
 mailspool
 ---------
 
@@ -50,4 +43,23 @@ eg OUT_Fred_Neil@talker2
 Incoming ones are: IN_<to>_<from>@<service_from>
 
 eg IN_Neil_Fred@talker1
+
+
+
+pictfiles
+---------
+
+Contains ASCII pictures that are used on the talker with the commands
+"picture", "preview" and "ptell".  The pictures can contain colour codes
+if you want.
+
+
+
+miscfiles
+---------
+
+This contains any files that could not be classed into the other
+directories.  I suppose they could all have been put into 'datafiles', but
+I personally like to use that just for room data and talker
+configuration... But maybe that's just me?
 

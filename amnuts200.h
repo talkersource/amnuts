@@ -1,9 +1,8 @@
 /*****************************************************************************
-                   Header file for Amnuts version 1.5.0
-                        by Andrew Collington (1997)
-     (based on NUTS version 3.3.3 - Copyright (C) Neil Robertson 1996)
+                   Header file for Amnuts version 2.0.0
+       Copyright (C) Andrew Collington - Last update: 10th June, 1998
 
-                      Last Updated: 2nd November, 1997
+     (based on NUTS version 3.3.3 - Copyright (C) Neil Robertson 1996)
  *****************************************************************************/
 
 /* directories */
@@ -27,6 +26,7 @@
 #define RULESFILE "rules"
 #define HANGDICT "hangman_words"
 /* system logs */
+#define LAST_CMD   "last_command"
 #define MAINSYSLOG "syslog"
 #define NETSYSLOG  "netlog"
 #define REQSYSLOG  "reqlog"
@@ -78,13 +78,7 @@
 #define WIZ    4
 #define ARCH   5
 #define GOD    6
-#define JAILED_LIST "jailed.lst"
-#define NEW_LIST    "new.lst"
-#define USER_LIST   "user.lst"
-#define SUPER_LIST  "super.lst"
-#define WIZ_LIST    "wiz.lst"
-#define ARCH_LIST   "arch.lst"
-#define GOD_LIST    "god.lst"
+#define RETIRE_LIST "retired_wiz"
 
 /* user and clone types */
 #define USER_TYPE 0
@@ -95,6 +89,9 @@
 #define CLONE_HEAR_ALL 2
 
 /* misc stuff */
+#define OFF 0
+#define MIN 1
+#define MAX 2
 #define NEUTER 0
 #define MALE   1
 #define FEMALE 2
@@ -105,47 +102,57 @@
 #define MACRO_LEN 65
 #define MAX_FRIENDS 10
 #define MAX_IGNORES 5 /* number of users you can ignore */
+#define LASTLOGON_NUM 10
+
+/* logon prompt stuff */
+#define LOGIN_ATTEMPTS 3
+#define LOGIN_NAME 1
+#define LOGIN_PASSWD 2
+#define LOGIN_CONFIRM 3
+#define LOGIN_PROMPT 4
 
 
 /* The elements vis, ignall, prompt, command_mode etc could all be bits in 
    one flag variable as they're only ever 0 or 1, but I tried it and it
    made the code unreadable. Better to waste a few bytes */
 struct user_struct {
-	char name[USER_NAME_LEN+1];
-	char desc[USER_DESC_LEN+1];
-	char pass[PASS_LEN+6];
+	char name[USER_NAME_LEN+1],desc[USER_DESC_LEN+1],pass[PASS_LEN+6];
 	char in_phrase[PHRASE_LEN+1],out_phrase[PHRASE_LEN+1];
 	char buff[BUFSIZE],site[81],last_site[81],page_file[81];
 	char mail_to[WORD_LEN+1],revbuff[REVTELL_LINES][REVIEW_LEN+2];
 	char afk_mesg[AFK_MESG_LEN+1],inpstr_old[REVIEW_LEN+1];
-	struct room_struct *room,*invite_room;
-	int type,port,site_port,login,socket,attempts,buffpos,filepos;
-	int vis,ignall,prompt,command_mode,muzzled,charmode_echo; 
-	int level,misc_op,remote_com,edit_line,charcnt,warned;
-	int accreq,last_login_len,ignall_store,clone_hear,afk;
-	int edit_op,colour,ignshouts,igntells,revline;
-	time_t last_input,last_login,total_login,read_mail;
-	char *malloc_start,*malloc_end;
-	struct netlink_struct *netlink,*pot_netlink;
-	struct user_struct *prev,*next,*owner;
-	/* Added to generic NUTS code... Some of this is not currently implimented
-	   but is stored for future update */
-	char tname[80],tsite[80],tport[5],logout_room[ROOM_NAME_LEN];
-	char copyto[MAX_COPIES][USER_NAME_LEN],invite_by[USER_NAME_LEN];
-	char email[80],homepage[80],ignoreuser[MAX_IGNORES][USER_NAME_LEN];
-        char call[USER_NAME_LEN],macros[10][MACRO_LEN],friend[MAX_FRIENDS][USER_NAME_LEN];
+	char tname[80],tsite[80],tport[5],logout_room[ROOM_NAME_LEN],version[10];
+	char copyto[MAX_COPIES][USER_NAME_LEN],invite_by[USER_NAME_LEN],date[80];
+	char email[80],homepage[80],ignoreuser[MAX_IGNORES][USER_NAME_LEN+1],recap[USER_NAME_LEN+1];
+        char call[USER_NAME_LEN],macros[10][MACRO_LEN],friend[MAX_FRIENDS][USER_NAME_LEN+1];
 	char verify_code[80],afkbuff[REVTELL_LINES][REVIEW_LEN+2],editbuff[REVTELL_LINES][REVIEW_LEN+2];
         char samesite_check_store[ARR_SIZE],hang_word[WORD_LEN],hang_word_show[WORD_LEN],hang_guess[WORD_LEN];
-	int wipe_from,wipe_to,wrap,unarrest,pager,logons,expire,lroom,monitor,vote;
-	int gender,age,hideemail,misses,hits,kills,deaths,bullets,hps,alert,afkline,editline;
-	int lmail_lev,welcomed,mail_verified,autofwd,editing,hwrap_lev,hwrap_com,show_pass;
-	int ignpics,ignlogons,ignwiz,igngreets,ignbeeps,samesite_all_store,hang_stage;
+	char *malloc_start,*malloc_end;
+        int type,login,attempts,vis,ignall,prompt,command_mode,muzzled,charmode_echo;
+        int gender,hideemail,edit_line,warned,accreq,ignall_store,igntells;
+        int afk,clone_hear,colour,ignshouts,unarrest,pager,expire,lroom,monitor;
+        int show_rdesc,wrap,alert,welcomed,mail_verified,autofwd,editing,show_pass;
+        int ignpics,ignlogons,ignwiz,igngreets,ignbeeps,hang_stage,samesite_all_store;
+	int port,site_port,socket,buffpos,filepos,remote_com,charcnt,misc_op,last_login_len;
+	int edit_op,revline,level,wipe_from,wipe_to,logons,cmd_type,user_page_pos,user_page_lev;
+	int age,misses,hits,kills,deaths,bullets,hps,afkline,editline;
+	int lmail_lev,hwrap_lev,hwrap_id,hwrap_same,hwrap_func;
+	struct room_struct *room,*invite_room;
+	struct netlink_struct *netlink,*pot_netlink;
+	struct user_struct *prev,*next,*owner;
 	struct room_struct *wrap_room;
-	time_t t_expire;
+        time_t last_input,last_login,total_login,read_mail,t_expire;
 	};
 
 typedef struct user_struct* UR_OBJECT;
 UR_OBJECT user_first,user_last;
+
+struct lastlogins {
+  char name[USER_NAME_LEN],time[80];
+  int  on;
+  };
+typedef struct lastlogins lastlogins;
+lastlogins last_login_info[LASTLOGON_NUM];
 
 struct room_struct {
 	char name[ROOM_NAME_LEN+1];
@@ -201,6 +208,23 @@ typedef struct netlink_struct *NL_OBJECT;
 NL_OBJECT nl_first,nl_last;
 NL_OBJECT create_netlink();
 
+
+struct user_dir_struct {
+  char name[USER_NAME_LEN+1],date[80];
+  short int level;
+  struct user_dir_struct *next,*prev;
+  };
+struct user_dir_struct *first_dir_entry,*last_dir_entry;
+
+struct command_struct {
+  char name[20]; /* 20 characters should be long enough */
+  short int id,min_lev,function;
+  int count;
+  struct command_struct *next,*prev;
+  };
+struct command_struct *first_command,*last_command;
+
+
 char *syserror="Sorry, a system error has occured";
 char *nosuchroom="There is no such room.\n";
 char *nosuchuser="There is no such user.\n";
@@ -240,7 +264,7 @@ char *command[]={
 "recount",  "revtell",   "purge",     "history",  "expire",
 "bbcast",   "show '",    "ranks",     "wizlist",  "time",
 "ctopic",   "copyto",    "nocopys",   "set",      "mutter",
-"makevis",  "makeinvis", "plead",     "ptell",    "preview",
+"makevis",  "makeinvis", "sos",       "ptell",    "preview",
 "picture",  "greet",     "think",     "sing",     "ewiz",
 "suggest",  "rsug",      "dsug",      "last",     "macros",
 "rules",    "uninvite",  "lmail",     "arrest",   "unarrest",
@@ -250,6 +274,8 @@ char *command[]={
 "create",   "bfrom",     "samesite",  "save",     "shackle",
 "unshackle","join",      "cemote",    "revafk",   "cafk",
 "revedit",  "cedit",     "listen",    "hangman",  "guess",
+"retire",   "unretire",  "memcount",  "cmdcount", "rcountu",
+"recaps",   "setcmdlev", "grepu",     "shoot",    "reload",
 "*"
 };
 
@@ -277,7 +303,7 @@ IGNSHOUTS,IGNTELLS,   SUICIDE,    DELETE,   REBOOT,
 RECOUNT,  REVTELL,    PURGE,      HISTORY,  EXPIRE,
 BBCAST,   SHOW,       RANKS,      WIZLIST,  TIME,
 CTOPIC,   COPYTO,     NOCOPIES,   SET,      MUTTER,
-MKVIS,    MKINVIS,    PLEAD,      PTELL,    PREVIEW,
+MKVIS,    MKINVIS,    SOS,        PTELL,    PREVIEW,
 PICTURE,  GREET,      THINK,      SING,     WIZEMOTE,
 SUG,      RSUG,       DSUG,       LAST,     MACROS,
 RULES,    UNINVITE,   LMAIL,      ARREST,   UNARREST,
@@ -286,7 +312,9 @@ CTELLS,   MONITOR,    QCALL,      UNQCALL,  IGNLIST,
 IGNPICS,  IGNWIZ,     IGNGREETS,  IGNLOGONS,IGNUSER,
 ACCOUNT,  BFROM,      SAMESITE,   SAVEALL,  SHACKLE,
 UNSHACKLE,JOIN,       CEMOTE,     REVAFK,   CAFK,
-REVEDIT,  CEDIT,      LISTEN,     HANGMAN,  GUESS
+REVEDIT,  CEDIT,      LISTEN,     HANGMAN,  GUESS,
+RETIRE,   UNRETIRE,   MEMCOUNT,   CMDCOUNT, RCOUNTU,
+RECAPS,   SETCMDLEV,  GREPUSER,   SHOOT,    RELOAD
 } com_num;
 
 
@@ -295,7 +323,7 @@ REVEDIT,  CEDIT,      LISTEN,     HANGMAN,  GUESS
 int com_level[]={
 JAILED,  NEW,     NEW,     JAILED,  SUPER,
 NEW,     NEW,     SUPER,   USER,    USER,
-USER,    USER,    NEW,     NEW,     USER,
+NEW,     USER,    NEW,     NEW,     USER,
 USER,    USER,    USER,    USER,    USER,
 USER,    WIZ,     WIZ,     JAILED,  WIZ,
 JAILED,  GOD,     USER,    NEW,     USER,
@@ -323,8 +351,59 @@ USER,    WIZ,     USER,    USER,    USER,
 USER,    WIZ,     USER,    USER,    USER,
 WIZ,     USER,    WIZ,     WIZ,     ARCH,
 ARCH,    SUPER,   ARCH,    USER,    USER,
-USER,    USER,    USER,    USER,    USER
+USER,    USER,    USER,    USER,    USER,
+GOD,     GOD,     GOD,     ARCH,    GOD,
+GOD,     ARCH,    WIZ,     USER,    USER
 };
+
+
+/* These are the general function names of the commands */
+char *command_types[]={
+"General","Social","Messages","User","Ignores","Movement","Clones","Netlink","Admin","*"
+};
+
+/* The enumerated type of above */
+enum comtypes {
+CT_GENERAL,CT_SOCIAL,CT_MSG,CT_USER,CT_IGNORE,CT_MOVE,CT_CLONE,CT_NETLINK,CT_ADMIN
+};
+
+/* This is what general function each command has */
+int com_type[]={
+CT_GENERAL, CT_GENERAL, CT_USER,    CT_SOCIAL,  CT_SOCIAL,
+CT_SOCIAL,  CT_SOCIAL,  CT_SOCIAL,  CT_SOCIAL,  CT_SOCIAL,
+CT_MOVE,    CT_IGNORE,  CT_USER,    CT_USER,    CT_USER,
+CT_USER,    CT_GENERAL, CT_GENERAL, CT_GENERAL, CT_GENERAL,
+CT_SOCIAL,  CT_MOVE,    CT_SOCIAL,  CT_GENERAL, CT_GENERAL,
+CT_GENERAL, CT_ADMIN,   CT_MSG,     CT_MSG,     CT_MSG,
+CT_MSG,     CT_GENERAL, CT_GENERAL, CT_MOVE,    CT_USER,
+CT_GENERAL, CT_MSG,     CT_MSG,     CT_MSG,     CT_MSG,
+CT_USER,    CT_USER,    CT_GENERAL, CT_NETLINK, CT_NETLINK,
+CT_NETLINK, CT_NETLINK, CT_NETLINK, CT_USER,    CT_ADMIN,
+CT_ADMIN,   CT_ADMIN,   CT_ADMIN,   CT_ADMIN,   CT_ADMIN,
+CT_USER,    CT_USER,    CT_ADMIN,   CT_SOCIAL,  CT_SOCIAL,
+CT_ADMIN,   CT_ADMIN,   CT_GENERAL, CT_ADMIN,   CT_ADMIN,
+CT_ADMIN,   CT_USER,    CT_ADMIN,   CT_GENERAL, CT_GENERAL,
+CT_ADMIN,   CT_USER,    CT_SOCIAL,  CT_CLONE,   CT_CLONE,
+CT_CLONE,   CT_CLONE,   CT_CLONE,   CT_CLONE,   CT_CLONE,
+CT_NETLINK, CT_ADMIN,   CT_USER,    CT_GENERAL, CT_GENERAL,
+CT_IGNORE,  CT_IGNORE,  CT_USER,    CT_ADMIN,   CT_ADMIN,
+CT_MSG,     CT_SOCIAL,  CT_ADMIN,   CT_ADMIN,   CT_ADMIN,
+CT_SOCIAL,  CT_SOCIAL,  CT_GENERAL, CT_GENERAL, CT_GENERAL,
+CT_SOCIAL,  CT_MSG,     CT_MSG,     CT_USER,    CT_SOCIAL,
+CT_USER,    CT_USER,    CT_SOCIAL,  CT_SOCIAL,  CT_SOCIAL,
+CT_SOCIAL,  CT_SOCIAL,  CT_SOCIAL,  CT_SOCIAL,  CT_SOCIAL,
+CT_MSG,     CT_MSG,     CT_MSG,     CT_USER,    CT_USER,
+CT_GENERAL, CT_GENERAL, CT_MSG,     CT_ADMIN,   CT_ADMIN,
+CT_MSG,     CT_ADMIN,   CT_ADMIN,   CT_SOCIAL,  CT_SOCIAL,
+CT_SOCIAL,  CT_ADMIN,   CT_SOCIAL,  CT_SOCIAL,  CT_IGNORE,
+CT_IGNORE,  CT_IGNORE,  CT_IGNORE,  CT_IGNORE,  CT_IGNORE,
+CT_ADMIN,   CT_MSG,     CT_ADMIN,   CT_ADMIN,   CT_ADMIN,
+CT_ADMIN,   CT_MOVE,    CT_CLONE,   CT_SOCIAL,  CT_SOCIAL,
+CT_SOCIAL,  CT_SOCIAL,  CT_IGNORE,  CT_GENERAL, CT_GENERAL,
+CT_ADMIN,   CT_ADMIN,   CT_ADMIN,   CT_ADMIN,   CT_ADMIN,
+CT_ADMIN,   CT_ADMIN,   CT_GENERAL, CT_GENERAL, CT_GENERAL
+};
+
 
 /* 
 Colcode values equal the following:
@@ -368,12 +447,13 @@ char *day[7]={
 char *noyes1[]={ " NO","YES" };
 char *noyes2[]={ "NO ","YES" };
 char *offon[]={ "OFF","ON " };
-
 char *sex[]={"Neuter","Male","Female"};
 
 /* default rooms */
 char *default_jail="jail";
 char *default_warp="drive";
+char *default_shoot="range";
+
 
 /* The rooms listed here are just examples of what can be added
    You may add more or remove as many as you like, but you MUST
@@ -392,8 +472,10 @@ struct {
    these. Also even if you dont want to ban any words you must keep the 
    GOD as the first element in the array. */
 char *swear_words[]={
-"fuck","shit","cunt","cock","bastard","dyke","fag","pussy","bitch","*"
+  "fuck","shit","cunt","cock","bastard","dyke","fag","pussy","bitch","*"
 };
+
+char *swear_censor="*beep*";
 
 char verification[SERV_NAME_LEN+1];
 char text[ARR_SIZE*2];
@@ -413,20 +495,23 @@ int force_listen,gatecrash_level,min_private_users;
 int ignore_mp_level,rem_user_maxlevel,rem_user_deflevel;
 int destructed,mesg_check_hour,mesg_check_min,net_idle_time;
 int keepalive_interval,auto_connect,ban_swearing,crash_action;
-int time_out_afks,allow_caps_in_name,rs_countdown;
-int charecho_def,time_out_maxlevel,auto_purge;
-time_t rs_announce,rs_which;
+int time_out_afks,rs_countdown,allow_recaps,user_count;
+int charecho_def,time_out_maxlevel,auto_purge,verbose_boot;
+int logons_old,logons_new;
+int purge_count,users_purged,suggestion_count;
+/* keep count of users/level - MUST be max. level + 1 */
+int level_count[GOD+1];
+time_t rs_announce,rs_which,purge_date,sbuffline,forwarding,logon_flag;
+char shoutbuff[REVIEW_LINES][REVIEW_LEN+2];
 UR_OBJECT rs_user;
 
+#if SYSTEM!=FREEBSD
 extern char *sys_errlist[];
-char *long_date();
+#endif
 
-int logons_old,logons_new,user_number,jailed_cnt,new_cnt,user_cnt,super_cnt;
-int wiz_cnt,arch_cnt,god_cnt,purge_count,users_purged,sug_num;
-time_t purge_date;
-struct { char name[30]; int level; } ordcom[NUM_CMDS];
-char shoutbuff[REVIEW_LINES][REVIEW_LEN+2];
-int sbuffline,forwarding,logon_flag;
+char *long_date();
+char *talker_name="Amnuts";
+char *crypt_salt="NU";
 
 /* for setting of attributes */
 struct {
@@ -443,14 +528,17 @@ struct {
         {"pager","sets how many lines per page of the pager you get"},
         {"colour","display in colour or not (toggle)"},
         {"room","lets you log back into the room you left from, if public (toggle)"},
-	{"autofwd","lets you receive smails via your email address."},
-	{"password","lets you see your password when entering it at the login (toggle)"},
+        {"autofwd","lets you receive smails via your email address."},
+        {"password","lets you see your password when entering it at the login (toggle)"},
+        {"rdesc","lets you ignore room descriptions (toggle)"},
+	{"command","Displays the command lisiting differently (toggle)"},
+	{"recap","Allows you to have caps in your name"},
         {"*",""}
     };
 enum setval {
     SETSHOW,        SETGEND,    SETAGE,     SETEMAIL,       SETHOMEP,
     SETHIDEEMAIL,   SETWRAP,    SETPAGER,   SETCOLOUR,      SETROOM,
-    SETFWD,         SETPASSWD
+    SETFWD,         SETPASSWD,  SETRDESC,   SETCOMMAND,     SETRECAP
     } set_val;
 
 
@@ -543,9 +631,5 @@ char *hanged[8]={
   "~FY~OL+~RS~FY---~OL+  \n~FY|   |  \n~FY|~RS   O       ~OLWord:~RS %s\n~FY|~RS  /|\\      ~OLLetters guessed:~RS %s\n~FY|~RS  /   \n~FY|______\n",
   "~FY~OL+~RS~FY---~OL+  \n~FY|   |  \n~FY|~RS   O       ~OLWord:~RS %s\n~FY|~RS  /|\\      ~OLLetters guessed:~RS %s\n~FY|~RS  / \\ \n~FY|______\n"
 };
-
-
-
-
 
 

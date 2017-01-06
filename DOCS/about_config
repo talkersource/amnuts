@@ -1,9 +1,10 @@
 **** About the config file ***
 
-The file is divided into 3 sections , the INIT section which sets up a load
-of system parameters, the ROOMS: section which sets up the room names, their
-links and any netlink connections and the SITES section which defines the
-site and service names of any other talkers you may wish to connect to via the
+The file is divided into 4 sections, the INIT section which sets up a load
+of system parameters, the ROOMS section which sets up the room names, their
+links and any netlink connections, the topics section which you can use 
+to autoload room topics and the SITES section which defines the site and
+service names of any other talkers you may wish to connect to via the
 rooms. The sections can be in any order but the order I have laid them out
 in seems the most logical (to me at any rate). Comments can be placed in the
 file and as per the unix standard they begin with a hash '#'.

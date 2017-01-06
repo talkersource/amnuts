@@ -1,20 +1,27 @@
-*** About clones ***
++------------------------------------------------------------------------------+
+ CLONES - CLONES - CLONES - CLONES - CLONES - CLONES - CLONES - CLONES - CLONES
+              Information about the clones used in Amnuts 2.0.0
++------------------------------------------------------------------------------+
 
-Clones allow archwizards and gods (as currently set up) to create copies
-of themselves in rooms and listen in to and add to the conversation in that
-room which will allow them to monitor the proceedings whilst at the same time
-being elsewhere , perhaps in a private room having their own private
-conversation. The clone commands are fairly straightforward but I will explain
-the following ones:
+Clones allow a user (who is of sufficient level to use clones) to be in two
+differnet rooms at once.  The clone will allow that user to listen in on the
+conversation or add to it by speaking or emoting, much as a normal user would.
+The clone commands are as follows:
 
-switch - switches you between your current object and one of your clone
-	    objects.
+switch    switches you between your current object and one of your clone
+          objects.
 
-clsay - makes a clone say something
+clhear    clones send what they hear to their owner but this can be set to 
+          return either all the conversation in their room, only that with
+          swearing or nothing at all (just to be a presence there).
 
-clhear - clones send what they hear to their owner but this can be set to 
-	    return either all the conversation in their room, only that with
-	    swearing or nothing at all (just to be a presence there).
+clsay     makes a clone say something.
 
-cemote - makes a clone emote something
+cemote    makes a clone emote something.
 
+myclones  lets you see all the clones that you have created and what rooms they
+          are in.
+
+allclones lets you see all the clones currently active on the talker.
+
++------------------------------------------------------------------------------+

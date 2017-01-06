@@ -1,65 +1,63 @@
-*** README for Amnuts 1.5.0 ***
++------------------------------------------------------------------------------+
+ README - README - README - README - README - README - README - README - README
+   Introductory information for the Unix talker code Amnuts (version 2.0.0)
++------------------------------------------------------------------------------+
 
-There is a lot of stuff I haven't added yet, such as the diffs file for
-the differences between Amnuts and NUTS.  But I'll get around to it soon,
-when I have more time.
-So what is Amnuts?  Well, basically, it's just fairly modified NUTS code.
-A *lot* more commands have been added, and the ways certain things are
-done.  Some commands remain the same, but have changed the way they work
-(rmail, and read for instance).
-As with Neil and his code, I wont reply to any mail that asks how you sort
-out a problem with any code you have changed.  I will try to help out
-finding any bugs in the original Amnuts code, but NOT your modified code!
-Read the files in the DOCS directory, and read the COPYRIGHT and any other
-files here!
-Any questions or comments about this code, then please email me at:
-andyc@dircon.co.uk
+Welcome to the Amnuts talker code, version 2.0.0!  Or, if you have already used
+Amnuts, then welcome back!  This is the latest version of Amnuts (as of May '98)
+and many things have changed.  If you are already familiar with Amnuts then you
+may want to skip down to the next section, else please keep reading.
 
-Andrew Collington - November, 1997
+What is Amnuts?  Well, you may have already seen the Amnuts website and read all
+about what Amnuts is (it may even be where you got the code from), but for those
+that haven't Amnuts is a talker server which is to be used on Unix systems (and
+clones of Unix).  It has been written in C because of a few reasons, but mainly
+because it is one of the best lanuages for the 'newbie' to get to grips with.
+What is a talker server?  Well, basically, it's a program that can have people
+from all over the world connect to it, talk, send and receive messages.  The
+talker usually takes on a theme of some kind (my own is the wild west!) and is
+then built up around that theme.  People connect to it via a telnet program.
+Amnuts has been based on the NUTS code by Neil Robertson, although it has been
+extensively modified!  As this is the second or third major release of Amnuts,
+and because it's been modified further still from the original NUTS I have 
+moved Neil's NUTS readme to the DOCs directory ('nuts_readme').
+And that is Amnuts in a nutshell.  (ok, ok.. But I had to get ONE bad pun in
+this readme somewhere!!)
+
+There have been a lot of changes in this version of Amnuts, not all of which
+are really visable to the end user.  Most of the code changes have been made
+to make the code easier to update (such as add new levels), faster (a lot less
+reading from files, now reading more from memory), and just optimizing the
+code a little (like removing redundant procedures, or making existing ones
+better).  But not only have there been code changes, but there have also been
+some directory structure changes too (this is particularly important for those
+who are upgrading from a previous version of Amnuts).
+Please read the 'IMPORTANT' message to find out more about the directory
+structure change, and the 'amnuts_changes' in the DOCs directory for more
+information on what changes have been made since version 1.4.2 (the previous
+release to this one).
+
+Please always refer to Amnuts *as* Amnuts or amnuts (not AMNUTS, AmNUTS, or
+anything else along those lines).  You might think this a bit petty, but there
+are good reasons, I assure you!
+
+I've put a fair amount of time into Amnuts, its documents and the website, so
+I would appreciate it if you don't add a few small commands and then think
+that gives you the right to rename the code.  This is very unfair and, I think,
+pretty damn disrespectful of the amount of time that has been put into giving
+you this code free, and also providing you with documents and the website.
+Please see the COPYRIGHT information
+
+The above was the only bitch part that I needed to do.  Other than that, I hope
+that you enjoy the code, and if you have any questions or comments, ideas or
+bug reports then please feel free to email me.  The address you can do that to
+is shown below.  
+
+Thanks for using Amnuts!  Enjoy!  (Damn! This was a long README! ;-)
 
 
-
-*** README for triple three (3.3.3 :) ***
-
-Read the DOCS/diffs file for update information.
-
-Welcome to NUTS if you're a first time user. Hopefully you'll find it a
-simple system to use thanks to the helpfiles and the documentation , if not
-then please feel free to email me at the address at the end of this file.
-Before I continue though I must stress that I WILL NOT SORT OUT BUGS OF YOUR
-OWN MAKING OR WRITE CODE FOR YOU! If you write your own code or alter my
-code and fuck it up thats your problem, I have my own projects to do and I
-am *not* interested in sorting out yours. I've had one too many emails from
-people asking me to sort out the mess they've made and I'm getting rather sick 
-of it. However, despite me putting this request in the 3.3.1 docs some people 
-have seen fit to ignore it so heres an added incentive: mail me about your cock
-ups and not only will I not reply to the mail but I will keep a note of your 
-email address and I will not reply to *any* mails you send me even if its about
-problems with *my* code. Its your choice. 
-
-I know I've said this before but this time I really mean it. This is the final
-version of NUTS 3. I have ideas in mind for a version 4 but thats years away
-so in the meantime this is it :) And to prove I mean it this is the first
-version of NUTS for a long long time without a backdoor in it as I'm sure 101
-hackers will test and find out to be true :)
-
-Unfortunately I still haven't found out what the colour reset code for
-SCO consoles and strict ansi terminals is so if you're using one of these 
-things may look messy. No one mailed me the code and the SCO terminfo 
-translation tools proved less than helpful so theres not much I can do. Sorry.
-
-Now go and read the DOCS/compiling file for info on how to get started if 
-you're new to NUTS and all the other files there will be usefull in time also.
-
-Neil Robertson - November 1996
-
-email: neil@ogham.demon.co.uk
-home page     : http://www.wso.co.uk/neil.html
-NUTS home page: http://www.wso.co.uk/nuts.html
-
-NB: If anyone is also interested in MUDs I've written a MUD system called 
-    Ogham - ftp.ccs.neu.edu:/pub/mud/servers/misc/ogham/ogham262.tar.gz
-    Its not as complex as perhaps LPmuds or Dikumuds are but if you know C and 
-    want to set up a low to medium complexity mud then this is just what you 
-    need :) 
-    
+                                                              Andrew Collington
+                                                                25th June, 1998
++------------------------------------------------------------------------------+
+email: amnuts@iname.com                  web: http://www.talker.com/west/amnuts/
++------------------------------------------------------------------------------+

@@ -15,7 +15,7 @@ ie;   !#/<yourdir>/perl
 
 
 This program is used to convert STANDARD NUTS 3.3.3 userfiles (*.D) to
-Amnuts 1.4.1 userfiles (*.D).  Standard meaning the files have not had
+Amnuts 1.4.2 userfiles (*.D).  Standard meaning the files have not had
 anything extra added to them by the coders of the talker.
 It will list all the user names as they are being converted, but will NOT
 backup the files first - so make sure you do this before you run the
@@ -26,4 +26,4 @@ held responsible for any bad effects this causes to the running of your
 talker.
 
 
-Andrew Collington, November 1997
+Andrew Collington, December 1997
