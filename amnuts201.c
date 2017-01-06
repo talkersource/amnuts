@@ -1,6 +1,6 @@
  /*****************************************************************************
-            Amnuts version 2.0.0 - Copyright (C) Andrew Collington
-                       Last update: 10th June, 1998
+            Amnuts version 2.0.1 - Copyright (C) Andrew Collington
+                         Last update: 1st July, 1998
 
                           email: amnuts@iname.com
                 homepage: http://www.talker.com/west/amnuts/
@@ -35,16 +35,16 @@
 #include <dirent.h>
 #include <stddef.h>
 
-#include "amnuts200.h"
+#include "amnuts201.h"
 
 #define NUTSVER "3.3.3"
-#define AMNUTSVER "2.0.0"
-
+#define AMNUTSVER "2.0.1"
 
 
 /******************************************************************************
  The setting up of the talker configs and the main program loop
  *****************************************************************************/
+
 
 main(argc,argv)
 int argc;
@@ -74,8 +74,10 @@ else printf("Skipping connect stage.\n");
 check_messages(NULL,1);
 printf("Checking user directory structure\n");
 check_directories();
-if (verbose_boot) printf("Counting users: verbose mode\n");
-else printf("Counting users\n");
+if (verbose_boot) printf("Processing user list: verbose mode\n");
+else printf("Processing user list\n");
+process_users();
+printf("Counting users\n");
 count_users();
 printf("Parsing command structure\n");
 parse_commands();
@@ -977,7 +979,6 @@ new->next=NULL;
 last_dir_entry=new;
 
 ++user_count;
-++level_count[level];
 strcpy(new->name,name);
 new->level=level;
 new->date[0]='\0';
@@ -1030,7 +1031,6 @@ else {
   }
 free(entry);
 --user_count;
---level_count[level];
 return 1;
 }
 
@@ -1340,7 +1340,7 @@ write_user(user,text);
 }
 
 
-/* find out what level as user has got in the user linked list */
+/*** find out what level as user has got in the user linked list ***/
 int find_user_directory(name)
 char *name;
 {
@@ -1355,6 +1355,36 @@ while(entry!=NULL) {
 return(-1);
 }
 
+
+/*** check to see if a given email has the correct format ***/
+int validate_email(email)
+char *email;
+{
+int dots;
+char *p;
+
+p=email;
+if (!*p) return 0;
+while (*p!='@' && *p) {
+  if (!isalnum(*p) && *p!='.') return 0;
+  p++;
+  }
+if (*p!='@') return 0;
+p++;
+if (*p==' ' || *p=='.' || *p=='@' || !*p) return 0;
+while (*p) {
+  while (*p!='.') {
+    if (!*p)
+      if (!(dots)) return 0;
+      else return 1;
+    p++;
+    } /* end while */
+  dots++;
+  p++;
+  if (*p==' ' || *p=='.' || !*p) return 0;
+  if (!*p) return 1;
+  } /* end while */
+}
 
 
 /******************************************************************************
@@ -2530,10 +2560,11 @@ for (i=LASTLOGON_NUM;i>0;i--) {
   /* why did using this not work? *shrugs*
      memcpy(&last_login_info[i],&last_login_info[i-1],sizeof(lastlogins));
    */
-  strcpy(last_login_info[0].name,name);
-  strcpy(last_login_info[0].time,long_date(1));
-  last_login_info[0].on=1;
+strcpy(last_login_info[0].name,name);
+strcpy(last_login_info[0].time,long_date(1));
+last_login_info[0].on=1;
 }
+
 
 /*** Records when the user last logged out for use with the .last command ***/
 record_last_logout(name)
@@ -2541,6 +2572,7 @@ char *name;
 {
 int i;
 
+i=0;
 while (i<LASTLOGON_NUM) {
   if (!strcmp(last_login_info[i].name,name)) break;
   i++;
@@ -2559,6 +2591,8 @@ if (i!=LASTLOGON_NUM) last_login_info[i].on=0;
 /*** Initialise globals ***/
 init_globals()
 {
+int i;
+
 verification[0]='\0';
 port[0]=0;
 port[1]=0;
@@ -2620,6 +2654,11 @@ user_count=0;
 first_dir_entry=NULL;
 first_command=NULL;
 allow_recaps=1;
+for (i=0;i<LASTLOGON_NUM;i++) {
+  last_login_info[i].name[0]='\0';
+  last_login_info[i].time[0]='\0';
+  last_login_info[i].on=0;
+  }
 }
 
 
@@ -2853,8 +2892,10 @@ tsec=tm_struct->tm_sec;
 }
 
 
-/** count number of users in the directories for a global count **/
-count_users()
+/*** Get all users from the user directories and add them to the user lists.
+     If verbose mode is on, then attempt to get date string as well
+     ***/
+process_users()
 {
 int level;
 char dirname[80],name[USER_NAME_LEN+3],filename[80],line[80];
@@ -2862,14 +2903,12 @@ FILE *fp;
 DIR *dirp;
 struct dirent *dp;
 
-user_count=0;
 for (level=JAILED;level<=GOD;++level) {
-  level_count[level]=0;  /* make sure it's zero to begin with */
   sprintf(dirname,"%s/%s",USERFILES,level_name[level]);
   /* open the directory file up */
   dirp=opendir(dirname);
   if (dirp==NULL) {
-    fprintf(stderr,"Amnuts: Directory open failure in count_users().\n");
+    fprintf(stderr,"Amnuts: Directory open failure in process_users().\n");
     boot_exit(12);
     }
   else {
@@ -2898,6 +2937,22 @@ for (level=JAILED;level<=GOD;++level) {
     (void) closedir(dirp);
     }
   } /* end for */
+}
+
+
+count_users()
+{
+struct user_dir_struct *entry;
+int i;
+
+/* first zero out all level counts */
+user_count=0;
+for (i=JAILED;i<=GOD;i++) level_count[i]=0;
+/* count up users */
+for (entry=first_dir_entry;entry!=NULL;entry=entry->next) {
+  level_count[entry->level]++;
+  user_count++;
+  }
 }
 
 
@@ -3243,11 +3298,14 @@ else {
   strcpy(u->desc,text);
   strcpy(u->in_phrase,"enters");
   strcpy(u->out_phrase,"goes");
+  strcpy(u->recap,u->name);
+  strcpy(u->last_site,"[remote]");
   if (nl->ver_major==3 && nl->ver_minor>=3 && nl->ver_patch>=1) {
     if (lev>rem_user_maxlevel) u->level=rem_user_maxlevel;
     else u->level=lev; 
     }
   else u->level=rem_user_deflevel;
+  u->unarrest=u->level;
   }
 /* See if users level is below minlogin level */
 if (u->level<minlogin_level) {
@@ -3262,10 +3320,10 @@ if (u->level<minlogin_level) {
 strcpy(u->site,nl->service);
 sprintf(text,"%s enters from cyberspace.\n",u->name);
 write_room(nl->connect_room,text);
-
 sprintf(text,"NETLINK: Remote user %s received from %s.\n",u->name,nl->service);
 write_syslog(text,1,NETLOG);
 u->room=nl->connect_room;
+strcpy(u->logout_room,u->room->name);
 u->netlink=nl;
 u->read_mail=time(0);
 u->last_login=time(0);
@@ -4629,6 +4687,7 @@ switch(user->login) {
     write_syslog(text,1,SYSLOG);
     connect_user(user);
     logons_new++;
+    level_count[user->level]++;
   } /* end switch */
 }
 	
@@ -4796,7 +4855,6 @@ else if ((cnt=mail_count(user))!=0) {
   write_user(user,text);
   }
 prompt(user);
-
 record_last_login(user->name);
 sprintf(text,"%s logged in on port %d from %s:%d.\n",user->name,user->port,user->site,user->site_port);
 write_syslog(text,1,SYSLOG);
@@ -6584,10 +6642,10 @@ fprintf(fp,"Subject: Verification of auto-mail.\n");
 fprintf(fp,"\n");
 /* email body */
 fprintf(fp,"Hello, %s.\n\n",user->name);
-fprintf(fp,"Thank you for setting your email address, and now that you have done so you are able\n");
-fprintf(fp,"to use the auto-forwarding function on The Talker to have any smail sent to your\n");
-fprintf(fp,"email address.\n");
-fprintf(fp,"To be able to do this though you must verify that you have received this email.\n\n");
+fprintf(fp,"Thank you for setting your email address, and now that you have done so you are\n");
+fprintf(fp,"able to use the auto-forwarding function on The Talker to have any smail sent to\n");
+fprintf(fp,"your email address.  To be able to do this though you must verify that you have\n");
+fprintf(fp,"received this email.\n\n");
 fprintf(fp,"Your verification code is: %s\n\n",user->verify_code);
 fprintf(fp,"Use this code with the 'verify' command when you next log onto the talker.\n");
 fprintf(fp,"You will then have to use the 'set' command to turn on/off auto-forwarding.\n\n");
@@ -8227,7 +8285,7 @@ write_user(user,"If you have any comments or suggestions about this code, then p
 write_user(user,"free to email me at: ~OL~FGamnuts@iname.com\n");
 write_user(user,"If you have a web broswer, then you can see the Amnuts website which is\n");
 write_user(user,"located at:  ~OL~FGhttp://www.talker.com/west/amnuts/\n");
-write_user(user,"I hope you enjoy the talker!\n\nAndrew Collington, June 1998\n");
+write_user(user,"I hope you enjoy the talker!\n\nAndrew Collington, July 1998\n");
 write_user(user,"\n~BM             ~BB             ~BT             ~BG             ~BY             ~BR             ~RS\n\n");
 }
 
@@ -9597,10 +9655,16 @@ switch(set_val) {
         return;
     case SETEMAIL:
         inpstr=remove_first(inpstr);
-		inpstr=colour_com_strip(inpstr);
-		if (!inpstr[0]) strcpy(user->email,"#UNSET");
-        else strcpy(user->email,inpstr);
-		if (!strcmp(user->email,"#UNSET")) sprintf(text,"Email set to : ~FRunset\n");
+	inpstr=colour_com_strip(inpstr);
+	if (!inpstr[0]) strcpy(user->email,"#UNSET");
+	else {
+	  if (!validate_email(inpstr)) {
+	    write_user(user,"That email address format is incorrect.  Correct format: user@network.net\n");
+	    return;
+	    }
+	  strcpy(user->email,inpstr);
+	  } /* end else */
+	if (!strcmp(user->email,"#UNSET")) sprintf(text,"Email set to : ~FRunset\n");
         else sprintf(text,"Email set to : ~FT%s\n",user->email);
         write_user(user,text);
         set_forward_email(user);
@@ -12429,7 +12493,8 @@ if (this_user) {
   write_syslog(text,1,SYSLOG);
   disconnect_user(user);
   clean_files(name,level);
-  rem_user_node(name,level);
+  rem_user_node(name,-1);
+  level_count[level]--;
   return;
   }
 if (word_count<2) {
@@ -12465,7 +12530,8 @@ if (u->level>=user->level) {
   return;
   }
 clean_files(u->name,u->level);
-rem_user_node(u->name,level);
+rem_user_node(u->name,-1);
+level_count[u->level]--;
 sprintf(text,"\07~FR~OL~LIUser %s deleted!\n",u->name);
 write_user(user,text);
 sprintf(text,"%s DELETED %s.\n",user->name,u->name);
@@ -12495,18 +12561,22 @@ while (entry!=NULL) {
     write_syslog("ERROR: Unable to create temporary user object in purge().\n",0,SYSLOG);
     goto PURGE_SKIP;
     }
+  /* not sure about having this in anymore...
   strcpy(u->name,entry->name);
   if (!load_user_details(u)) {
-    rem_user_node(u->name,-1); /* get rid of name from userlist */
-    clean_files(u->name,u->level); /* just incase there are any odd files around */
+    rem_user_node(u->name,-1); * get rid of name from userlist *
+    clean_files(u->name,u->level); * just incase there are any odd files around *
+    level_count[u->level]--;
     destruct_user(u);
     destructed=0;
     goto PURGE_SKIP;
     }
+    */ 
   purge_count++;
   if (u->expire && (time(0)>u->t_expire)) {
     rem_user_node(u->name,-1);
     clean_files(u->name,u->level);
+    level_count[u->level]--;
     sprintf(text,"PURGE: removed user '%s'\n",u->name);
     write_syslog(text,0,SYSLOG);
     users_purged++;
@@ -12668,6 +12738,8 @@ if (!load_user_details(u)) {
   u->charmode_echo=0;
   u->room=room_first;
   u->level=NEW; u->unarrest=NEW;
+  level_count[u->level]++;
+  user_count++;
   save_user_details(u,0);
   add_user_node(u->name,u->level);
   sprintf(text,"Was manually created by %s.\n",user->name);
@@ -13357,9 +13429,14 @@ if (minlogin_level==-1) strcpy(minlogin,"NONE");
 else strcpy(minlogin,level_name[minlogin_level]);
 
 /* Show header parameters */
-sprintf(text,"~FTProcess ID   : ~FG%d\n~FTTalker booted: ~FG%s~FTUptime       : ~FG%d days, %d hours, %d minutes, %d seconds\n",getpid(),bstr,days,hours,mins,secs);
+sprintf(text,"~FTProcess ID   : ~FG%d\n~FTTalker booted: ~FG%s~FTUptime       : ~FG%d day%s, %d hour%s, %d minute%s, %d second%s\n",
+	getpid(),bstr,
+	days,days==1?"":"s",
+	hours,hours==1?"":"s",
+	mins,mins==1?"":"s",
+	secs,secs==1?"":"s");
 write_user(user,text);
-sprintf(text,"~FTPorts (M/W/L/WWW): ~FG%d,  %d,  %d\n\n",port[0],port[1],port[2]);
+sprintf(text,"~FTPorts (M/W/L): ~FG%d,  %d,  %d\n\n",port[0],port[1],port[2]);
 write_user(user,text);
 
 /* Show others */
@@ -13373,11 +13450,11 @@ sprintf(text,"Current minlogin level : %-4s         Login idle time out    : %d 
 write_user(user,text);
 sprintf(text,"User idle time out     : %-4d secs.   Heartbeat              : %d\n",user_idle_time,heartbeat);
 write_user(user,text);
-sprintf(text,"Remote user maxlevel   : %-4s         Remote user deflevel   : %s\n",level_name[rem_user_maxlevel],level_name[rem_user_deflevel]);
+sprintf(text,"Remote user maxlevel   : %-12s Remote user deflevel   : %s\n",level_name[rem_user_maxlevel],level_name[rem_user_deflevel]);
 write_user(user,text);
-sprintf(text,"Wizport min login level: %-4s         Gatecrash level        : %s\n",level_name[wizport_level],level_name[gatecrash_level]);
+sprintf(text,"Wizport min login level: %-12s Gatecrash level        : %s\n",level_name[wizport_level],level_name[gatecrash_level]);
 write_user(user,text);
-sprintf(text,"Time out maxlevel      : %-4s         Private room min count : %d\n",level_name[time_out_maxlevel],min_private_users);
+sprintf(text,"Time out maxlevel      : %-12s Private room min count : %d\n",level_name[time_out_maxlevel],min_private_users);
 write_user(user,text);
 sprintf(text,"Message lifetime       : %-2d days      Message check time     : %02d:%02d\n",mesg_life,mesg_check_hour,mesg_check_min);
 write_user(user,text);
@@ -13671,7 +13748,7 @@ dsize=sizeof(struct user_dir_struct);
 for (d=first_dir_entry;d!=NULL;d=d->next) tdsize+=sizeof(struct user_dir_struct);
 csize=sizeof(struct command_struct);
 for (c=first_command;c!=NULL;c=c->next) tcsize+=sizeof(struct command_struct);
-lsize=sizeof(struct lastlogins);
+lsize=sizeof(last_login_info[0]);
 for (i=0;i<LASTLOGON_NUM;i++) tlsize+=sizeof(last_login_info[i]);
 total=tusize+trsize+tnsize+tdsize+tcsize+tlsize;
 
@@ -14182,6 +14259,7 @@ for (level=JAILED;level<=GOD;++level) {
 	  }
 	if (!inlist) {
 	  add_user_node(name,level);
+	  level_count[level]++;
 	  sprintf(text,"Added new user node for existing user '%s'\n",name);
 	  write_syslog(text,0,SYSLOG);
 	  ++added;
@@ -14224,6 +14302,7 @@ if (notin) {
   ++removed;
   --correct;
   rem_user_node(name,level);
+  level_count[level]--;
   goto START_LIST;
   }
 

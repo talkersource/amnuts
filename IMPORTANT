@@ -1,6 +1,6 @@
 +------------------------------------------------------------------------------+
     IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT
-        Information for the running of a talker based on Amnuts 2.0.0
+        Information for the running of a talker based on Amnuts 2.0.1
 +------------------------------------------------------------------------------+
 
 Ok, now I know how most of you just loathe reading these things, but as you may
@@ -8,7 +8,7 @@ have gathered by now, this one is important.  Please, no groaning!  This is
 information that will help you setup and run your talker - or rather it concerns
 the setup of the directory structure.
 
-Amnuts 2.0.0 now stores the user files in a directory which is named after that
+Amnuts 2.0.1 now stores the user files in a directory which is named after that
 user's level.  If these directories do not exist then the user files won't be
 loaded, saved, read or any of the very basic other things.
 
@@ -29,5 +29,5 @@ the DOCS directory.  Also, please read the other very useful information
 while you're there.
 
                                                               Andrew Collington
-                                                                25th June, 1998
+                                                                 1st July, 1998
 +------------------------------------------------------------------------------+

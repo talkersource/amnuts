@@ -1,8 +1,8 @@
 /*****************************************************************************
-                   Header file for Amnuts version 2.0.0
-       Copyright (C) Andrew Collington - Last update: 10th June, 1998
+                   Header file for Amnuts version 2.0.1
+        Copyright (C) Andrew Collington - Last update: 1st July, 1998
 
-     (based on NUTS version 3.3.3 - Copyright (C) Neil Robertson 1996)
+      (based on NUTS version 3.3.3 - Copyright (C) Neil Robertson 1996)
  *****************************************************************************/
 
 /* directories */
@@ -102,7 +102,7 @@
 #define MACRO_LEN 65
 #define MAX_FRIENDS 10
 #define MAX_IGNORES 5 /* number of users you can ignore */
-#define LASTLOGON_NUM 10
+#define LASTLOGON_NUM 5
 
 /* logon prompt stuff */
 #define LOGIN_ATTEMPTS 3
@@ -121,10 +121,10 @@ struct user_struct {
 	char buff[BUFSIZE],site[81],last_site[81],page_file[81];
 	char mail_to[WORD_LEN+1],revbuff[REVTELL_LINES][REVIEW_LEN+2];
 	char afk_mesg[AFK_MESG_LEN+1],inpstr_old[REVIEW_LEN+1];
-	char tname[80],tsite[80],tport[5],logout_room[ROOM_NAME_LEN],version[10];
-	char copyto[MAX_COPIES][USER_NAME_LEN],invite_by[USER_NAME_LEN],date[80];
+	char tname[80],tsite[80],tport[5],logout_room[ROOM_NAME_LEN+1],version[10];
+	char copyto[MAX_COPIES][USER_NAME_LEN+1],invite_by[USER_NAME_LEN+1],date[80];
 	char email[80],homepage[80],ignoreuser[MAX_IGNORES][USER_NAME_LEN+1],recap[USER_NAME_LEN+1];
-        char call[USER_NAME_LEN],macros[10][MACRO_LEN],friend[MAX_FRIENDS][USER_NAME_LEN+1];
+        char call[USER_NAME_LEN+1],macros[10][MACRO_LEN],friend[MAX_FRIENDS][USER_NAME_LEN+1];
 	char verify_code[80],afkbuff[REVTELL_LINES][REVIEW_LEN+2],editbuff[REVTELL_LINES][REVIEW_LEN+2];
         char samesite_check_store[ARR_SIZE],hang_word[WORD_LEN],hang_word_show[WORD_LEN],hang_guess[WORD_LEN];
 	char *malloc_start,*malloc_end;
@@ -143,16 +143,14 @@ struct user_struct {
 	struct room_struct *wrap_room;
         time_t last_input,last_login,total_login,read_mail,t_expire;
 	};
-
 typedef struct user_struct* UR_OBJECT;
 UR_OBJECT user_first,user_last;
 
-struct lastlogins {
-  char name[USER_NAME_LEN],time[80];
-  int  on;
-  };
-typedef struct lastlogins lastlogins;
-lastlogins last_login_info[LASTLOGON_NUM];
+struct {
+  char name[USER_NAME_LEN+1],time[80];
+  short int  on;
+  } 
+last_login_info[LASTLOGON_NUM+1];
 
 struct room_struct {
 	char name[ROOM_NAME_LEN+1];
@@ -203,7 +201,6 @@ struct netlink_struct {
 	struct room_struct *connect_room;
 	struct netlink_struct *prev,*next;
 	};
-
 typedef struct netlink_struct *NL_OBJECT;
 NL_OBJECT nl_first,nl_last;
 NL_OBJECT create_netlink();

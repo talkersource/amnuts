@@ -1,7 +1,7 @@
-# Main config file for Amnuts 2.0.0
+# Main config file for Amnuts 2.0.1
 
 INIT:
-verification       amnuts200
+verification       amnuts201
 mainport           7000
 wizport            7001
 linkport           7002
@@ -55,7 +55,7 @@ range       Bang! Bang!
 # none of these are real talkers or sites!
 
 SITES:
-talker1        localhost 5002        Joe123
+talker1        localhost 5002        bloggs456
 darkroom       foo.bar.com 3456      Bloggs456
 palace         11.11.11.11 7401      NotReal
 

@@ -3,6 +3,16 @@
         Information on the changes between different version of Amnuts
 +------------------------------------------------------------------------------+
 
+2.0.1
+-----
+
+Fixed bug in netlink that showed a remote user without a user name (tested with a NUTS remote talker)
+Fixed a couple more bugs - one that would cause some level counts to reset, and one that would make the counts hugely over the limit.
+Added email validation for '.set email' to see if it's of the right kinda format
+Rearranged count_users() to be process_user() and count_users()
+A few cosmetic tidy-ups
+Fix total user counts when nuking/suiciding
+
 2.0.0
 -----
 
