@@ -1,5 +1,5 @@
-Command : desc
-Usage   : desc [<description>]
+~OLCommand :~RS desc
+~OLUsage   :~RS desc [<description>]
 
 This sets the message your description , ie that which follows your name
 when other people view the room or use the "who" command etc. If you omit the

@@ -1,4 +1,4 @@
-Command : mutter
-Usage   : mutter <user> <text>
+~OLCommand :~RS mutter
+~OLUsage   :~RS mutter <user> <text>
 
 This will send the text to everyone in the room except the given user.

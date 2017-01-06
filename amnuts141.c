@@ -1,6 +1,6 @@
 /*****************************************************************************
-                Amnuts version 1.4.0 - by Andrew Collington
-                      Last update: 2nd November, 1997
+                Amnuts version 1.5.0 - by Andrew Collington
+                      Last update: 10th November 1997
 
                          email: andyc@dircon.co.uk
              homepage: http://www.geocities.com/Hollywood/1900
@@ -28,10 +28,10 @@
 #include <setjmp.h>
 #include <errno.h>
 
-#include "amnuts140.h"
+#include "amnuts141.h"
 
 #define NUTSVER "3.3.3"
-#define AMNUTSVER "1.4.0"
+#define AMNUTSVER "1.4.1"
 
 /*** This function calls all the setup routines and also contains the
 	main program loop ***/
@@ -458,14 +458,15 @@ load_and_parse_config()
 {
 FILE *fp;
 char line[81]; /* Should be long enough */
-char c,filename[80];
-int i,section_in,got_init,got_rooms;
+char c,filename[80],*remove_first();
+int i,section_in,got_init,got_rooms,got_topics;
 RM_OBJECT rm1,rm2;
 NL_OBJECT nl;
 
 section_in=0;
 got_init=0;
 got_rooms=0;
+got_topics=0;
 
 sprintf(filename,"%s/%s",DATAFILES,confile);
 printf("Parsing config file \"%s\"...\n",filename);
@@ -486,7 +487,8 @@ while(!feof(fp)) {
 	if (wrd[0][strlen(wrd[0])-1]==':') {
 		if (!strcmp(wrd[0],"INIT:")) section_in=1;
 		else if (!strcmp(wrd[0],"ROOMS:")) section_in=2;
-			else if (!strcmp(wrd[0],"SITES:")) section_in=3; 
+  		    else if (!strcmp(wrd[0],"TOPICS:")) section_in=3;
+			else if (!strcmp(wrd[0],"SITES:")) section_in=4; 
 				else {
 					fprintf(stderr,"NUTS: Unknown section header on line %d.\n",config_line);
 					fclose(fp);  boot_exit(1);
@@ -495,7 +497,8 @@ while(!feof(fp)) {
 	switch(section_in) {
 		case 1: parse_init_section();  got_init=1;  break;
 		case 2: parse_rooms_section(); got_rooms=1; break;
-		case 3: parse_sites_section(); break;
+ 	        case 3: parse_topics_section(remove_first(line)); got_topics=1; break;
+		case 4: parse_sites_section(); break;
 		default:
 			fprintf(stderr,"NUTS: Section header expected on line %d.\n",config_line);
 			boot_exit(1);
@@ -508,6 +511,10 @@ fclose(fp);
    required parameters were set. */
 if (!got_init) {
 	fprintf(stderr,"NUTS: INIT section missing from config file.\n");
+	boot_exit(1);
+	}
+if (got_topics && !got_rooms) {
+	fprintf(stderr,"NUTS: TOPICS section must come after ROOMS section in the config file.\n");
 	boot_exit(1);
 	}
 if (!got_rooms) {
@@ -977,6 +984,37 @@ fprintf(stderr,"NUTS: Unknown connection option on line %d.\n",config_line);
 boot_exit(1);
 }
 
+
+/*** Parse rooms desc (topic) section ***/
+parse_topics_section(topic)
+char *topic;
+{
+static int in_section=0;
+int i,exists;
+char *ptr1,*ptr2,c;
+RM_OBJECT room;
+
+if (!strcmp(wrd[0],"TOPICS:")) {
+	if (++in_section>1) {
+		fprintf(stderr,"NUTS: Unexpected TOPICS section header on line %d.\n",config_line);
+		boot_exit(1);
+		}
+	return;
+	}
+if (!wrd[2][0]) {
+	fprintf(stderr,"NUTS: Required parameter(s) missing on line %d.\n",config_line);
+	boot_exit(1);
+	}
+/* Check to see if room exists */
+exists=0;
+for(room=room_first;room!=NULL;room=room->next) if (!strcmp(room->name,wrd[0])) {  ++exists;  break;  }
+if (!exists) {
+  fprintf(stderr,"NUTS: Room does not exist on line %d.\n",config_line);
+  boot_exit(1);
+  }
+if (topic[strlen(topic)-1]=='\n') topic[strlen(topic)-1]='\0';
+strncpy(room->topic,topic,TOPIC_LEN);
+}
 
 
 /*** Parse sites section ***/
@@ -3238,7 +3276,7 @@ UR_OBJECT u;
 
 for(u=user_first;u!=NULL;u=u->next) {
 	if (u->type==CLONE_TYPE && u->owner==user) {
-		sprintf(text,"The clone of %s enters a wormhole and vanishes.\n",u->name);
+		sprintf(text,"The clone of %s is engulfed in magical blue flames and vanishes.\n",u->name);
 		write_room(u->room,text);
 		destruct_user(u);
 		}
@@ -5445,7 +5483,7 @@ write_user(user,text);
 help(user)
 UR_OBJECT user;
 {
-int ret;
+int i,ret,com_num;
 char filename[80];
 char *c;
 
@@ -5477,6 +5515,15 @@ sprintf(filename,"%s/%s",HELPFILES,word[1]);
 if (!(ret=more(user,user->socket,filename)))
 	write_user(user,"Sorry, there is no help on that topic.\n");
 if (ret==1) user->misc_op=2;
+if (ret==2) {
+        i=0;  com_num=0;
+	while(command[i][0]!='*') {
+	        if (!strncmp(command[i],word[1],strlen(word[1]))) { com_num=i; break; }
+		++i;
+	        }
+	sprintf(text,"~OLFor Lev :~RS %s and above\n\n",level_name[com_level[com_num]]);
+	write_user(user,text);
+        }
 }
 
 

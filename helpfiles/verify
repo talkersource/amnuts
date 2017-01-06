@@ -1,5 +1,5 @@
-Command : verify
-Usage   : verify <verification code>
+~OLCommand :~RS verify
+~OLUsage   :~RS verify <verification code>
 
 This will allow you verify that you have been sent an email from the talker.
 You will be sent this when you set your email address using the 'set'

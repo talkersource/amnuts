@@ -1,5 +1,5 @@
-Command : afk
-Usage   : afk [lock] [<message>]
+~OLCommand :~RS afk
+~OLUsage   :~RS afk [lock] [<message>]
 
 This command allows you to set yourself to "Away From Keyboard" which 
 shows up when people "look" at the room and you will pronounced AFK if

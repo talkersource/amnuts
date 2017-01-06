@@ -1,4 +1,4 @@
-Command : ptell
-Usage   : ptell <user> <picture>
+~OLCommand :~RS ptell
+~OLUsage   :~RS ptell <user> <picture>
 
 Allows you to show a picture to an individual user.

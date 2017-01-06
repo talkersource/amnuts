@@ -1,5 +1,5 @@
-Command : private
-Usage   : private [<room>]
+~OLCommand :~RS private
+~OLUsage   :~RS private [<room>]
 
 This will set the room you are currently in to a private status, providing
 it is not fixed and that there are enough users in it.  If you are of high

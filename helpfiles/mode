@@ -1,5 +1,5 @@
-Command : mode
-Usage   : mode
+~OLCommand :~RS mode
+~OLUsage   :~RS mode
 
 This switches you between speech mode and command mode. In speech mode
 everything you type is interpreted as speech unless it is preceded by

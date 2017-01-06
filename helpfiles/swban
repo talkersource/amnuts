@@ -1,5 +1,5 @@
-Command : swban
-Usage   : swban
+~OLCommand :~RS swban
+~OLUsage   :~RS swban
 
 This toggles a ban on swearing on and off.  Swear words are hard coded into
 the header file in the swear_words[] array.  Any user trying to say, emote,

@@ -1,5 +1,5 @@
-Command : lmail
-Usage   : lmail <level name>/admin/all [<message>]
+~OLCommand :~RS lmail
+~OLUsage   :~RS lmail <level name>/admin/all [<message>]
 
 This command allows mail to be sent to all the users of a specific level.
 It can also be used to send mail to all of the Wizzes and also to all of the 

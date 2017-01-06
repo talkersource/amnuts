@@ -1,5 +1,5 @@
-Command : csay
-Usage   : csay <room> <text>
+~OLCommand :~RS csay
+~OLUsage   :~RS csay <room> <text>
 
 Will make one of your clones in the given room speak.  If you see something
 nasty being said in the clones room it's an alternative to shouting, telling

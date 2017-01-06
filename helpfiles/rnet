@@ -1,4 +1,4 @@
-Command : rnet
-Usage   : rnet
+~OLCommand :~RS rnet
+~OLUsage   :~RS rnet
 
 This shows the list of rooms and associated net connections linked to them.

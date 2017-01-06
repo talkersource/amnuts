@@ -1,5 +1,5 @@
-Command : igntell
-Usage   : igntell
+~OLCommand :~RS igntell
+~OLUsage   :~RS igntell
 
 This allows you to ignore any tells.  Acts as a toggle, so type it 
 again to listen.

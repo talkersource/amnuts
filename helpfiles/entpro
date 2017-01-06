@@ -1,5 +1,5 @@
-Command : entpro
-Usage   : entpro
+~OLCommand :~RS entpro
+~OLUsage   :~RS entpro
 
 This command allows you to enter a lengthy description (profile) or yourself
 that people will see when they use the examine command. Since you can write

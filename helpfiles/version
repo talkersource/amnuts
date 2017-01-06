@@ -1,4 +1,4 @@
-Command : version
-Usage   : version
+~OLCommand :~RS version
+~OLUsage   :~RS version
 
 Shows the current talker version, and also some various other statistics.

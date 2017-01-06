@@ -1,5 +1,5 @@
-Command : rooms
-Usage   : rooms [level]
+~OLCommand :~RS rooms
+~OLUsage   :~RS rooms [level]
 
 Displays a list of the rooms and their current topics.  If the "level"
 option is used then any rooms that require you to be of a certain

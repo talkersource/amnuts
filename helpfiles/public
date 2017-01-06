@@ -1,5 +1,5 @@
-Command : public
-Usage   : public [<room>]
+~OLCommand :~RS public
+~OLUsage   :~RS public [<room>]
 
 This will set the room you are currently in to a public status, providing
 that it is not a fixed room.  If you are of high enough level to use the

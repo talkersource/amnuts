@@ -1,5 +1,5 @@
-Command : demote
-Usage   : demote <user>
+~OLCommand :~RS demote
+~OLUsage   :~RS demote <user>
 
 Will demote a user to the next level down in the ranks list. You cannot demote
 below the lowest level, and you cannot demote anyone of the same or higher

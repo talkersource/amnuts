@@ -1,6 +1,6 @@
-Command : help
-Usage   : help [<command>]
-        : help files
+~OLCommand :~RS help
+~OLUsage   :~RS help [<command>]
+~OL        :~RS help files
 
 This command will display the helpfile for any command given, or if you omit
 the command then a list of all the commands you have use of will be listed.

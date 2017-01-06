@@ -1,5 +1,5 @@
-Command : set
-Usage   : set [<attribute> [<property>]]
+~OLCommand :~RS set
+~OLUsage   :~RS set [<attribute> [<property>]]
 
 Allows you to set certain attributes that will be shown when someone uses the
 "ustat" command on you.  By omitting the <attribute> you will display the

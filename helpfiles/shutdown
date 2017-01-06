@@ -1,5 +1,5 @@
-Command : shutdown
-Usage   : shutdown [<secs>/cancel]
+~OLCommand :~RS shutdown
+~OLUsage   :~RS shutdown [<secs>/cancel]
 
 This will shutdown the talker, either immediately or after "secs" seconds.
 The cancel option will cancel any timed shutdown.

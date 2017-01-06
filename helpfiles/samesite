@@ -1,5 +1,5 @@
-Command : samesite
-Usage   : samesite user/site [all]
+~OLCommand :~RS samesite
+~OLUsage   :~RS samesite user/site [all]
 
 The will display the users with the same site as a give user or given
 site.  If you omit the 'all' option then it will only check those users

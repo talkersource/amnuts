@@ -1,5 +1,5 @@
-Command : inmsg
-Usage   : inmsg [<message>]
+~OLCommand :~RS inmsg
+~OLUsage   :~RS inmsg [<message>]
 
 This sets the message that is displayed following your name when you enter
 a room. eg if your name is Andy and you set it to "enters fast" other people

@@ -1,5 +1,5 @@
-Command : switch
-Usage   : switch <room>
+~OLCommand :~RS switch
+~OLUsage   :~RS switch <room>
 
 This allows you to swap places with one of your clones in the given room.
 It saves you destroying the current clone, creating another in your current

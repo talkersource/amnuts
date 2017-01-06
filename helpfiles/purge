@@ -1,5 +1,5 @@
-Command : purge
-Usage   : purge
+~OLCommand :~RS purge
+~OLUsage   :~RS purge
 
 This gives a manual way of purging all the user files so that the users who
 have not logged in for a given period of time, and who have expire set to YES,

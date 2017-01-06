@@ -1,5 +1,5 @@
-Command : copyto
-Usage   : copyto <user> [<user> ... <user>]
+~OLCommand :~RS copyto
+~OLUsage   :~RS copyto <user> [<user> ... <user>]
 
 This command allows you to send a ccopy of the next smail you send to someone
 to the user(s) given.  The user given can also be on a remote system,

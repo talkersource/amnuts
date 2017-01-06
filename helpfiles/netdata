@@ -1,5 +1,5 @@
-Command : netdata
-Usage   : netdata
+~OLCommand :~RS netdata
+~OLUsage   :~RS netdata
 
 This command shows whether any data is being recieved via the net connections.
 It takes no arguments.  The data in this case is either mail or a message

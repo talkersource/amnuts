@@ -1,5 +1,5 @@
-Command : muzzle
-Usage   : muzzle [<user>]
+~OLCommand :~RS muzzle
+~OLUsage   :~RS muzzle [<user>]
 
 Muzzles a user which prevents them speaking, shouting, emoting and mailing
 other people.  The muzzle levels are based upon the user level of whoever

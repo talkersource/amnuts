@@ -1,21 +1,17 @@
-*** README for Amnuts 1.4.0 ***
+*** README for Amnuts 1.5.0 ***
 
 There is a lot of stuff I haven't added yet, such as the diffs file for
 the differences between Amnuts and NUTS.  But I'll get around to it soon,
 when I have more time.
-
 So what is Amnuts?  Well, basically, it's just fairly modified NUTS code.
 A *lot* more commands have been added, and the ways certain things are
 done.  Some commands remain the same, but have changed the way they work
 (rmail, and read for instance).
-
 As with Neil and his code, I wont reply to any mail that asks how you sort
 out a problem with any code you have changed.  I will try to help out
 finding any bugs in the original Amnuts code, but NOT your modified code!
-
 Read the files in the DOCS directory, and read the COPYRIGHT and any other
 files here!
-
 Any questions or comments about this code, then please email me at:
 andyc@dircon.co.uk
 

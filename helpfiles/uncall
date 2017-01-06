@@ -1,4 +1,4 @@
-Command : uncall
-Usage   : uncall
+~OLCommand :~RS uncall
+~OLUsage   :~RS uncall
 
 Will reset your quick call so that it is unset.

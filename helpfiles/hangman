@@ -1,5 +1,5 @@
-Command : hangman
-Usage   : hangman [start/stop/status]
+~OLCommand :~RS hangman
+~OLUsage   :~RS hangman [start/stop/status]
 
 This will allow you to start or stop a game of hangman, and also to see
 the status of your current game.  If you use the 'start' option, then a

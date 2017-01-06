@@ -1,5 +1,5 @@
-Command : search
-Usage   : search <word list>
+~OLCommand :~RS search
+~OLUsage   :~RS search <word list>
 
 This will search for the words in the word list in all of the message
 boards that you could possibly see. Ie it wont show you anything from

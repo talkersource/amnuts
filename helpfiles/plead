@@ -1,5 +1,5 @@
-Command : plead
-Usage   : plead <message>
+~OLCommand :~RS plead
+~OLUsage   :~RS plead <message>
 
 Use this to speak to any of the wizzes that are currently on.  The usage of 
 this command should only be when you are very stuck, or if someone is being

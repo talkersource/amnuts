@@ -1,4 +1,4 @@
-Command : cshout
-Usage   : cshout
+~OLCommand :~RS cshout
+~OLUsage   :~RS cshout
 
 Clears the shouts buffer.

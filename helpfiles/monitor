@@ -1,5 +1,5 @@
-Command : monitor
-Usage   : monitor
+~OLCommand :~RS monitor
+~OLUsage   :~RS monitor
 
 This will toggle on and off the ability to see a users name on an echo, shout,
 shemote, bcast, etc if that user is invis.  This is a good way to keep track

@@ -1,5 +1,5 @@
 /*****************************************************************************
-                   Header file for Amnuts version 1.4.0
+                   Header file for Amnuts version 1.5.0
                         by Andrew Collington (1997)
      (based on NUTS version 3.3.3 - Copyright (C) Neil Robertson 1996)
 
@@ -25,6 +25,7 @@
 #define USERLIST "userlist"
 #define SUGBOARD "suggestions"
 #define RULESFILE "rules"
+#define HANGDICT "hangman_words"
 /* system logs */
 #define MAINSYSLOG "syslog"
 #define NETSYSLOG  "netlog"
@@ -104,7 +105,6 @@
 #define MACRO_LEN 65
 #define MAX_FRIENDS 10
 #define MAX_IGNORES 5 /* number of users you can ignore */
-#define HANGDICT "hangman_words"
 
 
 /* The elements vis, ignall, prompt, command_mode etc could all be bits in 
@@ -130,18 +130,18 @@ struct user_struct {
 	struct user_struct *prev,*next,*owner;
 	/* Added to generic NUTS code... Some of this is not currently implimented
 	   but is stored for future update */
-	int wipe_from,wipe_to,wrap,unarrest,pager,logons,expire,lroom,monitor,vote;
 	char tname[80],tsite[80],tport[5],logout_room[ROOM_NAME_LEN];
 	char copyto[MAX_COPIES][USER_NAME_LEN],invite_by[USER_NAME_LEN];
 	char email[80],homepage[80],ignoreuser[MAX_IGNORES][USER_NAME_LEN];
         char call[USER_NAME_LEN],macros[10][MACRO_LEN],friend[MAX_FRIENDS][USER_NAME_LEN];
 	char verify_code[80],afkbuff[REVTELL_LINES][REVIEW_LEN+2],editbuff[REVTELL_LINES][REVIEW_LEN+2];
         char samesite_check_store[ARR_SIZE],hang_word[WORD_LEN],hang_word_show[WORD_LEN],hang_guess[WORD_LEN];
-	time_t t_expire;
-	struct room_struct *wrap_room;
+	int wipe_from,wipe_to,wrap,unarrest,pager,logons,expire,lroom,monitor,vote;
 	int gender,age,hideemail,misses,hits,kills,deaths,bullets,hps,alert,afkline,editline;
 	int lmail_lev,welcomed,mail_verified,autofwd,editing,hwrap_lev,hwrap_com,show_pass;
 	int ignpics,ignlogons,ignwiz,igngreets,ignbeeps,samesite_all_store,hang_stage;
+	struct room_struct *wrap_room;
+	time_t t_expire;
 	};
 
 typedef struct user_struct* UR_OBJECT;

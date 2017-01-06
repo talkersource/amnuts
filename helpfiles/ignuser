@@ -1,5 +1,5 @@
-Command : ignuser
-Usage   : ignuser [<name>]
+~OLCommand :~RS ignuser
+~OLUsage   :~RS ignuser [<name>]
 
 This allows you to ignore tells, pemotes, shouts, etc, from any one
 user.  If you omit the <name> then you will be shown a list of all

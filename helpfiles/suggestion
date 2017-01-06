@@ -1,5 +1,5 @@
-Command : suggest
-Usage   : suggest
+~OLCommand :~RS suggest
+~OLUsage   :~RS suggest
 
 Allows you to suggest something that you think needs changing or adding to the
 talker.  The Wizzes really DO look at this and take notice of it, so please 

@@ -1,8 +1,8 @@
-Command : dsug
-Usage   : dsug <#>
-        : dsug to <#>
-        : dsug from <#> to <#>
-        : dsug all
+~OLCommand :~RS dsug
+~OLUsage   :~RS dsug <#>
+~OL        :~RS dsug to <#>
+~OL        :~RS dsug from <#> to <#>
+~OL        :~RS dsug all
 
 This command allows you to delete suggestions from the suggestions board.
 You can delete specific single suggestions by supplying just a numer, or from

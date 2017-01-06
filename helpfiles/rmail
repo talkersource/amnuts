@@ -1,5 +1,5 @@
-Command : rmail
-Usage   : rmail [<message #>]
+~OLCommand :~RS rmail
+~OLUsage   :~RS rmail [<message #>]
 
 If a message number is given then you will be shown only that
 message, otherwise any mail that you currently have in your mailbox.

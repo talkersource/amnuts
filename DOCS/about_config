@@ -144,6 +144,20 @@ make its own connection to the service (talker) specified and will use this
 room as the link point.
 
 
+The TOPICS section
+------------------
+
+This is where you can default room topics on boot-up.  This is an optional
+extra and does not need to be used.  The format is as follows:
+
+<room name>  <topic>
+
+eg
+wizroom  This is a room for wizzes only!
+
+The topics can contain colour codes if you like.
+
+
 The SITES section
 -----------------
 

@@ -1,6 +1,6 @@
-Command : emote
-Usage   : emote <text>
-Aliases : ; or :
+~OLCommand :~RS emote
+~OLUsage   :~RS emote <text>
+~OLAliases :~RS ; or :
 
 Emotes allow you to express emotions. A example would be "Andy feels sad".
 If you were logged in as Andy you would enter ".emote feels sad" and your

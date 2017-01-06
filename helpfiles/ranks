@@ -1,5 +1,5 @@
-Command : ranks
-Usage   : ranks
+~OLCommand :~RS ranks
+~OLUsage   :~RS ranks
 
 Displays the ranks and the commands per rank used on the talker.  Your rank
 will be displayed in hilights providing you have set colour to be on.

@@ -1,5 +1,5 @@
-Command : lban
-Usage   : lban sites/users/new/swears
+~OLCommand :~RS lban
+~OLUsage   :~RS lban sites/users/new/swears
 
 This will list all the sites, or all the users, or all new users from a sites
 currently banned from logging in.  Also lists the swear words that are banned.

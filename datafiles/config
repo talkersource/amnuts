@@ -10,6 +10,7 @@ max_clones         5
 heartbeat          2
 login_idle_time    180
 user_idle_time     3600
+time_out_afks      YES
 ban_swearing       NO
 auto_connect       YES
 password_echo      NO
@@ -38,6 +39,12 @@ ha hallway  dr,co,wz  PUB
 wz wizroom  ha        PRIV
 co corridor ha,lg     
 lg lounge   co        BOTH ACCEPT
+
+TOPICS:
+drive       Welcome to the talker!
+wizroom     This is a room for ~OLwizzes only~RS.
+lounge      Chill and be cool.
+
 
 # Link to the 2nd talker. You may need to put the machine name rather than
 # localhost here when you're running the 2nd talker on the same machine, it

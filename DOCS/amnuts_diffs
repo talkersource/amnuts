@@ -1,0 +1,33 @@
+***  Differences in Amnuts version  ***
+
+1.4.1
+-----
+
+Added the ability to default room topics in the config file.
+Put back missing time_out_afks in config file.
+Changed the look of the helpfiles and show the level that the helpfile is
+for when the user types '.h <command>'.
+
+1.4.0
+-----
+
+The samesite command was majorly updated.  The greet command was also
+updated to use symbols (!"$%^ etc)
+The commands hangman and guess (part of hangman) were added.
+Cosmetic stuff changed.
+A number of bugs fixed.
+Double forking added the the autoforwarding of smail to stop zombie
+processes being spawned (or at least a large amount of them being
+spawned).  The smail forwarding functions have also been changed.
+Added the ability to default purge on/off at boot (from config file).
+A user can now choose to see their password when logging in.
+(probably more stuff that I cannot remember right now ;)
+
+1.3.0
+-----
+
+First proper release to those who asked for it...
+Differences between Amnuts and NUTS 3.3.3:
+
+  Too many to list right now, but will write this one day!
+

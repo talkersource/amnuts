@@ -1,5 +1,5 @@
-Command : recount
-Usage   : recount
+~OLCommand :~RS recount
+~OLUsage   :~RS recount
 
 This allows the boards to be recounted incase they have been edited manually
 and the count has an error.

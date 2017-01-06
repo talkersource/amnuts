@@ -1,4 +1,4 @@
-Command : cemote
-Usage   : cemote <room> <message>
+~OLCommand :~RS cemote
+~OLUsage   :~RS cemote <room> <message>
 
 This allows you to emote through your clone in the <room> given.

@@ -1,4 +1,4 @@
-Command : kill
-Usage   : kill <user>
+~OLCommand :~RS kill
+~OLUsage   :~RS kill <user>
 
 This will log off the given user from the talker.

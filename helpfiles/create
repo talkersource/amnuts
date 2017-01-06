@@ -1,5 +1,5 @@
-Command : create
-Usage   : create <name> <passwd>
+~OLCommand :~RS create
+~OLUsage   :~RS create <name> <passwd>
 
 This allows you to create a new account for a user with the name and password
 given.  Used, for example, when a new account is needed for a user from a new

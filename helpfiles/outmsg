@@ -1,5 +1,5 @@
-Command : outmsg
-Usage   : outmsg [<message>]
+~OLCommand :~RS outmsg
+~OLUsage   :~RS outmsg [<message>]
 
 This sets the message that is displayed following your name when you leave
 a room. eg if your name is Andy and you set it to "leaves fast" other people

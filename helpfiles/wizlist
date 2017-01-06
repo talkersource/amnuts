@@ -1,5 +1,5 @@
-Command : wizlist
-Usage   : wizlist
+~OLCommand :~RS wizlist
+~OLUsage   :~RS wizlist
 
 Displays a list of the current wizzes and shows which, if any, are presently
 logged on.

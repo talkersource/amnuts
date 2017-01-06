@@ -1,5 +1,5 @@
-Command : minlogin
-Usage   : minlogin NONE/<user level>
+~OLCommand :~RS minlogin
+~OLUsage   :~RS minlogin NONE/<user level>
 
 This sets the minimum login level of a user that can log in.  This directly
 affects the main port but only affects the wizport if it is set higher than

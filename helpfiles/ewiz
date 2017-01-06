@@ -1,5 +1,5 @@
-Command : ewiz
-Usage   : ewiz [<wiz level>] <text>
+~OLCommand :~RS ewiz
+~OLUsage   :~RS ewiz [<wiz level>] <text>
 
 This command allows the Wiz to emote to various Wiz levels though they can
 only specifically emote to levels equal or less that of their own. 
