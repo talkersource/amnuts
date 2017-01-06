@@ -1,12 +1,12 @@
 +------------------------------------------------------------------------------+
  README - README - README - README - README - README - README - README - README
-   Introductory information for the Unix talker code Amnuts (version 2.1.1)
+   Introductory information for the Unix talker code Amnuts (version 2.2.0)
 +------------------------------------------------------------------------------+
 
-Welcome to the Amnuts talker code, version 2.1.1!  Or, if you have already used
-Amnuts, then welcome back!  This is the latest version of Amnuts (as of May
-'99) and many things have changed.  If you are already familiar with Amnuts
-then you may want to skip down to the next section, else please keep reading.
+Welcome to the Amnuts talker code, version 2.2.0!  Or, if you have already used
+Amnuts, then welcome back!  This is the latest version of Amnuts and many  
+things have changed.  If you are already familiar with Amnuts then you may want
+to skip down to the next section, else please keep reading.
 
 What is Amnuts?  Well, you may have already seen the Amnuts website and read all
 about what Amnuts is (it may even be where you got the code from), but for those
@@ -24,25 +24,10 @@ moved Neil's NUTS readme to the DOCs directory ('nuts_readme').
 And that is Amnuts in a nutshell.  (ok, ok.. But I had to get ONE bad pun in
 this readme somewhere!!)
 
-I don't have much to say in this readme... Let's see.. Hmm.. It's my
-birthday today and I don't feel like writing anything!  Ok, there have
-been quite a few changes in this version of Amnuts, most of which are
-'behind the scenes' updates.  In that I mean that not much of it is
-apparent to the end user, other than a few new commands added.  Most of it
-has been admin updates, bug fixes and such.  There have been a number of
-changes in the way the netlinks are used, specifically in that you need to
-compile the netlinks in else, by default, the netlinks will not register.
-See the 'compiling' document in the DOCs directory.  There have been even
-more changes made, more really than to warrent just a patch level number
-update, but hey.. such is life :-)
-
-Please note that the website for Amnuts has changed.  It's now located at
-'www.talker.com/amnuts/' at which it will remain for the next couple of
-years at least.
-
 Please read the 'IMPORTANT' file, and the 'amnuts_changes' in the DOCs
 directory for more information on what changes have been made since
-version 2.1.0 (the previous release to this one).
+version 2.1.1 (the previous release to this one) because there have been a
+LOT of them!
 
 I've put a fair amount of time into Amnuts (well, actually, I've put shit
 loads of time into it... Why beat around the bush, huh?), its documents and
@@ -65,7 +50,7 @@ Thanks for using Amnuts!  Enjoy!  (Damn! This was a long README! ;-)
 
 
                                                               Andrew Collington
-                                                                 20th May, 1999
+                                                                September, 1999
 +------------------------------------------------------------------------------+
 email: amnuts@iname.com                       web: http://www.talker.com/amnuts/
 +------------------------------------------------------------------------------+

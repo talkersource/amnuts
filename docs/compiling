@@ -1,6 +1,6 @@
 +------------------------------------------------------------------------------+
      COMPILING - COMPILING - COMPILING - COMPILING - COMPILING - COMPILING
-               Compiling and running the Amnuts 2.1.1 talker
+               Compiling and running the Amnuts 2.2.0 talker
 +------------------------------------------------------------------------------+
 
 I had thought of dividing this version of NUTS up into separate source files
@@ -37,9 +37,8 @@ Extras:
 
 Some people have experienced extreme lagging with BSD systems when a user
 logs on.  This is caused by the gethostbyaddr function.  If you find you
-are having this problem then you should recomple the code with the
--DRESOLVEIP switch.  For example, compiling under FreeBSD might look like:
-'cc -lcrypt -DRESOLVEIP amnuts211.c'.
+are having this problem then you should change the option in the config
+file - you do not have to recompile with this version of the code.
 
 If you are using MD5 encryption on your system, then instead of compiling
 with the -lcrypt library you have to compile with -ldescrypt, as the

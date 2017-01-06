@@ -1,9 +1,21 @@
 /*****************************************************************************
-                Prototypes header file for Amnuts version 2.1.1
-        Copyright (C) Andrew Collington - Last update: 25th May, 1999
+               Prototypes header file for Amnuts version 2.2.0
+      Copyright (C) Andrew Collington - Last update: 5th September, 1999
  *****************************************************************************/
 
 #define args(list) list
+
+/* external prototypes used - should you get an error with these then
+   comment them out... but you shouldn't! */
+
+extern char * crypt(const char *,const char*);
+#if !defined __GLIBC__ || __GLIBC__ < 2
+extern void (*signal(int,void (int)))(int);
+#else
+extern void (*sysv_signal(int,void (int)))(int);
+#endif
+
+/* main function */
 
 int       main args((int argc, char *argv[]));
 
@@ -16,6 +28,7 @@ void      clear_words args((void));
 int       yn_check args((char *wd));
 int       onoff_check args((char *wd));
 int       minmax_check args((char *wd));
+int       resolve_check args((char *wd));
 void      echo_off args((UR_OBJECT user));
 void      echo_on args((UR_OBJECT user));
 char *    remove_first args((char *inpstr));
@@ -33,9 +46,11 @@ void      midcpy args((char *strf,char *strt,int fr,int to));
 char *    ordinal_text args((int num));
 char *    long_date args((int which));
 void      smiley_type args((char *str, char *type));
+char *    center_string args((int cstrlen,int mark,char *marker,char *str,...));
 
 /* Object functions */
 
+void      create_system args((void));
 UR_OBJECT create_user args((void));
 void      reset_user args((UR_OBJECT user));
 void      destruct_user args((UR_OBJECT user));
@@ -55,6 +70,7 @@ int       user_list_level args((char *name, int lvl));
 void      check_directories args((void));
 int       pattern_match args((char *str,char *pat));
 int       site_banned args((char *sbanned,int new));
+int       login_port_flood args((char *asite));
 int       user_banned args((char *name));
 void      reset_access args((RM_OBJECT rm));
 UR_OBJECT get_user args((char *name));
@@ -112,7 +128,6 @@ void      record_last_logout args((char *name));
 
 /* initializing of the globals and other stuff */
 
-void      init_globals args((void));
 int       load_user_details args((UR_OBJECT user));
 int       save_user_details args((UR_OBJECT user,int save_current));
 int       load_oldversion_user args((UR_OBJECT user,int version));
@@ -133,13 +148,16 @@ int       count_lines args((char *filename));
 /* write functions - users, rooms, system logs, etc */
 
 void      write_sock args((int sock, char *str));
+void      vwrite_user args((UR_OBJECT user,char *str,...));
 void      write_user args((UR_OBJECT user, char *str));
 void      write_level args((int level,int above,char *str,UR_OBJECT user));
+void      vwrite_room args((RM_OBJECT rm,char *str,...));
 void      write_room args((RM_OBJECT rm,char *str));
+void      vwrite_room_except args((RM_OBJECT rm,UR_OBJECT user,char *str,...));
 void      write_room_except args((RM_OBJECT rm,char *str,UR_OBJECT user));
 void      write_friends args((UR_OBJECT user,char *str,int revt));
-void      write_syslog args((char *str,int write_time,int type));
-void      record_last_command args((UR_OBJECT user,int comnum));
+void      write_syslog args((int type,int write_time,char *str, ...));
+void      record_last_command args((UR_OBJECT user,int comnum,int len));
 void      dump_commands args((int foo));
 void      write_monitor args((UR_OBJECT user,RM_OBJECT rm,int rec));
 int       more args((UR_OBJECT user,int sock,char *filename));
@@ -162,6 +180,8 @@ void      editor_done args((UR_OBJECT user));
 
 /* user command functions and their subsids */
 
+int       process_input_string args((UR_OBJECT user,char *inpstr));
+void      split_command_string args((char *inpstr));
 int       exec_com args((UR_OBJECT user, char *inpstr));
 void      talker_shutdown args((UR_OBJECT user,char *str,int reboot));
 void      shutdown_com args((UR_OBJECT user));
@@ -198,6 +218,7 @@ void      verify_email args((UR_OBJECT user));
 void      forward_email args((char *name,char *from,char *message));
 int       send_forward_email args((char *send_to,char *mail_file));
 int       double_fork args((void));
+void      forward_specific_mail args((UR_OBJECT user));
 void      read_board args((UR_OBJECT user));
 void      read_board_specific args((UR_OBJECT user,RM_OBJECT rm,int msg_number));
 void      write_board args((UR_OBJECT user, char *inpstr,int done_editing));
@@ -212,6 +233,7 @@ int       get_wipe_parameters args((UR_OBJECT user));
 int       wipe_messages args((char *filename,int from,int to,int type));
 void      listbans args((UR_OBJECT user));
 void      ban args((UR_OBJECT user));
+void      auto_ban_site args((char *asite));
 void      ban_site args((UR_OBJECT user));
 void      ban_user args((UR_OBJECT user));
 void      ban_new args((UR_OBJECT user));
@@ -221,6 +243,8 @@ void      unban_user args((UR_OBJECT user));
 void      unban_new args((UR_OBJECT user));
 void      look args((UR_OBJECT user));
 void      who args((UR_OBJECT user,int type));
+void      login_who args((UR_OBJECT user));
+void      display_files args((UR_OBJECT user,int admins));
 void      help args((UR_OBJECT user));
 void      help_commands_level args((UR_OBJECT user,int is_wrap));
 void      help_commands_function args((UR_OBJECT user,int is_wrap));
@@ -303,6 +327,7 @@ void      shackle args((UR_OBJECT user));
 void      unshackle args((UR_OBJECT user));
 void      set_topic args((UR_OBJECT user, char *inpstr));
 void      check_autopromote args((UR_OBJECT user,int attrib));
+void      temporary_promote args((UR_OBJECT user));
 void      promote args((UR_OBJECT user));
 void      demote args((UR_OBJECT user));
 void      muzzle args((UR_OBJECT user));
@@ -390,3 +415,7 @@ void      personal_room_key args((UR_OBJECT user));
 int       personal_key_add args((UR_OBJECT user, char *name));
 int       personal_key_remove args((UR_OBJECT user, char *name));
 void      personal_room_bgone args((UR_OBJECT user));
+
+void      dump_to_file args((UR_OBJECT user));
+void      change_user_name args((UR_OBJECT user));
+

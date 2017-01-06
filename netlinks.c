@@ -1,6 +1,6 @@
 /*****************************************************************************
-             Amnuts version 2.1.1 - Copyright (C) Andrew Collington
-                        Last update: 25th May, 1999
+             Amnuts version 2.2.0 - Copyright (C) Andrew Collington
+                        Last update: 28th July, 1999
 
      email: amnuts@iname.com     homepage: http://www.talker.com/amnuts/
                   personal: http://www.andyc.dircon.co.uk/
@@ -25,8 +25,7 @@ NL_OBJECT create_netlink(void)
 NL_OBJECT nl;
 
 if ((nl=(NL_OBJECT)malloc(sizeof(struct netlink_struct)))==NULL) {
-  sprintf(text,"NETLINK: Memory allocation failure in create_netlink().\n");
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Memory allocation failure in create_netlink().\n");
   return NULL;
   }
 if (nl_first==NULL) { 
@@ -102,19 +101,17 @@ for(rm=room_first;rm!=NULL;rm=rm->next) {
   fflush(stdout);
   if ((ret=connect_to_site(nl))) {
     if (ret==1) {
-      printf("%s.\n",sys_errlist[errno]);
-      sprintf(text,"NETLINK: Failed to connect to %s: %s.\n",nl->service,sys_errlist[errno]);
+      printf("%s.\n",strerror(errno));
+      write_syslog(NETLOG,1,"NETLINK: Failed to connect to %s: %s.\n",nl->service,strerror(errno));
       }
     else {
       printf("Unknown hostname.\n");
-      sprintf(text,"NETLINK: Failed to connect to %s: Unknown hostname.\n",nl->service);
+      write_syslog(NETLOG,1,"NETLINK: Failed to connect to %s: Unknown hostname.\n",nl->service);
       }
-    write_syslog(text,1,NETLOG);
     }
   else {
     printf("CONNECTED.\n");
-    sprintf(text,"NETLINK: Connected to %s (%s %d).\n",nl->service,nl->site,nl->port);
-    write_syslog(text,1,NETLOG);
+    write_syslog(NETLOG,1,"NETLINK: Connected to %s (%s %d).\n",nl->service,nl->site,nl->port);
     nl->connect_room=rm;
     }
   }
@@ -180,17 +177,17 @@ for(nl=nl_first;nl!=NULL;nl=nl->next) {
     nl->warned=0;  continue;
     }  
   /* Send keepalives */
-  nl->keepalive_cnt+=heartbeat;
-  if (nl->keepalive_cnt>=keepalive_interval) {
+  nl->keepalive_cnt+=amsys->heartbeat;
+  if (nl->keepalive_cnt>=amsys->keepalive_interval) {
     write_sock(nl->socket,"KA\n");
     nl->keepalive_cnt=0;
     }
   /* Check time outs */
   secs=(int)(time(0) - nl->last_recvd);
   if (nl->warned) {
-    if (secs<net_idle_time-60) nl->warned=0;
+    if (secs<amsys->net_idle_time-60) nl->warned=0;
     else {
-      if (secs<net_idle_time) continue;
+      if (secs<amsys->net_idle_time) continue;
       sprintf(text,"~OLSYSTEM:~RS Disconnecting hung netlink to %s in the %s.\n",nl->service,nl->connect_room->name);
       write_room(NULL,text);
       shutdown_netlink(nl);
@@ -198,7 +195,7 @@ for(nl=nl_first;nl!=NULL;nl=nl->next) {
       }
     continue;
     }
-  if (secs>net_idle_time-60) {
+  if (secs>amsys->net_idle_time-60) {
     sprintf(text,"~OLSYSTEM:~RS Netlink to %s in the %s has been hung for %d seconds.\n",nl->service,nl->connect_room->name,secs);
     write_level(ARCH,1,text,NULL);
     nl->warned=1;
@@ -216,22 +213,21 @@ destructed=0;
 /*** Accept incoming server connection ***/
 void accept_server_connection(int sock, struct sockaddr_in acc_addr)
 {
-NL_OBJECT nl,nl2,create_netlink();
+NL_OBJECT nl,nl2;
 RM_OBJECT rm;
 char site[81];
 
 /* Send server type id and version number */
 sprintf(text,"NUTS %s\n",NUTSVER);
 write_sock(sock,text);
-strcpy(site,get_ip_address(acc_addr));
-sprintf(text,"NETLINK: Received request connection from site %s.\n",site);
-write_syslog(text,1,NETLOG);
+strcpy(site,(char *)inet_ntoa(acc_addr.sin_addr));
+write_syslog(NETLOG,1,"NETLINK: Received request connection from site %s.\n",site);
 
 /* See if legal site, ie site is in config sites list. */
 for(nl2=nl_first;nl2!=NULL;nl2=nl2->next) if (!strcmp(nl2->site,site)) goto OK;
 write_sock(sock,"DENIED CONNECT 1\n");
 close(sock);
-write_syslog("NETLINK: Request denied, remote site not in valid sites list.\n",1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: Request denied, remote site not in valid sites list.\n");
 return;
 
 /* Find free room link */
@@ -241,7 +237,7 @@ for(rm=room_first;rm!=NULL;rm=rm->next) {
     if ((nl=create_netlink())==NULL) {
       write_sock(sock,"DENIED CONNECT 2\n");  
       close(sock);  
-      write_syslog("NETLINK: Request denied, unable to create netlink object.\n",1,NETLOG);
+      write_syslog(NETLOG,1,"NETLINK: Request denied, unable to create netlink object.\n");
       return;
       }
     rm->netlink=nl;
@@ -254,13 +250,13 @@ for(rm=room_first;rm!=NULL;rm=rm->next) {
     strcpy(nl->service,"<verifying>");
     strcpy(nl->site,site);
     write_sock(sock,"GRANTED CONNECT\n");
-    write_syslog("NETLINK: Request granted.\n",1,NETLOG);
+    write_syslog(NETLOG,1,"NETLINK: Request granted.\n");
     return;
     }
   }
 write_sock(sock,"DENIED CONNECT 3\n");
 close(sock);
-write_syslog("NETLINK: Request denied, no free room links.\n",1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: Request denied, no free room links.\n");
 }
 		
 
@@ -314,8 +310,7 @@ while(*inpstr) {
   if (nl->stage==VERIFYING) {
     if (nl->type==OUTGOING) {
       if (strcmp(w1,"NUTS")) {
-	sprintf(text,"NETLINK: Incorrect connect message from %s.\n",nl->service);
-	write_syslog(text,1,NETLOG);
+	write_syslog(NETLOG,1,"NETLINK: Incorrect connect message from %s.\n",nl->service);
 	shutdown_netlink(nl);
 	return;
         }	
@@ -329,8 +324,7 @@ while(*inpstr) {
       /* Incoming */
       if (netcom_num!=9) {
 	/* No verification, no connection */
-	sprintf(text,"NETLINK: No verification sent by site %s.\n",nl->site);
-	write_syslog(text,1,NETLOG);
+	write_syslog(NETLOG,1,"NETLINK: No verification sent by site %s.\n",nl->site);
 	shutdown_netlink(nl);  
 	return;
         }
@@ -378,8 +372,7 @@ while(*inpstr) {
     case 19: /* Keepalive signal, do nothing */ break;
     case 20: nl_rstat(nl,w2);  break;
     default: 
-    sprintf(text,"NETLINK: Received unknown command '%s' from %s.\n",w1,nl->service);
-    write_syslog(text,1,NETLOG);
+    write_syslog(NETLOG,1,"NETLINK: Received unknown command '%s' from %s.\n",w1,nl->service);
     write_sock(nl->socket,"ERROR\n"); 
     }
 NEXT_LINE:
@@ -396,8 +389,6 @@ nl->buffer[0]='\0';
 void nl_transfer(NL_OBJECT nl, char *name, char *pass, int lev, char *inpstr)
 {
 UR_OBJECT u;
-char *remove_first();
-
 
 /* link for outgoing users only */
 if (nl->allow==OUT) {
@@ -455,14 +446,14 @@ else {
   strcpy(u->recap,u->name);
   strcpy(u->last_site,"[remote]");
   if (nl->ver_major==3 && nl->ver_minor>=3 && nl->ver_patch>=1) {
-    if (lev>rem_user_maxlevel) u->level=rem_user_maxlevel;
+    if (lev>amsys->rem_user_maxlevel) u->level=amsys->rem_user_maxlevel;
     else u->level=lev; 
     }
-  else u->level=rem_user_deflevel;
+  else u->level=amsys->rem_user_deflevel;
   u->unarrest=u->level;
   }
 /* See if users level is below minlogin level */
-if (u->level<minlogin_level) {
+if (u->level<amsys->minlogin_level) {
   if (nl->ver_major==3 && nl->ver_minor>=3 && nl->ver_patch>=3) 
     sprintf(text,"DENIED %s 8\n",u->name); /* new error for 3.3.3 */
   else sprintf(text,"DENIED %s 6\n",u->name); /* old error to old versions */
@@ -474,14 +465,13 @@ if (u->level<minlogin_level) {
 strcpy(u->site,nl->service);
 sprintf(text,"%s enters from cyberspace.\n",u->name);
 write_room(nl->connect_room,text);
-sprintf(text,"NETLINK: Remote user %s received from %s.\n",u->name,nl->service);
-write_syslog(text,1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: Remote user %s received from %s.\n",u->name,nl->service);
 u->room=nl->connect_room;
 strcpy(u->logout_room,u->room->name);
 u->netlink=nl;
 u->read_mail=time(0);
 u->last_login=time(0);
-num_of_users++;
+amsys->num_of_users++;
 sprintf(text,"GRANTED %s\n",name);
 write_sock(nl->socket,text);
 }
@@ -495,15 +485,13 @@ UR_OBJECT u;
 if ((u=get_user(name))!=NULL && u->type==REMOTE_TYPE) {
   sprintf(text,"%s leaves this plain of existence.\n",u->name);
   write_room_except(u->room,text,u);
-  sprintf(text,"NETLINK: Remote user %s released.\n",u->name);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Remote user %s released.\n",u->name);
   destroy_user_clones(u);
   destruct_user(u);
-  num_of_users--;
+  amsys->num_of_users--;
   return;
   }
-sprintf(text,"NETLINK: Release requested for unknown/invalid user %s from %s.\n",name,nl->service);
-write_syslog(text,1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: Release requested for unknown/invalid user %s from %s.\n",name,nl->service);
 }
 
 
@@ -519,8 +507,7 @@ if (!(u=get_user(name))) {
   return;
   }
 if (u->socket!=-1) {
-  sprintf(text,"NETLINK: Action requested for local user %s from %s.\n",name,nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Action requested for local user %s from %s.\n",name,nl->service);
   return;
   }
 inpstr=remove_first(remove_first(inpstr));
@@ -559,23 +546,20 @@ UR_OBJECT u;
 RM_OBJECT old_room;
 
 if (!strcmp(name,"CONNECT")) {
-  sprintf(text,"NETLINK: Connection to %s granted.\n",nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Connection to %s granted.\n",nl->service);
   /* Send our verification and version number */
   sprintf(text,"VERIFICATION %s %s\n",verification,NUTSVER);
   write_sock(nl->socket,text);
   return;
   }
 if (!(u=get_user(name))) {
-  sprintf(text,"NETLINK: Grant received for unknown user %s from %s.\n",name,nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Grant received for unknown user %s from %s.\n",name,nl->service);
   return;
   }
 /* This will probably occur if a user tried to go to the other site , got 
    lagged then changed his mind and went elsewhere. Don't worry about it. */
 if (u->remote_com!=GO) {
-  sprintf(text,"NETLINK: Unexpected grant for %s received from %s.\n",name,nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Unexpected grant for %s received from %s.\n",name,nl->service);
   return;
   }
 /* User has been granted permission to move into remote talker */
@@ -585,8 +569,7 @@ if (u->vis) {
   write_room_except(u->room,text,u);
   }
 else write_room_except(u->room,invisleave,u);
-sprintf(text,"NETLINK: %s transfered to %s.\n",u->name,nl->service);
-write_syslog(text,1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: %s transfered to %s.\n",u->name,nl->service);
 old_room=u->room;
 u->room=NULL; /* Means on remote talker */
 u->netlink=nl;
@@ -621,8 +604,7 @@ char *neterr[]={
 errnum=0;
 sscanf(remove_first(remove_first(inpstr)),"%d",&errnum);
 if (!strcmp(name,"CONNECT")) {
-  sprintf(text,"NETLINK: Connection to %s denied, %s.\n",nl->service,neterr[errnum-1]);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Connection to %s denied, %s.\n",nl->service,neterr[errnum-1]);
   /* If wiz initiated connect let them know its failed */
   sprintf(text,"~OLSYSTEM:~RS Connection to %s failed, %s.\n",nl->service,neterr[errnum-1]);
   write_level(command_table[CONN].level,1,text,NULL);
@@ -633,12 +615,10 @@ if (!strcmp(name,"CONNECT")) {
   }
 /* Is for a user */
 if (!(u=get_user(name))) {
-  sprintf(text,"NETLINK: Deny for unknown user %s received from %s.\n",name,nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Deny for unknown user %s received from %s.\n",name,nl->service);
   return;
   }
-sprintf(text,"NETLINK: Deny %d for user %s received from %s.\n",errnum,name,nl->service);
-write_syslog(text,1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: Deny %d for user %s received from %s.\n",errnum,name,nl->service);
 sprintf(text,"Sorry, %s.\n",neterr[errnum-1]);
 write_user(u,text);
 prompt(u);
@@ -653,8 +633,7 @@ void nl_mesg(NL_OBJECT nl, char *name)
 UR_OBJECT u;
 
 if (!(u=get_user(name))) {
-  sprintf(text,"NETLINK: Message received for unknown user %s from %s.\n",name,nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Message received for unknown user %s from %s.\n",name,nl->service);
   nl->mesg_user=(UR_OBJECT)-1;
   return;
   }
@@ -668,13 +647,11 @@ void nl_prompt(NL_OBJECT nl, char *name)
 UR_OBJECT u;
 
 if (!(u=get_user(name))) {
-  sprintf(text,"NETLINK: Prompt received for unknown user %s from %s.\n",name,nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Prompt received for unknown user %s from %s.\n",name,nl->service);
   return;
   }
 if (u->type==REMOTE_TYPE) {
-  sprintf(text,"NETLINK: Prompt received for remote user %s from %s.\n",name,nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Prompt received for remote user %s from %s.\n",name,nl->service);
   return;
   }
 prompt(u);
@@ -701,8 +678,7 @@ if (!com) {
       strcpy(nl->service,nl2->service);
       /* Only 3.2.0 and above send version number with verification */
       sscanf(w3,"%d.%d.%d",&nl->ver_major,&nl->ver_minor,&nl->ver_patch);
-      sprintf(text,"NETLINK: Connected to %s in the %s.\n",nl->service,nl->connect_room->name);
-      write_syslog(text,1,NETLOG);
+      write_syslog(NETLOG,1,"NETLINK: Connected to %s in the %s.\n",nl->service,nl->connect_room->name);
       sprintf(text,"~OLSYSTEM:~RS New connection to service %s in the %s.\n",nl->service,nl->connect_room->name);
       write_room(NULL,text);
       return;
@@ -716,38 +692,29 @@ if (!com) {
 if (!strcmp(w2,"OK")) {
   /* Set link permissions */
   if (!strcmp(w3,"OUT")) {
-    if (nl->allow==OUT) {
-      sprintf(text,"NETLINK: WARNING - Permissions deadlock, both sides are outgoing only.\n");
-      write_syslog(text,1,NETLOG);
-      }
+    if (nl->allow==OUT) write_syslog(NETLOG,1,"NETLINK: WARNING - Permissions deadlock, both sides are outgoing only.\n");
     else nl->allow=IN;
     }
   else {
     if (!strcmp(w3,"IN")) {
-      if (nl->allow==IN) {
-	sprintf(text,"NETLINK: WARNING - Permissions deadlock, both sides are incoming only.\n");
-	write_syslog(text,1,NETLOG);
-        }
+      if (nl->allow==IN) write_syslog(NETLOG,1,"NETLINK: WARNING - Permissions deadlock, both sides are incoming only.\n");
       else nl->allow=OUT;
       }
     }
-  sprintf(text,"NETLINK: Connection to %s verified.\n",nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Connection to %s verified.\n",nl->service);
   sprintf(text,"~OLSYSTEM:~RS New connection to service %s in the %s.\n",nl->service,nl->connect_room->name);
   write_room(NULL,text);
   return;
   }
 if (!strcmp(w2,"BAD")) {
-  sprintf(text,"NETLINK: Connection to %s has bad verification.\n",nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Connection to %s has bad verification.\n",nl->service);
   /* Let wizes know its failed , may be wiz initiated */
   sprintf(text,"~OLSYSTEM:~RS Connection to %s failed, bad verification.\n",nl->service);
   write_level(command_table[CONN].level,1,text,NULL);
   shutdown_netlink(nl);  
   return;
   }
-sprintf(text,"NETLINK: Unknown verify return code from %s.\n",nl->service);
-write_syslog(text,1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: Unknown verify return code from %s.\n",nl->service);
 shutdown_netlink(nl);
 }
 
@@ -760,17 +727,14 @@ void nl_removed(NL_OBJECT nl, char *name)
 UR_OBJECT u;
 
 if (!(u=get_user(name))) {
-  sprintf(text,"NETLINK: Removed notification for unknown user %s received from %s.\n",name,nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Removed notification for unknown user %s received from %s.\n",name,nl->service);
   return;
   }
 if (u->room!=NULL) {
-  sprintf(text,"NETLINK: Removed notification of local user %s received from %s.\n",name,nl->service);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Removed notification of local user %s received from %s.\n",name,nl->service);
   return;
   }
-sprintf(text,"NETLINK: %s returned from %s.\n",u->name,u->netlink->service);
-write_syslog(text,1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: %s returned from %s.\n",u->name,u->netlink->service);
 u->room=u->netlink->connect_room;
 u->netlink=NULL;
 if (u->vis) {
@@ -790,8 +754,7 @@ if (nl->mesg_user!=NULL) nl->mesg_user=NULL;
 /* lastcom value may be misleading, the talker may have sent off a whole load
    of commands before it gets a response due to lag, any one of them could
    have caused the error */
-sprintf(text,"NETLINK: Received ERROR from %s, lastcom = %d.\n",nl->service,nl->lastcom);
-write_syslog(text,1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: Received ERROR from %s, lastcom = %d.\n",nl->service,nl->lastcom);
 }
 
 
@@ -869,12 +832,10 @@ void nl_mail(NL_OBJECT nl, char *to, char *from)
 {
 char filename[80];
 
-sprintf(text,"NETLINK: Mail received for %s from %s.\n",to,nl->service);
-write_syslog(text,1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: Mail received for %s from %s.\n",to,nl->service);
 sprintf(filename,"%s/IN_%s_%s@%s",MAILSPOOL,to,from,nl->service);
 if (!(nl->mailfile=fopen(filename,"w"))) {
-  sprintf(text,"ERROR: Couldn't open file %s to write in nl_mail().\n",filename);
-  write_syslog(text,0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open file %s to write in nl_mail().\n",filename);
   sprintf(text,"MAILERROR %s %s\n",to,from);
   write_sock(nl->socket,text);
   return;
@@ -898,7 +859,7 @@ nl->mailfile=NULL;
 sprintf(mailfile,"%s/IN_%s_%s@%s",MAILSPOOL,nl->mail_to,nl->mail_from,nl->service);
 /* Copy to users mail file to a tempfile */
 if (!(outfp=fopen("tempfile","w"))) {
-  write_syslog("ERROR: Couldn't open tempfile in netlink_endmail().\n",0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open tempfile in netlink_endmail().\n");
   sprintf(text,"MAILERROR %s %s\n",nl->mail_to,nl->mail_from);
   write_sock(nl->socket,text);
   goto END;
@@ -924,8 +885,7 @@ fclose(infp);
 /* Copy received file */
 SKIP:
 if (!(infp=fopen(mailfile,"r"))) {
-  sprintf(text,"ERROR: Couldn't open file %s to read in netlink_endmail().\n",mailfile);
-  write_syslog(text,0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open file %s to read in netlink_endmail().\n",mailfile);
   sprintf(text,"MAILERROR %s %s\n",nl->mail_to,nl->mail_from);
   write_sock(nl->socket,text);
   goto END;
@@ -974,9 +934,9 @@ sprintf(text,"NUTS version         : %s\nHost                 : %s\n",NUTSVER,st
 write_sock(nl->socket,text);
 sprintf(text,"Ports (Main/Wiz/Link): %d ,%d, %d\n",port[0],port[1],port[2]);
 write_sock(nl->socket,text);
-sprintf(text,"Number of users      : %d\nRemote user maxlevel : %s\n",num_of_users,level_name[rem_user_maxlevel]);
+sprintf(text,"Number of users      : %d\nRemote user maxlevel : %s\n",amsys->num_of_users,level_name[amsys->rem_user_maxlevel]);
 write_sock(nl->socket,text);
-sprintf(text,"Remote user deflevel : %s\n\nEMSG\nPRM %s\n",level_name[rem_user_deflevel],to);
+sprintf(text,"Remote user deflevel : %s\n\nEMSG\nPRM %s\n",level_name[amsys->rem_user_deflevel],to);
 write_sock(nl->socket,text);
 }
 
@@ -1014,21 +974,19 @@ for(u=user_first;u!=NULL;u=u->next) {
         }
       else write_room_except(u->room,invisenter,u);
       look(u);  prompt(u);
-      sprintf(text,"NETLINK: %s recovered from %s.\n",u->name,nl->service);
-      write_syslog(text,1,NETLOG);
+      write_syslog(NETLOG,1,"NETLINK: %s recovered from %s.\n",u->name,nl->service);
       continue;
       }
     if (u->type==REMOTE_TYPE) {
       sprintf(text,"%s vanishes!\n",u->name);
       write_room(u->room,text);
       destruct_user(u);
-      num_of_users--;
+      amsys->num_of_users--;
       }
     }
   }
-if (nl->stage==UP) sprintf(text,"NETLINK: Disconnected from %s.\n",nl->service);
-else sprintf(text,"NETLINK: Disconnected from site %s.\n",nl->site);
-write_syslog(text,1,NETLOG);
+if (nl->stage==UP) write_syslog(NETLOG,1,"NETLINK: Disconnected from %s.\n",nl->service);
+else write_syslog(NETLOG,1,"NETLINK: Disconnected from site %s.\n",nl->site);
 if (nl->type==INCOMING) {
   nl->connect_room->netlink=NULL;
   destruct_netlink(nl);  
@@ -1055,8 +1013,7 @@ if (user->room!=NULL) {
 write_user(user,"~FB~OLYou traverse cyberspace...\n");
 sprintf(text,"REL %s\n",user->name);
 write_sock(user->netlink->socket,text);
-sprintf(text,"NETLINK: %s returned from %s.\n",user->name,user->netlink->service);
-write_syslog(text,1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: %s returned from %s.\n",user->name,user->netlink->service);
 user->room=user->netlink->connect_room;
 user->netlink=NULL;
 if (user->vis) {
@@ -1168,27 +1125,24 @@ if (nl->type!=UNCONNECTED) {
   write_user(user,"That rooms netlink is already up.\n");  return;
   }
 write_user(user,"Attempting connect (this may cause a temporary hang)...\n");
-sprintf(text,"NETLINK: Connection attempt to %s initiated by %s.\n",nl->service,user->name);
-write_syslog(text,1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: Connection attempt to %s initiated by %s.\n",nl->service,user->name);
 errno=0;
 if (!(ret=connect_to_site(nl))) {
   write_user(user,"~FGInitial connection made...\n");
-  sprintf(text,"NETLINK: Connected to %s (%s %d).\n",nl->service,nl->site,nl->port);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Connected to %s (%s %d).\n",nl->service,nl->site,nl->port);
   nl->connect_room=rm;
   return;
   }
 tmperr=errno; /* On Linux errno seems to be reset between here and sprintf */
 write_user(user,"~FRConnect failed: ");
-write_syslog("NETLINK: Connection attempt failed: ",1,NETLOG);
+write_syslog(NETLOG,1,"NETLINK: Connection attempt failed: ");
 if (ret==1) {
-  sprintf(text,"%s.\n",sys_errlist[tmperr]);
-  write_user(user,text);
-  write_syslog(text,0,SYSLOG);
+  vwrite_user(user,"%s.\n",strerror(errno));
+  write_syslog(NETLOG,0,"%s.\n",strerror(errno));
   return;
   }
 write_user(user,"Unknown hostname.\n");
-write_syslog("Unknown hostname.\n",0,SYSLOG);
+write_syslog(NETLOG,0,"Unknown hostname.\n");
 }
 
 
@@ -1216,13 +1170,9 @@ if (nl->type==UNCONNECTED) {
 if (nl->stage==UP) {
   sprintf(text,"~OLSYSTEM:~RS Disconnecting from %s in the %s.\n",nl->service,rm->name);
   write_room(NULL,text);
-  sprintf(text,"NETLINK: Link to %s in the %s disconnected by %s.\n",nl->service,rm->name,user->name);
-  write_syslog(text,1,NETLOG);
+  write_syslog(NETLOG,1,"NETLINK: Link to %s in the %s disconnected by %s.\n",nl->service,rm->name,user->name);
   }
-else {
-  sprintf(text,"NETLINK: Link to %s disconnected by %s.\n",nl->service,user->name);
-  write_syslog(text,1,NETLOG);
-  }
+else write_syslog(NETLOG,1,"NETLINK: Link to %s disconnected by %s.\n",nl->service,user->name);
 shutdown_netlink(nl);
 write_user(user,"Disconnected.\n");
 }

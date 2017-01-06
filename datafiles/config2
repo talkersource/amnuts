@@ -32,11 +32,13 @@ rem_user_deflevel  USER
 wizport_level      WIZ
 gatecrash_level    GOD
 time_out_maxlevel  WIZ
-crash_action       REBOOT
-auto_purge         NO
+crash_action       NONE
+auto_purge         YES
 allow_recaps       YES
-auto_promote       YES
-personal_rooms     YES
+auto_promote       NO
+personal_rooms     NO
+startup_room_parse NO
+random_motds       NO
 
 
 ROOMS:

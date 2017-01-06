@@ -1,0 +1,2 @@
+gcc -Wall -Wpointer-arith -Wcast-qual -Wcast-align -Waggregate-return -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Winline -Wshadow -Wtraditional -pedantic -lcrypt amnuts220.c
+

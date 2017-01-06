@@ -3,6 +3,57 @@
         Information on the changes between different version of Amnuts
 +------------------------------------------------------------------------------+
 
+2.2.0
+-----
+
+Removed the sys_errlist and replaced it with the more compatible strerror
+Fixed error in show_version()
+Fixed bug in set_attributes()
+Updated write_syslog() so that it takes variable length parameters, taking away the need to sprintf to a text variable before sending it to the syslog.  The position of the passed variables has been changed because of this.
+Change all occurences for the old write_syslog to the new format.  This had the result of optimising out about 170 lines of code.
+Fixed call to non-existant function get_ip_address within the accept_server_connections function (in netlinks.c) which would appear if anyone compiled in the Netlinks code (surprised noone has told me about this before).
+Added the command 'wrules' to allow you to have a rules file for WIZ+.  This also included defining WIZRULESFILE in the amnuts212.h file.
+Fixed some grammer in misc_ops()  (cheers to Canuck for pointing it out)
+Tided up the output from the version command to get rid of the repeating 'max smail copies' (thank again to Canuck for pointing this out)
+Increased default WORD_LEN to 80
+Changed the 'set homepage' to 'set www' for easy of typing.
+Added the ability to view help commands for the 'set' command.  eg, '.help set_age', '.help set_email', etc.  Thanks go to Xan for writing the set_x range of helpfiles.
+Added the 'files' and 'adminfiles' commands.  Because of this, also defined SHOWFILES and TEXTFILES in the amnuts212.h file.  This was added because the functionality was taken out of the new .help system.
+Added the command 'dump' to dump certain information to files.  Added the directory 'dumpfiles' and defined it as DUMPFILE in the main .h file.
+Updated the output if the 'ignlist' command (show_ignlist function)
+Changed the login 'who' output so it's shorter (cheers Xan for this idea), though I've retained the normal output for anyone who doesn't like the new.  Added the function 'login_who' as a result of this.
+Added bit manipulation pre-processer macros, also changed the NETLOG and REQLOG defines around.
+Vastly improved the 'logging' command (logging() function) so that you can now turn on and off the system log, accreq log and netlink log seperately, or all on/off together.  This uses the bit manipulation above.  Also updated the functions write_syslog, parse_init_section and init_globals to reflect this change.  Also made a small change to the system_details function where it displayed the system_details.
+Changed the defines OFF, MIN and MAX to SBOFF, SBMIN and SBMAX to stop redefinition conflicts on certain systems.
+Added the new structure 'system_struct' and made the function 'create_system()'.  The function 'init_globals()' has been deleted.  All the system variables throughout the code have been updated to reference the system_struct.  Added a few new vars to the struct too.
+Updated the 'memory' command to display the system struct size.
+Added the wrapper functions vwrite_user, vwrite_room, vwrite_room_except.  These function have enabled me to optimise out over 700 more lines of redundant code!  These work the same was as the new write_syslog function.
+Added 'friend says' to the user's tell review buffer
+Cleaned up a number of functions as I was updating for the vwrite_ functions
+Made the system more friendly towards mixed case level names.
+Totally reworked the check_autopromote function to make it easier for you to add/change conditions for auto-promotions.
+Added the ability to have coloured recaps.. made sure this had GOOD integration.
+Added the command 'tpromote' - promotion for the current session only
+Added the option 'resolve_ip' to the config file so that you no longer have to use the -DRESOLVEIP switch.  Options are OFF, AUTO, MANUAL.  OFF is obvious - you only get IP addresses, AUTO uses gethostbyaddr() and MANUAL uses the resolve_ip() function.
+Updated the output in (un)arrest so that it takes into consideration what you rename the level names to.
+Added the new command 'morph' to allow you to change one user's name into something else.  Use does not need to be logged on at the time.
+Added port flooding protection, with auto-banning of a site if someone tries to flood the port.  The new define LOGIN_FLOOD_MAX and new functions login_port_flood() and auto_ban_site().
+Updated the function ban_site() so that it no longer attaches a '*' onto the site you're banning.
+The add_history() function now also writes to the SYSLOG to indicate history addition.
+Fixed it so that if you're in the editor and the talker is shutdown then you will come back with your own ignall status - not default to ignore all.
+Fixed bug in "set icq"
+Added the 'center_string' function.
+Added the ability to have multiple maps.  The map names are set in the config file and stored in the datafiles directory.  Remove obsolete 'MAPFILE' define.
+When idle for 30+ mins your status on the '.who' listing will now be shown as 'IDLE'
+Added swear checking for the functions sing_it and think_it (thanks Canuck for pointing this out)
+Created a new directory called 'logfiles' where, surprise, all the log files are now stored.  Removed lastcmdlogs directory/define.  All the syslogs now have the current PID attached to them.
+Added the 'fmail' command, so you can manually forward smails to your email account (thanks Matty for the idea)
+Now parse command abbreviations a different way (which works better).  This has lead to the creation of 2 new function; parse_command_string() and split_command_string().  Also modified the tell() function because of this new parsing.
+Added the new #define 'USERVER'.  This'll make it possible to update the user file format version without changing the Amnuts version number.
+Combined level_names and level_alias arrays into one structure called user_levels.  Updated the code to use it.  Also added define NUM_LEVELS.
+Updated the output of record_last_command so that it now also stores length of inpstr and word_count.  (though it will only report up to MAX_WORDS)
+
+
 2.1.1
 -----
 

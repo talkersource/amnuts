@@ -1,6 +1,6 @@
 +------------------------------------------------------------------------------+
  CONFIG - CONFIG - CONFIG - CONFIG - CONFIG - CONFIG - CONFIG - CONFIG - CONFIG
-              Information about the clones used in Amnuts 2.1.1
+              Information about the clones used in Amnuts 2.2.0
 +------------------------------------------------------------------------------+
 
 The file is divided into 4 sections, the INIT section which sets up a load
@@ -135,6 +135,13 @@ startup_room_parse - YES or NO.  If yes then any personal rooms that have
 random_motds - YES or NO.  If yes then it will load a random MOTD from the
   directories, else it will only use the MOTD with the filename motd1.
 
+resolve_ip - OFF, AUTO or MANUAL.  If OFF then the IP address will not be
+  resolved in any way.  If AUTO then the gethostbyaddr() function will be
+  used.  If MANUAL then a function written by tref will be used.
+
+flood_protect - ON or OFF.  If ON then anyone caught flooding the ports
+  will be auto-banned.  Else anyone can log onto the port upto and above
+  the limit set with LOGIN_FLOOD_CNT.
 
 The ROOMS section
 -----------------
@@ -142,11 +149,12 @@ The ROOMS section
 Here is where the rooms and layout of the talker get defined. The format for
 one line of the section is as follows:
 
-<mnemonic> <name> <links> [<access> [<network parameters>]]
+<map name> <mnemonic> <name> <links> [<access> [<network parameters>]]
 
 eg:
-hw hallway   of,gd,lg,to    PUB  CONNECT testsite
+general hw hallway   of,gd,lg,to    PUB  CONNECT testsite
 
+The map is stored in the datafiles directory with the extension .map
 The mnemonic is just a convenient shorthand for the room and saves having to
 enter the entire room name for each of the links. In the links part the links
 to other rooms are defined by using their mnemonics and separting them with

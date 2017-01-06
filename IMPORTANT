@@ -1,39 +1,36 @@
 +------------------------------------------------------------------------------+
     IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT
-        Information for the running of a talker based on Amnuts 2.1.1
+        Information for the running of a talker based on Amnuts 2.2.0
 +------------------------------------------------------------------------------+
 
 Ok, now I know how most of you just loathe reading these things, but as you may
 have gathered by now, this one is important.  Please, no groaning!
 
+I'm getting married on the 16th October, so this may very well be the last
+version of Amnuts for a while.  There are a number of things I didn't get
+done because time ran out, but ain't that always the way?   Don't forget
+the Amnuts website though; http://www.talker.com/amnuts/
+
 The most notable thing to put here is about the Netlinks function.  There
 have been many requests for me to remove the Netlinks system, but I've also
 had people ask me to keep it.  Obviously, a problem.  But I think I've
 managed to work a way around it.  If you compile in the normal way (eg;
-'gcc -lcrypt amnuts211.c') then the talker will run without any Netlink
+'gcc -lcrypt amnuts220.c') then the talker will run without any Netlink
 functions.  The port that Netlinks normally uses will not be used in any
 way.  The commands associated with Netlinks will not be in the command
 listing... Nothing!  This should make the people happy who didn't want
 Netlinks in the code.
-If you WANT Netlinks then, when compiling, you have to compile with the
-switch '-DNETLINKS'.  eg; 'gcc -lcrypt -DNETLINKS amnuts211.c'.  If you do
-this then you will have the Netlink functions as normal.  The commands
-will the there, the port will be used, and all that.  But note, the code
-AS DEFAULT will not have the Netlink code active.
 
-I'll say that again because there are always people who ask me about
-something I've put in this document... The Netlink functions HAVE to be
-COMPILE IN by YOU!
+If you WANT Netlinks then, when compiling, you have to compile with the switch
+'-DNETLINKS'.  eg; 'gcc -lcrypt -DNETLINKS amnuts220.c'.  If you do this then
+you will have the Netlink functions as normal.  The commands will the there,
+the port will be used, and all that.  But note, the code AS DEFAULT will not
+have the Netlink code active.
 
-The next important thing is about the talker hanging severely when someone
-is trying to log on.  This usually happens on a BSD system, and it occurs
-because of the gethostbyaddr() function.  I've attempted to fix this
-little problem by adding a little bit of code (written by tref, updated for
-Amnuts by me) that you, again, have to compile to activate.  If you find
-you are having a problem with the talker just hanging for ages when
-someone is logging in, then recompile your code with the '-DRESOLVEIP'
-option.
+I'll say that again because there are always people who ask me about something
+I've put in this document... The Netlink functions HAVE to be COMPILED IN by
+YOU!
 
                                                               Andrew Collington
-                                                                 20th May, 1999
+                                                                September, 1999
 +------------------------------------------------------------------------------+

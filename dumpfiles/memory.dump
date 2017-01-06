@@ -1,0 +1,15 @@
+------------------------------------------------------------------------------
+Memory Object Allocation on Sunday 13th June 1999 at 09:07pm
+------------------------------------------------------------------------------
+     user structure :    21324 bytes    directory structure :      104 bytes
+              total :    21324 bytes                  total :      624 bytes
+     room structure :     7556 bytes      command structure :       40 bytes
+              total :    90672 bytes                  total :     7320 bytes
+  wizlist structure :       24 bytes   last login structure :       96 bytes
+              total :       48 bytes                  total :      480 bytes
+   system structure :     6788 bytes
+              total :     6788 bytes
+------------------------------------------------------------------------------
+Total object memory allocated :    127256 bytes   (0.127 Mb)
+------------------------------------------------------------------------------
+

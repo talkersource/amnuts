@@ -1,6 +1,6 @@
 /*****************************************************************************
-             Amnuts version 2.1.1 - Copyright (C) Andrew Collington
-                        Last update: 25th May, 1999
+             Amnuts version 2.2.0 - Copyright (C) Andrew Collington
+                     Last update: 5th September, 1999
 
       email: amnuts@iname.com    homepage: http://www.talker.com/amnuts/
                   personal: http://www.andyc.dircon.co.uk/
@@ -23,6 +23,7 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/utsname.h>
 #include <time.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -37,10 +38,11 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <arpa/inet.h>
-#include <crypt.h>
+#include <arpa/telnet.h>
 
-#include "amnuts211.h"
+#include "amnuts220.h"
 #include "commands.h"
 #include "prototypes.h"
 
@@ -61,6 +63,7 @@
 #endif
 
 
+
 /******************************************************************************
  The setting up of the talker configs and the main program loop
  *****************************************************************************/
@@ -73,7 +76,7 @@ int i,len;
 char inpstr[ARR_SIZE];
 UR_OBJECT user,next;
 #ifdef NETLINKS
-  NL_OBJECT nl;
+ NL_OBJECT nl;
 #endif
 
 
@@ -92,53 +95,68 @@ switch(fork()) {
   default: sleep(1); exit(0);  /* parent dies */
   }
 
-
 /* Startup and do initial counts and parses */
-printf("\n*** Amnuts %s server booting ***\n\n",AMNUTSVER);
-init_globals();
-write_syslog("\n*** SERVER BOOTING ***\n",0,SYSLOG);
+create_system();
 set_date_time();
 init_signals();
-load_and_parse_config();
+write_syslog(SYSLOG,0,"------------------------------------------------------------------------------\nSERVER BOOTING\n");
+printf("\n------------------------------------------------------------------------------\n");
+printf("Amnuts %s server booting %s\n",AMNUTSVER,long_date(1));
+printf("------------------------------------------------------------------------------\n");
+printf("System name : %s, release %s, %s\n",amsys->sysname,amsys->sysrelease,amsys->sysversion);
+printf("Running on  : %s, %s\n",amsys->sysmachine,amsys->sysnodename);
 #ifndef NETLINKS
-  printf("Netlinks disabled.\n");
+printf("Netlinks    : Disabled\n");
+#else
+printf("Netlinks    : Enabled\n");
 #endif
-if (personal_rooms) {
-  if (startup_room_parse) parse_user_rooms();
+
+load_and_parse_config();
+
+(amsys->flood_protect) ? printf("Flood protection is ON.\n") : printf("Flood protection is OFF.\n");
+if (amsys->personal_rooms) {
+  if (amsys->startup_room_parse) parse_user_rooms();
   else printf("Personal rooms are active, but not being parsed at startup.\n");
   }
 else printf("Personal rooms disabled\n");
-printf("Checking user directory structure\n");
-check_directories();
-printf("Processing user list\n");
-process_users();
-printf("Counting users\n");
-count_users();
-printf("Parsing command structure\n");
-parse_commands();
+printf("Checking user directory structure\n");  check_directories();
+printf("Processing user list\n");               process_users();
+printf("Counting users\n");                     count_users();
+printf("Parsing command structure\n");          parse_commands();
+
 purge(0,NULL,0);
-if (!auto_purge) printf("PURGE: Auto-purge is turned off\n");
-else printf("PURGE: Checked %d user%s, %d %s deleted due to lack of use.\n",purge_count,PLTEXT_S(purge_count),users_purged,PLTEXT_WAS(users_purged));
+if (!amsys->auto_purge) printf("PURGE: Auto-purge is turned off\n");
+else printf("PURGE: Checked %d user%s, %d %s deleted due to lack of use.\n",
+	    amsys->purge_count,PLTEXT_S(amsys->purge_count),amsys->users_purged,PLTEXT_WAS(amsys->users_purged));
+
 check_messages(NULL,1);
 count_suggestions();
-printf("There %s %d suggestion%s.\n",PLTEXT_WAS(suggestion_count),suggestion_count,PLTEXT_S(suggestion_count));
+printf("There %s %d suggestion%s.\n",PLTEXT_WAS(amsys->suggestion_count),amsys->suggestion_count,PLTEXT_S(amsys->suggestion_count));
 count_motds(0);
-printf("There %s %d login motd%s and %d post-login motd%s\n",PLTEXT_WAS(motd1_cnt),motd1_cnt,PLTEXT_S(motd1_cnt),motd2_cnt,PLTEXT_S(motd2_cnt));
+printf("There %s %d login motd%s and %d post-login motd%s\n",
+       PLTEXT_WAS(amsys->motd1_cnt),amsys->motd1_cnt,PLTEXT_S(amsys->motd1_cnt),amsys->motd2_cnt,PLTEXT_S(amsys->motd2_cnt));
 
 /* open the talker after everything else has parsed */
 init_sockets();
 #ifdef NETLINKS
-  if (auto_connect) init_connections();
-  else printf("Skipping connect stage.\n");
+ if (amsys->auto_connect) init_connections();
+ else printf("Skipping connect stage.\n");
 #endif
 
 /* finish off the boot-up process */
 reset_alarm();
-printf("\n*** Booted with PID %d ***\n\n",(int)getpid());
-sprintf(text,"*** SERVER BOOTED with PID %d %s ***\n\n",(int)getpid(),long_date(1));
-write_syslog(text,0,SYSLOG);
+printf("------------------------------------------------------------------------------\n");
+printf("Booted with PID %d\n",amsys->pid);
+printf("------------------------------------------------------------------------------\n\n");
+write_syslog(SYSLOG,0,"------------------------------------------------------------------------------\nSERVER BOOTED with PID %d %s\n",amsys->pid,long_date(1));
+write_syslog(SYSLOG,0,"------------------------------------------------------------------------------\n\n");
 
-/**** Main program loop. *****/
+
+/******************************************************************************
+ Main program loop
+ *****************************************************************************/
+
+
 setjmp(jmpvar); /* jump to here if we crash and crash_action = IGNORE */
 while(1) {
   /* set up mask then wait */
@@ -149,7 +167,7 @@ while(1) {
     if (FD_ISSET(listen_sock[i],&readmask)) 
       accept_connection(listen_sock[i],i);
       }
-  #ifdef NETLINKS
+#ifdef NETLINKS
     /* Cycle through client-server connections to other talkers */
     for(nl=nl_first;nl!=NULL;nl=nl->next) {
       no_prompt=0;
@@ -157,19 +175,15 @@ while(1) {
 	continue;
       /* See if remote site has disconnected */
       if (!(len=read(nl->socket,inpstr,sizeof(inpstr)-3))) {
-	if (nl->stage==UP)
-	  sprintf(text,"NETLINK: Remote disconnect by %s.\n",nl->service);
-	else sprintf(text,"NETLINK: Remote disconnect by site %s.\n",nl->site);
-	write_syslog(text,1,NETLOG);
-	sprintf(text,"~OLSYSTEM:~RS Lost link to %s in the %s.\n",nl->service,nl->connect_room->name);
-	write_room(NULL,text);
+	write_syslog(NETLOG,1,"NETLINK: Remote disconnect by %s.\n",(nl->stage==UP)?nl->service:nl->site);
+	vwrite_room(NULL,"~OLSYSTEM:~RS Lost link to %s in the %s.\n",nl->service,nl->connect_room->name);
 	shutdown_netlink(nl);
 	continue;
         }
       inpstr[len]='\0'; 
       exec_netcom(nl,inpstr);
       }
-  #endif
+#endif
   /* Cycle through users. Use a while loop instead of a for because
      user structure may be destructed during loop in which case we
      may lose the user->next link. */
@@ -213,8 +227,7 @@ while(1) {
     if (!user->misc_op) {
       if (!strcmp(inpstr,".") && user->inpstr_old[0]) {
 	strcpy(inpstr,user->inpstr_old);
-	sprintf(text,"%s\n",inpstr);
-	write_user(user,text);
+	vwrite_user(user,"%s\n",inpstr);
         }
       /* else save current one for next time */
       else {
@@ -243,10 +256,7 @@ while(1) {
       user->afk_mesg[0]='\0';
       if (user->afkbuff[0][0]) 
 	write_user(user,"\nYou have some tells in your afk review buffer.  Use ~FTrevafk~RS to view them.\n\n");
-      if (user->vis) {
-	sprintf(text,"%s comes back from being AFK.\n",user->recap);
-	write_room_except(user->room,text,user);
-        }
+      if (user->vis) vwrite_room_except(user->room,user,"%s~RS comes back from being AFK.\n",user->recap);
       if (user->afk==2) {
 	user->afk=0;  prompt(user);  user=next;  continue;
         }
@@ -254,12 +264,12 @@ while(1) {
       }
     if (!word_count) {
       if (misc_ops(user,inpstr))  {  user=next;  continue;  }
-      #ifdef NETLINKS
+#ifdef NETLINKS
         if (user->room==NULL) {
 	  sprintf(text,"ACT %s NL\n",user->name);
 	  write_sock(user->netlink->socket,text);
           }
-      #endif
+#endif
       if (user->command_mode) prompt(user);
       user=next;  continue;
       }
@@ -269,13 +279,13 @@ while(1) {
       exec_com(user,inpstr);
     else say(user,inpstr);
     if (!destructed) {
-      if (user->room!=NULL)  prompt(user); 
+      if (user->room!=NULL && !destructed)  prompt(user); 
       else {
 	switch(com_num) {
 	  /* case -1  :  Not in enumerated values - Unknown command */
-        #ifdef NETLINKS
+#ifdef NETLINKS
 	  case HOME:
-        #endif
+#endif
 	  case QUIT:
 	  case MODE:
 	  case PROMPT: 
@@ -325,7 +335,7 @@ for(l=0;l<len;++l) {
   user->buffpos++;
   }
 if (user->charmode_echo
-    && ((user->login!=LOGIN_PASSWD && user->login!=LOGIN_CONFIRM) || (password_echo || user->show_pass))) 
+    && ((user->login!=LOGIN_PASSWD && user->login!=LOGIN_CONFIRM) || (amsys->password_echo || user->show_pass))) 
   write(user->socket,inpstr,len);
 return 0;
 }
@@ -390,9 +400,19 @@ return -1;
 /** check to see if string given is OFF, MIN or MAX **/
 int minmax_check(char *wd)
 {
-if (!strcmp(wd,"OFF")) return OFF;
-if (!strcmp(wd,"MIN")) return MIN;
-if (!strcmp(wd,"MAX")) return MAX;
+if (!strcmp(wd,"OFF")) return SBOFF;
+if (!strcmp(wd,"MIN")) return SBMIN;
+if (!strcmp(wd,"MAX")) return SBMAX;
+return -1;
+}
+
+
+/** check to see if string given is OFF, AUTO, MANUAL **/
+int resolve_check(char *wd)
+{
+if (!strcmp(wd,"OFF")) return 0;
+if (!strcmp(wd,"AUTO")) return 1;
+if (!strcmp(wd,"MANUAL")) return 2;
 return -1;
 }
 
@@ -400,22 +420,16 @@ return -1;
 /*** Tell telnet not to echo characters - for password entry ***/
 void echo_off(UR_OBJECT user)
 {
-char seq[4];
-
-if (password_echo || user->show_pass) return;
-sprintf(seq,"%c%c%c",255,251,1);
-write_user(user,seq);
+if (amsys->password_echo || user->show_pass) return;
+vwrite_user(user,"%c%c%c",255,251,1);
 }
 
 
 /*** Tell telnet to echo characters ***/
 void echo_on(UR_OBJECT user)
 {
-char seq[4];
-
-if (password_echo || user->show_pass) return;
-sprintf(seq,"%c%c%c",255,252,1);
-write_user(user,seq);
+if (amsys->password_echo || user->show_pass) return;
+vwrite_user(user,"%c%c%c",255,252,1);
 }
 
 
@@ -437,7 +451,7 @@ char *s;
 int i;
 
 if ((s=(char *)malloc(strlen(str)+1))==NULL) {
-  write_syslog("ERROR: Failed to allocate memory in contains_swearing().\n",0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Failed to allocate memory in contains_swearing().\n");
   return 0;
   }
 strcpy(s,str);
@@ -486,7 +500,7 @@ while(*s) {
   if (*s=='~') {
     ++s;
     for(i=0;i<NUM_COLS;++i) {
-      if (!strncmp(s,colour_codes[i].txt_code,2)) { cnt++;  s++;  break;; }
+      if (!strncmp(s,colour_codes[i].txt_code,2)) { cnt++;  s++;  break; }
       }
     continue;
     }
@@ -683,11 +697,167 @@ switch(str[strlen(str)-1]) {
 }
 
 
+/* This allows you to center text to a given size.  It will also allow you
+   to have markers on the edges of the text, if mark = 1, and the marker must
+   be passed if mark = 1. marker is an int - one symbol only.
+   Based on code by Mike Irving (Moe - MoeNUTS)
+*/
+char *center_string(int cstrlen, int mark, char *marker, char *str, ...)
+{
+va_list args;
+char text2[ARR_SIZE*2];
+int len=0,spc=0,odd=0;
+
+/* first build up the string */
+vtext[0]='\0';
+va_start(args,str);
+vsprintf(vtext,str,args);
+va_end(args);
+/* get size */
+len=strlen(colour_com_strip(vtext));
+spc=(int)((cstrlen/2)-(len/2));
+odd=len%2;
+/* if greater than size given then don't do anything except return */
+if (len>cstrlen) return(vtext);
+sprintf(text2,"%*.*s%s",spc,spc," ",vtext);
+/* if marked, then add spaces on the other side too */
+if (mark) {
+  /* if markers can't be placed without over-writing text then return */
+  if (len>(cstrlen-2)) return(vtext);
+  /* if they forgot to pass a marker, use a default one */
+  if (!marker) marker[0]='|';
+  /* compensate for uneven spaces */
+  if (!odd) sprintf(vtext,"%s%*.*s\n",text2,spc,spc," ");
+  else sprintf(vtext,"%s%*.*s\n",text2,spc-1,spc-1," ");
+  vtext[0]=marker[0];
+  vtext[strlen(vtext)-2]=marker[0];
+  }
+else {
+  strcpy(vtext,text2);
+  strcat(vtext,"\n");
+  }
+return(vtext);
+}
+
+
 
 /******************************************************************************
  Object functions
  *****************************************************************************/
 
+
+
+/*** Construct system object and reset some global variables ***/
+void create_system(void)
+{
+int i;
+struct utsname uts;
+
+if ((amsys=(SYS_OBJECT)malloc(sizeof(struct system_struct)))==NULL) {
+  fprintf(stderr,"Amnuts: Failed to create system object in create_system().\n");
+  boot_exit(21);
+  }
+
+amsys->auto_connect=1;
+amsys->max_users=50;
+amsys->max_clones=1;
+amsys->ban_swearing=0;
+amsys->heartbeat=2;
+amsys->keepalive_interval=60; /* DO NOT TOUCH!!! */
+amsys->net_idle_time=300; /* Must be > than the above */
+amsys->login_idle_time=180;
+amsys->user_idle_time=300;
+amsys->time_out_afks=0;
+amsys->wizport_level=WIZ;
+amsys->minlogin_level=-1;
+amsys->mesg_life=1;
+amsys->num_of_users=0;
+amsys->num_of_logins=0;
+amsys->logging=BIT_SET(amsys->logging,SYSLOG);
+amsys->logging=BIT_SET(amsys->logging,REQLOG);
+amsys->logging=BIT_SET(amsys->logging,NETLOG);
+amsys->password_echo=0;
+amsys->ignore_sigterm=0;
+amsys->crash_action=2;
+amsys->prompt_def=1;
+amsys->colour_def=1;
+amsys->charecho_def=0;
+amsys->time_out_maxlevel=USER;
+amsys->mesg_check_hour=0;
+amsys->mesg_check_min=0;
+amsys->rs_countdown=0;
+amsys->rs_announce=0;
+amsys->rs_which=-1;
+amsys->rs_user=NULL;
+amsys->gatecrash_level=GOD+1; /* minimum user level which can enter private rooms */
+amsys->min_private_users=2; /* minimum num. of users in room before can set to priv */
+amsys->ignore_mp_level=GOD; /* User level which can ignore the above var. */
+amsys->rem_user_maxlevel=USER;
+amsys->rem_user_deflevel=USER;
+amsys->logons_old=0;
+amsys->logons_new=0;
+amsys->purge_count=0;
+amsys->purge_skip=0;
+amsys->users_purged=0;
+amsys->purge_date=1;
+amsys->suggestion_count=0;
+amsys->forwarding=1;
+amsys->auto_purge=0;
+amsys->user_count=0;
+amsys->allow_recaps=1;
+amsys->auto_promote=1;
+amsys->personal_rooms=1;
+amsys->startup_room_parse=1;
+amsys->motd1_cnt=0;
+amsys->motd2_cnt=0;
+amsys->random_motds=1;
+amsys->last_cmd_cnt=0;
+amsys->resolve_ip=1; /* auto resolve ip */
+amsys->flood_protect=1;
+amsys->pid=(int)getpid();
+time(&amsys->boot_time);
+if ((uname(&uts))<0) {
+  strcpy(amsys->sysname,"[undetermined]");
+  strcpy(amsys->sysmachine,"[undetermined]");
+  strcpy(amsys->sysrelease,"[undetermined]");
+  strcpy(amsys->sysversion,"[undetermined]");
+  strcpy(amsys->sysnodename,"[undetermined]");
+  }
+else {
+  strncpy(amsys->sysname,uts.sysname,63);
+  strncpy(amsys->sysmachine,uts.machine,63);
+  strncpy(amsys->sysrelease,uts.release,63);
+  strncpy(amsys->sysversion,uts.version,63);
+  strncpy(amsys->sysnodename,uts.nodename,63);
+  }
+user_first=NULL;
+user_last=NULL;
+room_first=NULL;
+room_last=NULL; /* This variable isn't used yet */
+first_dir_entry=NULL;
+first_command=NULL;
+first_wiz_entry=NULL;
+last_wiz_entry=NULL;
+force_listen=0;
+no_prompt=0;
+logon_flag=0;
+for (i=0;i<port_total;i++) {
+  port[i]=0;
+  listen_sock[i]=0;
+  }
+for (i=0;i<LASTLOGON_NUM;i++) {
+  last_login_info[i].name[0]='\0';
+  last_login_info[i].time[0]='\0';
+  last_login_info[i].on=0;
+  }
+for (i=0;i<16;i++) cmd_history[i][0]='\0';
+clear_words();
+#ifdef NETLINKS
+ verification[0]='\0';
+ nl_first=NULL;
+ nl_last=NULL;
+#endif
+}
 
 
 /*** Construct user/clone object ***/
@@ -696,7 +866,7 @@ UR_OBJECT create_user(void)
 UR_OBJECT user;
 
 if ((user=(UR_OBJECT)malloc(sizeof(struct user_struct)))==NULL) {
-  write_syslog("ERROR: Memory allocation failure in create_user().\n",0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Memory allocation failure in create_user().\n");
   return NULL;
   }
 /* Append object into linked list. */
@@ -733,6 +903,7 @@ strcpy(user->homepage,"#UNSET");
 strcpy(user->verify_code,"#NONE");
 strcpy(user->version,AMNUTSVER);
 user->recap[0]='\0';
+user->bw_recap[0]='\0';
 user->desc[0]='\0';
 user->in_phrase[0]='\0';	
 user->out_phrase[0]='\0';
@@ -777,6 +948,7 @@ user->read_mail=time(0);
 user->last_input=time(0);
 user->last_login=time(0);
 user->level=NEW;
+user->real_level=user->level;
 user->unarrest=NEW;
 user->arrestby=0;
 user->buffpos=0;
@@ -791,9 +963,9 @@ user->muzzled=0;
 user->remote_com=-1;
 user->last_login_len=0;
 user->total_login=0;
-user->prompt=prompt_def;
-user->colour=colour_def;
-user->charmode_echo=charecho_def;
+user->prompt=amsys->prompt_def;
+user->colour=amsys->colour_def;
+user->charmode_echo=amsys->charecho_def;
 user->misc_op=0;
 user->edit_op=0;
 user->edit_line=0;
@@ -896,6 +1068,7 @@ room->name[0]='\0';
 room->label[0]='\0';
 room->desc[0]='\0';
 room->topic[0]='\0';
+room->map[0]='\0';
 room->access=-1;
 room->revline=0;
 room->mesg_cnt=0;
@@ -940,7 +1113,7 @@ int inserted;
 struct command_struct *cmd,*tmp;
 
 if ((cmd=(struct command_struct *)malloc(sizeof(struct command_struct)))==NULL) {
-  write_syslog("ERROR: Memory allocation failure in add_command().\n",0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Memory allocation failure in add_command().\n");
   return 0;
   }
 
@@ -1035,7 +1208,7 @@ int add_user_node(char *name, int level)
 struct user_dir_struct *new;
 
 if ((new=(struct user_dir_struct *)malloc(sizeof(struct user_dir_struct)))==NULL) {
-  write_syslog("ERROR: Memory allocation failure in add_user_node().\n",0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Memory allocation failure in add_user_node().\n");
   return 0;
   }
 if (first_dir_entry==NULL) {
@@ -1049,7 +1222,7 @@ else {
 new->next=NULL;
 last_dir_entry=new;
 
-++user_count;
+++amsys->user_count;
 strcpy(new->name,name);
 new->level=level;
 new->date[0]='\0';
@@ -1099,7 +1272,7 @@ else {
   else entry->next->prev=entry->prev;
   }
 free(entry);
---user_count;
+--amsys->user_count;
 return 1;
 }
 
@@ -1127,7 +1300,7 @@ int add_wiz_node(char *name, int level)
 struct wiz_list_struct *new;
 
 if ((new=(struct wiz_list_struct *)malloc(sizeof(struct wiz_list_struct)))==NULL) {
-  write_syslog("ERROR: Memory allocation failure in add_wiz_node().\n",0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Memory allocation failure in add_wiz_node().\n");
   return 0;
   }
 if (first_wiz_entry==NULL) {
@@ -1209,7 +1382,7 @@ return(0);
 
 
 /*** Check to see if the directory structure in USERFILES is correct, ie, there
-     is one directory for each of the level names given in *level_name[]
+     is one directory for each of the level names given in *user_level[]
      Also, check if level names are unique.
      ***/
 void check_directories(void) {
@@ -1218,12 +1391,10 @@ int levels,found,i,j;
 char dirname[80];
 
 levels=found=0;
-/* check to see how many levels there are */
-while (level_name[levels][0]!='*') levels++;
 /* Check for unique directory names */
-for (i=0; i<levels-1; ++i) {
-  for (j=i+1; j<levels; ++j) {
-    if (!strcmp(level_name[i],level_name[j])) {
+for (i=0; i<NUM_LEVELS; ++i) {
+  for (j=i+1; j<NUM_LEVELS; ++j) {
+    if (!strcmp(user_level[i].name,user_level[j].name)) {
       fprintf(stderr,"Amnuts: Level names are not unique.\n");
       boot_exit(14);
       }
@@ -1334,6 +1505,19 @@ return(0);
 }
 
 
+/*** checks to see if someone is already in login-stage on the ports ***/
+int login_port_flood(char *asite)
+{
+UR_OBJECT u;
+int cnt=0;
+
+for(u=user_first;u!=NULL;u=u->next)
+  if (u->login && (!strcmp(asite,u->site) || !strcmp(asite,u->ipsite))) cnt++;
+if (cnt>=LOGIN_FLOOD_CNT) return 1;
+return 0;
+}
+
+
 /*** See if user is banned ***/
 int user_banned(char *name) {
 FILE *fp;
@@ -1359,7 +1543,7 @@ int cnt;
 if (rm==NULL || rm->access!=PRIVATE) return; 
 cnt=0;
 for(u=user_first;u!=NULL;u=u->next) if (u->room==rm) ++cnt;
-if (cnt<min_private_users) {
+if (cnt<amsys->min_private_users) {
   write_room(rm,"Room access returned to ~FGPUBLIC.\n");
   rm->access=PUBLIC;
   /* Reset any invites into the room & clear review buffer */
@@ -1389,18 +1573,18 @@ return NULL;
 UR_OBJECT get_user_name(UR_OBJECT user, char *i_name) {
 UR_OBJECT u,last;
 int found=0;
-char name[USER_NAME_LEN], text2[ARR_SIZE];
+char name[USER_NAME_LEN],buff[ARR_SIZE];
 
 last=NULL;
 strncpy(name,i_name,USER_NAME_LEN);
-name[0]=toupper(name[0]); text[0]=0;
+name[0]=toupper(name[0]);  buff[0]=0;
 for (u=user_first;u!=NULL;u=u->next)
   if (!strcmp(u->name,name) && u->room!=NULL) return u;
 for (u=user_first;u!=NULL;u=u->next) {
   if (u->type==CLONE_TYPE) continue;
     if (instr(u->name,name) != -1) {
-      strcat(text,u->name);
-      strcat(text, "  ");
+      strcat(buff,u->name);
+      strcat(buff, "  ");
       found++;
       last=u;
       }
@@ -1408,11 +1592,10 @@ for (u=user_first;u!=NULL;u=u->next) {
 if (found == 0) return NULL;
 if (found >1) {
   write_user(user, "~FR~OLName is not unique.\n\n");
-  sprintf(text2,"   ~OL%s\n\n",text);
-  write_user(user,text2);
+  vwrite_user(user,"   ~OL%s\n\n",buff);
   return NULL;
   }
-else  return(last);
+else return(last);
 }
 
 
@@ -1440,10 +1623,8 @@ return NULL;
 int get_level(char *name) {
 int i;
 
-i=0;
-while(level_name[i][0]!='*') {
-  if (!strcmp(level_name[i],name)) return i;
-  ++i;
+for (i=0;i<NUM_LEVELS;i++) {
+  if (!strcasecmp(user_level[i].name,name)) return i;
   }
 return -1;
 }
@@ -1473,7 +1654,7 @@ if ((rm->access==PERSONAL_LOCKED && !is_my_room(user,rm))
     && user->invite_room!=rm) return 0;
 /* fixed room checks */
 if ((rm->access & PRIVATE) 
-    && user->level<gatecrash_level 
+    && user->level<amsys->gatecrash_level 
     && user->invite_room!=rm
     && !((rm->access & FIXED) && user->level>=WIZ)) return 0;
 /* have access */
@@ -1495,15 +1676,13 @@ if (rm==NULL) {
   return;
   }
 if (rm->access==PRIVATE || (rm->access==FIXED_PRIVATE && user->level<WIZ)) {
-  sprintf(text,"\nThe room you logged out of is now private - connecting into the %s.\n\n",room_first->name);
-  write_user(user,text);
+  vwrite_user(user,"\nThe room you logged out of is now private - connecting into the %s.\n\n",room_first->name);
   user->room=room_first;
   return;
   }
 user->room=rm;
-if (user->lroom==2) sprintf(text,"\nYou have been ~FRshackled~RS to the ~FG%s~RS room.\n\n",rm->name);
-else sprintf(text,"\nYou are connecting into the ~FG%s~RS room.\n\n",rm->name);
-write_user(user,text);
+if (user->lroom==2) vwrite_user(user,"\nYou have been ~FRshackled~RS to the ~FG%s~RS room.\n\n",rm->name);
+else vwrite_user(user,"\nYou are connecting into the ~FG%s~RS room.\n\n",rm->name);
 }
 
 
@@ -1664,13 +1843,11 @@ for (user=user_first;user!=NULL;user=user->next)
 /*** Accept incoming connections on listen sockets ***/
 void accept_connection(int lsock, int num) {
 UR_OBJECT user;
-#ifdef NETLINKS
-  NL_OBJECT create_netlink();
-#endif
 char named_site[80],ip_site[16],motdname[80];
 struct sockaddr_in acc_addr;
 struct hostent *host;
-int accept_sock,size;
+int accept_sock;
+unsigned int size;
 
 named_site[0]=ip_site[0]='\0';
 size=sizeof(struct sockaddr_in);
@@ -1684,28 +1861,44 @@ if (num==2) {
 /* Get number addr */
 strcpy(ip_site,(char *)inet_ntoa(acc_addr.sin_addr));
 /* Get named site
-   Use the compile option -DRESOLVEIP if your talker is hanging for no reason.
-   Hanging usually happens on BSD systems when using gethostbyaddr and this attempts
-   to fix it.
+   Hanging usually happens on BSD systems when using gethostbyaddr.  If this happens
+   to you then alter the resolve_ip setting in the config file.
 */
-#ifdef RESOLVEIP
-  strcpy(named_site,((char *)resolve_ip(ip_site)));
-#else
-  if ((host=gethostbyaddr((char *)&acc_addr.sin_addr,4,AF_INET))!=NULL) {
-    strcpy(named_site,host->h_name);
-    strtolower(named_site);
-    }
-  else strncpy(named_site,ip_site,strlen(ip_site)-1);
-#endif
+switch(amsys->resolve_ip) {
+  case 0:
+    /* don't resolve */
+    strncpy(named_site,ip_site,strlen(ip_site));
+    break;
+  case 1:
+    /* resolve automatically */
+    if ((host=gethostbyaddr((char *)&acc_addr.sin_addr,4,AF_INET))!=NULL) {
+      strncpy(named_site,host->h_name,strlen(host->h_name));
+      strtolower(named_site);
+      }
+    else strncpy(named_site,ip_site,strlen(ip_site));
+    break;
+  case 2:
+    /* resolve with function by tref */
+    strcpy(named_site,((char *)resolve_ip(ip_site)));
+    break;
+  }
 if (site_banned(ip_site,0) || site_banned(named_site,0)) {
   write_sock(accept_sock,"\n\rLogins from your site/domain are banned.\n\n\r");
   close(accept_sock);
-  sprintf(text,"Attempted login from banned site %s (%s).\n",named_site,ip_site);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"Attempted login from banned site %s (%s).\n",named_site,ip_site);
+  return;
+  }
+if (amsys->flood_protect && (login_port_flood(ip_site) || login_port_flood(named_site))) {
+  write_sock(accept_sock,"\n\rYou have attempted to flood this talker's ports.  We view this as\n\r");
+  write_sock(accept_sock,"a sign that you are trying to hack this system.  Therefor you have now\n\r");
+  write_sock(accept_sock,"had logins from your site/domain banned.\n\n\r");
+  close(accept_sock);
+  write_syslog(SYSLOG,1,"Attempted port flood from site %s (%s).\n",named_site,ip_site);
+  auto_ban_site(ip_site);
   return;
   }
 /* get random motd1 and send  pre-login message */
-if (motd1_cnt) {
+if (amsys->motd1_cnt) {
   sprintf(motdname,"%s/motd1/motd%d",MOTDFILES,(get_motd_num(1)));
   more(NULL,accept_sock,motdname);
   }
@@ -1713,7 +1906,7 @@ else {
   sprintf(text,"Welcome to %s!\n\n\rSorry, but the login screen appears to be missing at this time.\n\r",talker_name);
   write_sock(accept_sock,text);
   }
-if (num_of_users+num_of_logins>=max_users && !num) {
+if (amsys->num_of_users+amsys->num_of_logins>=amsys->max_users && !num) {
   write_sock(accept_sock,"\n\rSorry, but we cannot accept any more connections at the moment.  Please try later.\n\n\r");
   close(accept_sock);  
   return;
@@ -1737,11 +1930,11 @@ strcpy(user->ipsite,ip_site);
 user->site_port=(int)ntohs(acc_addr.sin_port);
 echo_on(user);
 write_user(user,"Give me a name: ");
-num_of_logins++;
+amsys->num_of_logins++;
 }
 
 
-/*** Resolve an IP address if the -DRESOLVEIP compile option was used.
+/*** Resolve an IP address if the resolve_ip set to MANUAL in config file.
      This code was written by tref, and submitted to ewtoo.org by ruGG.
      Claimed useful for BSD systems in which gethostbyaddr() calls caused
      extreme hanging/blocking of the talker.  Note, popen is a blocking 
@@ -1852,11 +2045,11 @@ while(!feof(fp)) {
     case 2: parse_rooms_section(); got_rooms=1; break;
     case 3: parse_topics_section(remove_first(line)); got_topics=1; break;
     case 4:
-      #ifdef NETLINKS
+#ifdef NETLINKS
         parse_sites_section(); break;
-      #else
+#else
 	break;
-      #endif
+#endif
     default:
       fprintf(stderr,"Amnuts: Section header expected on line %d.\n",config_line);
       fclose(fp);  boot_exit(1);
@@ -1950,8 +2143,7 @@ for(rm1=room_first;rm1!=NULL;rm1=rm1->next) {
   sprintf(filename,"%s/%s.R",DATAFILES,rm1->name);
   if (!(fp=fopen(filename,"r"))) {
     fprintf(stderr,"Amnuts: Can't open description file for room %s.\n",rm1->name);
-    sprintf(text,"ERROR: Couldn't open description file for room %s.\n",rm1->name);
-    write_syslog(text,0,SYSLOG);
+    write_syslog(SYSLOG,0,"ERROR: Couldn't open description file for room %s.\n",rm1->name);
     continue;
     }
   i=0;
@@ -1959,8 +2151,7 @@ for(rm1=room_first;rm1!=NULL;rm1=rm1->next) {
   while(!feof(fp)) {
     if (i==ROOM_DESC_LEN) {
       fprintf(stderr,"Amnuts: Description too long for room %s.\n",rm1->name);
-      sprintf(text,"ERROR: Description too long for room %s.\n",rm1->name);
-      write_syslog(text,0,SYSLOG);
+      write_syslog(SYSLOG,0,"ERROR: Description too long for room %s.\n",rm1->name);
       break;
       }
     rm1->desc[i]=c;  
@@ -1976,7 +2167,7 @@ for(rm1=room_first;rm1!=NULL;rm1=rm1->next) {
 /*** Parse init section ***/
 void parse_init_section(void) {
 static int in_section=0;
-int op,val;
+int op,val,tmp;
 char *options[]={ 
   "mainport","wizport","linkport","system_logging","minlogin_level","mesg_life",
   "wizport_level","prompt_def","gatecrash_level","min_private","ignore_mp_level",
@@ -1985,7 +2176,7 @@ char *options[]={
   "ignore_sigterm","auto_connect","max_clones","ban_swearing","crash_action",
   "colour_def","time_out_afks","charecho_def","time_out_maxlevel","auto_purge",
   "allow_recaps","auto_promote","personal_rooms","random_motds","startup_room_parse",
-  "*"
+  "resolve_ip","flood_protect","*"
   };
 
 if (!strcmp(wrd[0],"INIT:")) { 
@@ -1995,7 +2186,7 @@ if (!strcmp(wrd[0],"INIT:")) {
     }
   return;
   }
-op=0;
+op=0; tmp=0;
 while(strcmp(options[op],wrd[0])) {
   if (options[op][0]=='*') {
     fprintf(stderr,"Amnuts: Unknown INIT option on line %d.\n",config_line);
@@ -2025,45 +2216,52 @@ switch(op) {
     return;
   
   case 3:  
-    if ((system_logging=onoff_check(wrd[1]))==-1) {
+    if ((tmp=onoff_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: System_logging must be ON or OFF on line %d.\n",config_line);
       boot_exit(1);
       }
+    /* set the bits correctly */
+    if (tmp) {
+      amsys->logging=BIT_SET(amsys->logging,SYSLOG);
+      amsys->logging=BIT_SET(amsys->logging,REQLOG);
+      amsys->logging=BIT_SET(amsys->logging,NETLOG);
+      }
+    else amsys->logging=0;
     return;
   
   case 4:
-    if ((minlogin_level=get_level(wrd[1]))==-1) {
+    if ((amsys->minlogin_level=get_level(wrd[1]))==-1) {
       if (strcmp(wrd[1],"NONE")) {
 	fprintf(stderr,"Amnuts: Unknown level specifier for minlogin_level on line %d.\n",config_line);
 	boot_exit(1);	
         }
-      minlogin_level=-1;
+      amsys->minlogin_level=-1;
       }
     return;
     
   case 5:  /* message lifetime */
-    if ((mesg_life=val)<1) {
+    if ((amsys->mesg_life=val)<1) {
       fprintf(stderr,"Amnuts: Illegal message lifetime on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 6: /* wizport_level */
-    if ((wizport_level=get_level(wrd[1]))==-1) {
+    if ((amsys->wizport_level=get_level(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Unknown level specifier for wizport_level on line %d.\n",config_line);
       boot_exit(1);	
       }
     return;
 
   case 7: /* prompt defaults */
-    if ((prompt_def=onoff_check(wrd[1]))==-1) {
+    if ((amsys->prompt_def=onoff_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Prompt_def must be ON or OFF on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 8: /* gatecrash level */
-    if ((gatecrash_level=get_level(wrd[1]))==-1) {
+    if ((amsys->gatecrash_level=get_level(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Unknown level specifier for gatecrash_level on line %d.\n",config_line);
       boot_exit(1);	
       }
@@ -2074,11 +2272,11 @@ switch(op) {
       fprintf(stderr,"Amnuts: Number too low for min_private_users on line %d.\n",config_line);
       boot_exit(1);
       }
-    min_private_users=val;
+    amsys->min_private_users=val;
     return;
 
   case 10:
-    if ((ignore_mp_level=get_level(wrd[1]))==-1) {
+    if ((amsys->ignore_mp_level=get_level(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Unknown level specifier for ignore_mp_level on line %d.\n",config_line);
       boot_exit(1);	
       }
@@ -2088,7 +2286,7 @@ switch(op) {
     /* Max level a remote user can remotely log in if he doesn't have a local
        account. ie if level set to WIZ a GOD can only be a WIZ if logging in 
        from another server unless he has a local account of level GOD */
-    if ((rem_user_maxlevel=get_level(wrd[1]))==-1) {
+    if ((amsys->rem_user_maxlevel=get_level(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Unknown level specifier for rem_user_maxlevel on line %d.\n",config_line);
       boot_exit(1);	
       }
@@ -2097,7 +2295,7 @@ switch(op) {
   case 12:
     /* Default level of remote user who does not have an account on site and
        connection is from a server of version 3.3.0 or lower. */
-    if ((rem_user_deflevel=get_level(wrd[1]))==-1) {
+    if ((amsys->rem_user_deflevel=get_level(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Unknown level specifier for rem_user_deflevel on line %d.\n",config_line);
       boot_exit(1);	
       }
@@ -2123,80 +2321,80 @@ switch(op) {
       fprintf(stderr,"Amnuts: Invalid message check time on line %d.\n",config_line);
       boot_exit(1);
       }
-    sscanf(wrd[1],"%d:%d",&mesg_check_hour,&mesg_check_min);
-    if (mesg_check_hour>23 || mesg_check_min>59) {
+    sscanf(wrd[1],"%d:%d",&amsys->mesg_check_hour,&amsys->mesg_check_min);
+    if (amsys->mesg_check_hour>23 || amsys->mesg_check_min>59) {
       fprintf(stderr,"Amnuts: Invalid message check time on line %d.\n",config_line);
       boot_exit(1);	
       }
     return;
 
   case 15:
-    if ((max_users=val)<1) {
+    if ((amsys->max_users=val)<1) {
       fprintf(stderr,"Amnuts: Invalid value for max_users on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 16:
-    if ((heartbeat=val)<1) {
+    if ((amsys->heartbeat=val)<1) {
       fprintf(stderr,"Amnuts: Invalid value for heartbeat on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 17:
-    if ((login_idle_time=val)<10) {
+    if ((amsys->login_idle_time=val)<10) {
       fprintf(stderr,"Amnuts: Invalid value for login_idle_time on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 18:
-    if ((user_idle_time=val)<10) {
+    if ((amsys->user_idle_time=val)<10) {
       fprintf(stderr,"Amnuts: Invalid value for user_idle_time on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 19: 
-    if ((password_echo=yn_check(wrd[1]))==-1) {
+    if ((amsys->password_echo=yn_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Password_echo must be YES or NO on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 20: 
-    if ((ignore_sigterm=yn_check(wrd[1]))==-1) {
+    if ((amsys->ignore_sigterm=yn_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Ignore_sigterm must be YES or NO on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 21:
-    if ((auto_connect=yn_check(wrd[1]))==-1) {
+    if ((amsys->auto_connect=yn_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Auto_connect must be YES or NO on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 22:
-    if ((max_clones=val)<0) {
+    if ((amsys->max_clones=val)<0) {
       fprintf(stderr,"Amnuts: Invalid value for max_clones on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 23:
-    if ((ban_swearing=minmax_check(wrd[1]))==-1) {
+    if ((amsys->ban_swearing=minmax_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Ban_swearing must be OFF, MIN or MAX on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 24:
-    if (!strcmp(wrd[1],"NONE")) crash_action=0;
-    else if (!strcmp(wrd[1],"IGNORE")) crash_action=1;
-    else if (!strcmp(wrd[1],"REBOOT")) crash_action=2;
+    if (!strcmp(wrd[1],"NONE")) amsys->crash_action=0;
+    else if (!strcmp(wrd[1],"IGNORE")) amsys->crash_action=1;
+    else if (!strcmp(wrd[1],"REBOOT")) amsys->crash_action=2;
     else {
       fprintf(stderr,"Amnuts: Crash_action must be NONE, IGNORE or REBOOT on line %d.\n",config_line);
       boot_exit(1);
@@ -2204,75 +2402,88 @@ switch(op) {
     return;
 
   case 25:
-    if ((colour_def=onoff_check(wrd[1]))==-1) {
+    if ((amsys->colour_def=onoff_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Colour_def must be ON or OFF on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 26:
-    if ((time_out_afks=yn_check(wrd[1]))==-1) {
+    if ((amsys->time_out_afks=yn_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Time_out_afks must be YES or NO on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 27:
-    if ((charecho_def=onoff_check(wrd[1]))==-1) {
+    if ((amsys->charecho_def=onoff_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Charecho_def must be ON or OFF on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 28:
-    if ((time_out_maxlevel=get_level(wrd[1]))==-1) {
+    if ((amsys->time_out_maxlevel=get_level(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Unknown level specifier for time_out_maxlevel on line %d.\n",config_line);
       boot_exit(1);	
       }
     return;
 
   case 29: /* auto purge on boot up */
-    if ((auto_purge=yn_check(wrd[1]))==-1) {
+    if ((amsys->auto_purge=yn_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Auto_purge must be YES or NO on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
-  case 30: /* auto purge on boot up */
-    if ((allow_recaps=yn_check(wrd[1]))==-1) {
+  case 30: /* allow recapping of names */
+    if ((amsys->allow_recaps=yn_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Allow_recaps must be YES or NO on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 31: /* define whether auto promotes are on or off */
-    if ((auto_promote=yn_check(wrd[1]))==-1) {
+    if ((amsys->auto_promote=yn_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: auto_promote must be YES or NO on line %d.\n",config_line);
       boot_exit(1);
       } 
     return;
 
   case 32:
-    if ((personal_rooms=yn_check(wrd[1]))==-1) {
+    if ((amsys->personal_rooms=yn_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Personal_rooms must be YES or NO on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 33:
-    if ((random_motds=yn_check(wrd[1]))==-1) {
+    if ((amsys->random_motds=yn_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Random_motds must be YES or NO on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
   case 34:
-    if ((startup_room_parse=yn_check(wrd[1]))==-1) {
+    if ((amsys->startup_room_parse=yn_check(wrd[1]))==-1) {
       fprintf(stderr,"Amnuts: Startup_room_parse must be YES or NO on line %d.\n",config_line);
       boot_exit(1);
       }
     return;
 
+  case 35: 
+    if ((amsys->resolve_ip=resolve_check(wrd[1]))==-1) {
+      fprintf(stderr,"Amnuts: Resolve_ip must be OFF, AUTO or MANUAL on line %d.\n",config_line);
+      boot_exit(1);
+      }
+    return;
+
+  case 36: /* turns flood protection and auto-baning on and off */
+    if ((amsys->flood_protect=onoff_check(wrd[1]))==-1) {
+      fprintf(stderr,"Amnuts: Flood_protect must be ON or OFF on line %d.\n",config_line);
+      boot_exit(1);
+      }
+    return;
   } /* end switch */
 }
 
@@ -2292,38 +2503,43 @@ if (!strcmp(wrd[0],"ROOMS:")) {
     }
   return;
   }
-if (!wrd[2][0]) {
+if (!wrd[3][0]) {
   fprintf(stderr,"Amnuts: Required parameter(s) missing on line %d.\n",config_line);
   boot_exit(1);
   }
-if (strlen(wrd[0])>ROOM_LABEL_LEN) {
+if (strlen(wrd[0])>ROOM_NAME_LEN) {
+  fprintf(stderr,"Amnuts: Room map name too long on line %d.\n",config_line);
+  boot_exit(1);
+  }
+if (strlen(wrd[1])>ROOM_LABEL_LEN) {
   fprintf(stderr,"Amnuts: Room label too long on line %d.\n",config_line);
   boot_exit(1);
   }
-if (strlen(wrd[1])>ROOM_NAME_LEN) {
+if (strlen(wrd[2])>ROOM_NAME_LEN) {
   fprintf(stderr,"Amnuts: Room name too long on line %d.\n",config_line);
   boot_exit(1);
   }
 /* Check for duplicate label or name */
 for(room=room_first;room!=NULL;room=room->next) {
-  if (!strcmp(room->label,wrd[0])) {
+  if (!strcmp(room->label,wrd[1])) {
     fprintf(stderr,"Amnuts: Duplicate room label on line %d.\n",config_line);
     boot_exit(1);
     }
-  if (!strcmp(room->name,wrd[1])) {
+  if (!strcmp(room->name,wrd[2])) {
     fprintf(stderr,"Amnuts: Duplicate room name on line %d.\n",config_line);
     boot_exit(1);
     }
   }
 room=create_room();
-strcpy(room->label,wrd[0]);
-strcpy(room->name,wrd[1]);
+strcpy(room->map,wrd[0]);
+strcpy(room->label,wrd[1]);
+strcpy(room->name,wrd[2]);
 
 /* Parse internal links bit ie hl,gd,of etc. MUST NOT be any spaces between
    the commas */
 i=0;
-ptr1=wrd[2];
-ptr2=wrd[2];
+ptr1=wrd[3];
+ptr2=wrd[3];
 while(1) {
   while(*ptr2!=',' && *ptr2!='\0') ++ptr2;
   if (*ptr2==',' && *(ptr2+1)=='\0') {
@@ -2346,35 +2562,35 @@ while(1) {
   }
 
 /* Parse access privs */
-if (wrd[3][0]=='#') {  room->access=PUBLIC;  return;  }
-if (!wrd[3][0] || !strcmp(wrd[3],"BOTH")) room->access=PUBLIC; 
-else if (!strcmp(wrd[3],"PUB")) room->access=FIXED_PUBLIC; 
-else if (!strcmp(wrd[3],"PRIV")) room->access=FIXED_PRIVATE;
+if (wrd[4][0]=='#') {  room->access=PUBLIC;  return;  }
+if (!wrd[4][0] || !strcmp(wrd[4],"BOTH")) room->access=PUBLIC; 
+else if (!strcmp(wrd[4],"PUB")) room->access=FIXED_PUBLIC; 
+else if (!strcmp(wrd[4],"PRIV")) room->access=FIXED_PRIVATE;
 else {
   fprintf(stderr,"Amnuts: Unknown room access type on line %d.\n",config_line);
   boot_exit(1);
   }
 /* Parse external link stuff */
 #ifdef NETLINKS
-  if (!wrd[4][0] || wrd[4][0]=='#') return;
-  if (!strcmp(wrd[4],"ACCEPT")) {  
-    if (wrd[5][0] && wrd[5][0]!='#') {
+  if (!wrd[5][0] || wrd[5][0]=='#') return;
+  if (!strcmp(wrd[5],"ACCEPT")) {  
+    if (wrd[6][0] && wrd[6][0]!='#') {
       fprintf(stderr,"Amnuts: Unexpected word following ACCEPT keyword on line %d.\n",config_line);
       boot_exit(1);
       }
     room->inlink=1;  
     return;
     }
-  if (!strcmp(wrd[4],"CONNECT")) {
-    if (!wrd[5][0]) {
+  if (!strcmp(wrd[5],"CONNECT")) {
+    if (!wrd[6][0]) {
       fprintf(stderr,"Amnuts: External link name missing on line %d.\n",config_line);
       boot_exit(1);
       }
-    if (wrd[6][0] && wrd[6][0]!='#') {
+    if (wrd[7][0] && wrd[7][0]!='#') {
       fprintf(stderr,"Amnuts: Unexpected word following external link name on line %d.\n",config_line);
       boot_exit(1);
       }
-    strcpy(room->netlink_name,wrd[5]);
+    strcpy(room->netlink_name,wrd[6]);
     return;
     }
   fprintf(stderr,"Amnuts: Unknown connection option on line %d.\n",config_line);
@@ -2486,7 +2702,7 @@ while((dp=readdir(dirp))!=NULL) {
     name[strlen(name)-2]='\0';
     rm=create_room();
     if (!(personal_room_store(name,0,rm))) {
-      write_syslog("ERROR: Could not read personal room attributes.  Using standard config.\n",1,SYSLOG);
+      write_syslog(SYSLOG,1,"ERROR: Could not read personal room attributes.  Using standard config.\n");
       }
     strtolower(name);
     sprintf(rm->name,"(%s)",name);
@@ -2534,8 +2750,8 @@ force_listen=1;
 dump_commands(sig);
 switch(sig) {
   case SIGTERM:
-    if (ignore_sigterm) {
-      write_syslog("SIGTERM signal received - ignoring.\n",1,SYSLOG);
+    if (amsys->ignore_sigterm) {
+      write_syslog(SYSLOG,1,"SIGTERM signal received - ignoring.\n");
       return;
       }
     write_room(NULL,"\n\n~OLSYSTEM:~FR~LI SIGTERM received, initiating shutdown!\n\n");
@@ -2543,7 +2759,7 @@ switch(sig) {
     break; /* don't really need this here, but better safe... */
 
   case SIGSEGV:
-    switch(crash_action) {
+    switch(amsys->crash_action) {
       case 0:	
 	write_room(NULL,"\n\n\07~OLSYSTEM:~FR~LI PANIC - Segmentation fault, initiating shutdown!\n\n");
 	talker_shutdown(NULL,"a segmentation fault (SIGSEGV)",0); 
@@ -2551,7 +2767,7 @@ switch(sig) {
 
       case 1:	
 	write_room(NULL,"\n\n\07~OLSYSTEM:~FR~LI WARNING - A segmentation fault has just occured!\n\n");
-	write_syslog("WARNING: A segmentation fault occured!\n",1,SYSLOG);
+	write_syslog(SYSLOG,1,"WARNING: A segmentation fault occured!\n");
 	longjmp(jmpvar,0);
 	break;
 
@@ -2562,7 +2778,7 @@ switch(sig) {
     } /* end switch */
 
   case SIGBUS:
-    switch(crash_action) {
+    switch(amsys->crash_action) {
       case 0:
 	write_room(NULL,"\n\n\07~OLSYSTEM:~FR~LI PANIC - Bus error, initiating shutdown!\n\n");
 	talker_shutdown(NULL,"a bus error (SIGBUS)",0);
@@ -2570,7 +2786,7 @@ switch(sig) {
 
       case 1:
 	write_room(NULL,"\n\n\07~OLSYSTEM:~FR~LI WARNING - A bus error has just occured!\n\n");
-	write_syslog("WARNING: A bus error occured!\n",1,SYSLOG);
+	write_syslog(SYSLOG,1,"WARNING: A bus error occured!\n");
 	longjmp(jmpvar,0);
 	break;
 
@@ -2588,101 +2804,106 @@ void boot_exit(int code)
 {
 switch(code) {
   case 1:
-    write_syslog("BOOT FAILURE: Error while parsing configuration file.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Error while parsing configuration file.\n");
     exit(1);
 
   case 2:
     perror("Amnuts: Can't open main port listen socket");
-    write_syslog("BOOT FAILURE: Can't open main port listen socket.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Can't open main port listen socket.\n");
     exit(2);
 
   case 3:
     perror("Amnuts: Can't open wiz port listen socket");
-    write_syslog("BOOT FAILURE: Can't open wiz port listen socket.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Can't open wiz port listen socket.\n");
     exit(3);
 
   case 4:
     perror("Amnuts: Can't open link port listen socket");
-    write_syslog("BOOT FAILURE: Can't open link port listen socket.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Can't open link port listen socket.\n");
     exit(4);
 
   case 5:
     perror("Amnuts: Can't bind to main port");
-    write_syslog("BOOT FAILURE: Can't bind to main port.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Can't bind to main port.\n");
     exit(5);
 
   case 6:
     perror("Amnuts: Can't bind to wiz port");
-    write_syslog("BOOT FAILURE: Can't bind to wiz port.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Can't bind to wiz port.\n");
     exit(6);
 
   case 7:
     perror("Amnuts: Can't bind to link port");
-    write_syslog("BOOT FAILURE: Can't bind to link port.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Can't bind to link port.\n");
     exit(7);
 
   case 8:
     perror("Amnuts: Listen error on main port");
-    write_syslog("BOOT FAILURE: Listen error on main port.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Listen error on main port.\n");
     exit(8);
 
   case 9:
     perror("Amnuts: Listen error on wiz port");
-    write_syslog("BOOT FAILURE: Listen error on wiz port.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Listen error on wiz port.\n");
     exit(9);
 
   case 10:
     perror("Amnuts: Listen error on link port");
-    write_syslog("BOOT FAILURE: Listen error on link port.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Listen error on link port.\n");
     exit(10);
 
   case 11:
     perror("Amnuts: Failed to fork");
-    write_syslog("BOOT FAILURE: Failed to fork.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Failed to fork.\n");
     exit(11);
 
   case 12:
     perror("Amnuts: Failed to parse user structure");
-    write_syslog("BOOT FAILURE: Failed to parse user structure.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Failed to parse user structure.\n");
     exit(12);
 
   case 13:
     perror("Amnuts: Failed to parse user commands");
-    write_syslog("BOOT FAILURE: Failed to parse user commands.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Failed to parse user commands.\n");
     exit(13);
 
   case 14:
-    write_syslog("BOOT FAILURE: Level names are not unique.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Level names are not unique.\n");
     exit(14);
 
   case 15:
-    write_syslog("BOOT FAILURE: Failed to read directory structure in USERFILES.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Failed to read directory structure in USERFILES.\n");
     exit(15);
 
   case 16:
     perror("Amnuts: Directory structure in USERFILES is incorrect");
-    write_syslog("BOOT FAILURE: Directory structure in USERFILES is incorrect.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Directory structure in USERFILES is incorrect.\n");
     exit(16);
 
   case 17:
     perror("Amnuts: Failed to create temp user structure");
-    write_syslog("BOOT FAILURE: Failed to create temp user structure.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Failed to create temp user structure.\n");
     exit(17);
 
   case 18:
     perror("Amnuts: Failed to parse a user structure");
-    write_syslog("BOOT FAILURE: Failed to parse a user structure.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Failed to parse a user structure.\n");
     exit(18);
 
   case 19:
     perror("Amnuts: Failed to open directory USERROOMS for reading");
-    write_syslog("BOOT FAILURE: Failed to open directory USERROOMS.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Failed to open directory USERROOMS.\n");
     exit(19);
 
   case 20:
     perror("Amnuts: Failed to open directory in MOTDFILES for reading");
-    write_syslog("BOOT FAILURE: Failed to open a directory MOTDFILES.\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Failed to open a directory MOTDFILES.\n");
     exit(20);
+
+  case 21:
+    perror("Amnuts: Failed to create system object");
+    write_syslog(SYSLOG,1,"BOOT FAILURE: Failed to create system object.\n");
+    exit(21);
   } /* end switch */
 }
 
@@ -2699,9 +2920,9 @@ void do_events(int sig)
   set_date_time();
   check_reboot_shutdown();
   check_idle_and_timeout();
-  #ifdef NETLINKS
-    check_nethangs_send_keepalives(); 
-  #endif
+#ifdef NETLINKS
+  check_nethangs_send_keepalives(); 
+#endif
   check_messages(NULL,0);
   reset_alarm();
 }
@@ -2710,7 +2931,7 @@ void do_events(int sig)
 void reset_alarm(void)
 {
   SIGNAL(SIGALRM,do_events);
-  alarm(heartbeat);
+  alarm(amsys->heartbeat);
 }
 
 
@@ -2720,23 +2941,21 @@ void check_reboot_shutdown(void)
 int secs;
 char *w[]={ "~FRShutdown","~FYRebooting" };
 
-if (rs_user==NULL) return;
-rs_countdown-=heartbeat;
-if (rs_countdown<=0) talker_shutdown(rs_user,NULL,rs_which);
+if (amsys->rs_user==NULL) return;
+amsys->rs_countdown-=amsys->heartbeat;
+if (amsys->rs_countdown<=0) talker_shutdown(amsys->rs_user,NULL,amsys->rs_which);
 
 /* Print countdown message every minute unless we have less than 1 minute
    to go when we print every 10 secs */
-secs=(int)(time(0)-rs_announce);
-if (rs_countdown>=60 && secs>=60) {
-  sprintf(text,"~OLSYSTEM: %s in %d minute%s, %d second%s.\n",
-	  w[rs_which],rs_countdown/60,PLTEXT_S(rs_countdown/60),rs_countdown%60,PLTEXT_S(rs_countdown%60));
-  write_room(NULL,text);
-  rs_announce=time(0);
+secs=(int)(time(0)-amsys->rs_announce);
+if (amsys->rs_countdown>=60 && secs>=60) {
+  vwrite_room(NULL,"~OLSYSTEM: %s in %d minute%s, %d second%s.\n",
+	  w[amsys->rs_which],amsys->rs_countdown/60,PLTEXT_S(amsys->rs_countdown/60),amsys->rs_countdown%60,PLTEXT_S(amsys->rs_countdown%60));
+  amsys->rs_announce=time(0);
   }
-if (rs_countdown<60 && secs>=10) {
-  sprintf(text,"~OLSYSTEM: %s in %d second%s.\n",w[rs_which],rs_countdown,PLTEXT_S(rs_countdown));
-  write_room(NULL,text);
-  rs_announce=time(0);
+if (amsys->rs_countdown<60 && secs>=10) {
+  vwrite_room(NULL,"~OLSYSTEM: %s in %d second%s.\n",w[amsys->rs_which],amsys->rs_countdown,PLTEXT_S(amsys->rs_countdown));
+  amsys->rs_announce=time(0);
   }
 }
 
@@ -2755,28 +2974,28 @@ user=user_first;
 while(user) {
   next=user->next;
   if (user->type==CLONE_TYPE) {  user=next;  continue;  }
-  user->total_login+=heartbeat; 
-  if (user->level>time_out_maxlevel) {  user=next;  continue;  }
+  user->total_login+=amsys->heartbeat; 
+  if (user->level>amsys->time_out_maxlevel) {  user=next;  continue;  }
   tm=(int)(time(0) - user->last_input);
-  if (user->login && tm>=login_idle_time) {
+  if (user->login && tm>=amsys->login_idle_time) {
     write_user(user,"\n\n*** Time out ***\n\n");
     disconnect_user(user);
     user=next;
     continue;
     }
   if (user->warned) {
-    if (tm<user_idle_time-60) {  user->warned=0;  continue;  }
-    if (tm>=user_idle_time) {
+    if (tm<amsys->user_idle_time-60) {  user->warned=0;  continue;  }
+    if (tm>=amsys->user_idle_time) {
       write_user(user,"\n\n\07~FR~OL~LI*** You have been timed out. ***\n\n");
       disconnect_user(user);
       user=next;
       continue;
       }
     }
-  if ((!user->afk || (user->afk && time_out_afks)) 
+  if ((!user->afk || (user->afk && amsys->time_out_afks)) 
       && !user->login 
       && !user->warned
-      && tm>=user_idle_time-60) {
+      && tm>=amsys->user_idle_time-60) {
     write_user(user,"\n\07~FY~OL~LI*** WARNING - Input within 1 minute or you will be disconnected. ***\n\n");
     user->warned=1;
     }
@@ -2799,7 +3018,7 @@ static int done=0;
 infp=outfp=NULL;
 switch(chforce) {
   case 0:
-    if (mesg_check_hour==thour && mesg_check_min==tmin) {
+    if (amsys->mesg_check_hour==thour && amsys->mesg_check_min==tmin) {
       if (done) return;
       }
     else {  done=0;  return;  }
@@ -2817,13 +3036,11 @@ switch(chforce) {
         }
       if (!count_motds(1)) {
 	write_user(user,"Sorry, could not recount the motds at this time.\n");
-	write_syslog("ERROR: Could not recount motds in check_messages().\n",1,SYSLOG);
+	write_syslog(SYSLOG,1,"ERROR: Could not recount motds in check_messages().\n");
 	return;
         }
-      sprintf(text,"There %s %d login motd%s and %d post-login motd%s\n",PLTEXT_WAS(motd1_cnt),motd1_cnt,PLTEXT_S(motd1_cnt),motd2_cnt,PLTEXT_S(motd2_cnt));
-      write_user(user,text);
-      sprintf(text,"%s recounted the MOTDS.\n",user->name);
-      write_syslog(text,1,SYSLOG);
+      vwrite_user(user,"There %s %d login motd%s and %d post-login motd%s\n",PLTEXT_WAS(amsys->motd1_cnt),amsys->motd1_cnt,PLTEXT_S(amsys->motd1_cnt),amsys->motd2_cnt,PLTEXT_S(amsys->motd2_cnt));
+      write_syslog(SYSLOG,1,"%s recounted the MOTDS.\n",user->name);
       return;
       }
   }
@@ -2845,7 +3062,7 @@ for(rm=room_first;rm!=NULL;rm=rm->next) {
   if (chforce<2) {
     if (!(outfp=fopen("tempfile","w"))) {
       if (chforce) fprintf(stderr,"Amnuts: Couldn't open tempfile.\n");
-      write_syslog("ERROR: Couldn't open tempfile in check_messages().\n",0,SYSLOG);
+      write_syslog(SYSLOG,0,"ERROR: Couldn't open tempfile in check_messages().\n");
       fclose(infp);
       return;
       }
@@ -2864,7 +3081,7 @@ for(rm=room_first;rm!=NULL;rm=rm->next) {
 	if (chforce==2) rm->mesg_cnt++;
 	else {
 	  /* 86400 = num. of secs in a day */
-	  if ((int)time(0) - pt < mesg_life*86400) {
+	  if ((int)time(0) - pt < amsys->mesg_life*86400) {
 	    fputs(line,outfp);
 	    rm->mesg_cnt++;
 	    write_rest=1;
@@ -2893,11 +3110,9 @@ for(rm=room_first;rm!=NULL;rm=rm->next) {
   }
 switch(chforce) {
   case 0:
-    if (bad_cnt) 
-      sprintf(text,"CHECK_MESSAGES: %d file%s checked, %d had an incorrect message count, %d message%s deleted.\n",
-	      board_cnt,PLTEXT_S(board_cnt),bad_cnt,old_cnt,PLTEXT_S(old_cnt));
-    else sprintf(text,"CHECK_MESSAGES: %d file%s checked, %d message%s deleted.\n",board_cnt,PLTEXT_S(board_cnt),old_cnt,PLTEXT_S(old_cnt));
-    write_syslog(text,1,SYSLOG);
+    if (bad_cnt) write_syslog(SYSLOG,1,"CHECK_MESSAGES: %d file%s checked, %d had an incorrect message count, %d message%s deleted.\n",
+			      board_cnt,PLTEXT_S(board_cnt),bad_cnt,old_cnt,PLTEXT_S(old_cnt));
+    else write_syslog(SYSLOG,1,"CHECK_MESSAGES: %d file%s checked, %d message%s deleted.\n",board_cnt,PLTEXT_S(board_cnt),old_cnt,PLTEXT_S(old_cnt));
     break;
     
   case 1:
@@ -2905,10 +3120,8 @@ switch(chforce) {
     break;
   
   case 2:
-    sprintf(text,"%d board file%s checked, %d had an incorrect message count.\n",board_cnt,PLTEXT_S(board_cnt),bad_cnt);
-    write_user(user,text);
-    sprintf(text,"%s forced a recount of the message boards.\n",user->name);
-    write_syslog(text,1,SYSLOG);
+    vwrite_user(user,"%d board file%s checked, %d had an incorrect message count.\n",board_cnt,PLTEXT_S(board_cnt),bad_cnt);
+    write_syslog(SYSLOG,1,"%s forced a recount of the message boards.\n",user->name);
   }
 }
 
@@ -2948,95 +3161,6 @@ if (i!=LASTLOGON_NUM) last_login_info[i].on=0;
  Initializing of globals and other stuff
  *****************************************************************************/
 
-
-
-/*** Initialise globals ***/
-void init_globals(void)
-{
-int i;
-
-for (i=0;i<port_total;i++) {
-  port[i]=0;
-  listen_sock[i]=0;
-  }
-#ifdef NETLINKS
-  verification[0]='\0';
-#endif
-auto_connect=1;
-max_users=50;
-max_clones=1;
-ban_swearing=0;
-heartbeat=2;
-keepalive_interval=60; /* DO NOT TOUCH!!! */
-net_idle_time=300; /* Must be > than the above */
-login_idle_time=180;
-user_idle_time=300;
-time_out_afks=0;
-wizport_level=WIZ;
-minlogin_level=-1;
-mesg_life=1;
-no_prompt=0;
-num_of_users=0;
-num_of_logins=0;
-system_logging=1;
-password_echo=0;
-ignore_sigterm=0;
-crash_action=2;
-prompt_def=1;
-colour_def=1;
-charecho_def=0;
-time_out_maxlevel=USER;
-mesg_check_hour=0;
-mesg_check_min=0;
-rs_countdown=0;
-rs_announce=0;
-rs_which=-1;
-rs_user=NULL;
-gatecrash_level=GOD+1; /* minimum user level which can enter private rooms */
-min_private_users=2; /* minimum num. of users in room before can set to priv */
-ignore_mp_level=GOD; /* User level which can ignore the above var. */
-rem_user_maxlevel=USER;
-rem_user_deflevel=USER;
-user_first=NULL;
-user_last=NULL;
-room_first=NULL;
-room_last=NULL; /* This variable isn't used yet */
-#ifdef NETLINKS
-  nl_first=NULL;
-  nl_last=NULL;
-#endif
-clear_words();
-time(&boot_time);
-logons_old=0;
-logons_new=0;
-purge_count=0;
-purge_skip=0;
-users_purged=0;
-purge_date=1;
-suggestion_count=0;
-forwarding=1;
-logon_flag=0;
-auto_purge=0;
-user_count=0;
-first_dir_entry=NULL;
-first_command=NULL;
-allow_recaps=1;
-for (i=0;i<LASTLOGON_NUM;i++) {
-  last_login_info[i].name[0]='\0';
-  last_login_info[i].time[0]='\0';
-  last_login_info[i].on=0;
-  }
-auto_promote=1;
-first_wiz_entry=NULL;
-last_wiz_entry=NULL;
-personal_rooms=1;
-startup_room_parse=1;
-for (i=0;i<16;i++) cmd_history[i][0]='\0';
-motd1_cnt=0;
-motd2_cnt=0;
-random_motds=1;
-last_cmd_cnt=0;
-}
 
 
 /*** Load the users details ***/
@@ -3083,26 +3207,29 @@ fgets(line,81,fp);  line[strlen(line)-1]=0;  strcpy(user->homepage,line);
 fscanf(fp,"%s\n",user->recap);
 fclose(fp);
 
-if (strcmp(user->version,AMNUTSVER)) {
+if (strcmp(user->version,USERVER)) {
   /* As default, if the version cannot be read then it'll load up version 1.4.2 files */
   if (!strcmp(user->version,"2.0.0")) {
     load_oldversion_user(user,200);
-    write_syslog("Reading old user file (version 2.0.0) in load_user_details()\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"Reading old user file (version 2.0.0) in load_user_details()\n");
     }
   else if (!strcmp(user->version,"2.0.1")) {
     load_oldversion_user(user,201);
-    write_syslog("Reading old user file (version 2.0.1) in load_user_details()\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"Reading old user file (version 2.0.1) in load_user_details()\n");
     }
   else if (!strcmp(user->version,"2.1.0")) {
     load_oldversion_user(user,210);
-    write_syslog("Reading old user file (version 2.1.0) in load_user_details()\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"Reading old user file (version 2.1.0) in load_user_details()\n");
+    }
+  else if (!strcmp(user->version,"2.1.1")) {
+    /* do nothing.. userfile type not changed */
     }
   else {
     load_oldversion_user(user,142);
-    write_syslog("Reading old user file (version 1.4.2) in load_user_details()\n",1,SYSLOG);
+    write_syslog(SYSLOG,1,"Reading old user file (version 1.4.2) in load_user_details()\n");
     }
-  strcpy(user->version,AMNUTSVER);
-  if (user->level>NEW) user->accreq=1;
+  strcpy(user->version,USERVER);
+  if (user->level>NEW) user->accreq=-1;
   }
 else {
   user->last_login=(time_t)temp1;
@@ -3110,7 +3237,10 @@ else {
   user->read_mail=(time_t)temp3;
   user->t_expire=(time_t)temp4;
   }
-if (!allow_recaps) strcpy(user->recap,user->name);
+if (!amsys->allow_recaps) strcpy(user->recap,user->name);
+strcpy(user->bw_recap,colour_com_strip(user->recap));
+user->real_level=user->level;
+if (user->level>NEW) user->accreq=-1;   /* compensate for new accreq change */
 get_macros(user);
 get_xgcoms(user);
 get_friends(user);
@@ -3127,16 +3257,16 @@ char filename[80];
 if (user->type==REMOTE_TYPE || user->type==CLONE_TYPE) return 0;
 sprintf(filename,"%s/%s.D",USERFILES,user->name);
 if (!(fp=fopen(filename,"w"))) {
-  sprintf(text,"%s: failed to save your details.\n",syserror);	
-  write_user(user,text);
-  sprintf(text,"SAVE_USER_STATS: Failed to save %s's details.\n",user->name);
-  write_syslog(text,1,SYSLOG);
+  vwrite_user(user,"%s: failed to save your details.\n",syserror);
+  write_syslog(SYSLOG,1,"SAVE_USER_STATS: Failed to save %s's details.\n",user->name);
   return 0;
   }
+/* reset normal level */
+if (user->real_level<user->level) user->level=user->real_level;
 /* Password */
 fprintf(fp,"%s\n",user->pass);
 /* Version control of user structure */
-fprintf(fp,"%s\n",AMNUTSVER);
+fprintf(fp,"%s\n",USERVER);
 /* date when user was promoted */
 fprintf(fp,"%s\n",user->date);
 /* times, levels, and important stats */
@@ -3343,12 +3473,12 @@ struct user_dir_struct *entry;
 int i;
 
 /* first zero out all level counts */
-user_count=0;
-for (i=JAILED;i<=GOD;i++) level_count[i]=0;
+amsys->user_count=0;
+for (i=JAILED;i<=GOD;i++) amsys->level_count[i]=0;
 /* count up users */
 for (entry=first_dir_entry;entry!=NULL;entry=entry->next) {
-  level_count[entry->level]++;
-  user_count++;
+  amsys->level_count[entry->level]++;
+  amsys->user_count++;
   }
 }
 
@@ -3385,7 +3515,7 @@ while(!feof(fp)) {
   if (line[0]=='\n') valid=1;
   sscanf(line,"%s",id);
   if (valid && strstr(id,"From:")) {
-    ++suggestion_count;
+    ++amsys->suggestion_count;
     valid=0;
     }
   fgets(line,82,fp);
@@ -3406,7 +3536,7 @@ DIR *dirp;
 struct dirent *dp; 
 int i;
 
-motd1_cnt=0;  motd2_cnt=0;
+amsys->motd1_cnt=0;  amsys->motd2_cnt=0;
 for (i=1;i<=2;i++) {
   /* open the directory file up */
   sprintf(filename,"%s/motd%d",MOTDFILES,i);
@@ -3420,7 +3550,7 @@ for (i=1;i<=2;i++) {
     }
   /* count up how many files in the directory - not including . and .. */
   while((dp=readdir(dirp))!=NULL) {
-    if (strstr(dp->d_name,"motd")) (i==1) ? ++motd1_cnt : ++motd2_cnt;
+    if (strstr(dp->d_name,"motd")) (i==1) ? ++amsys->motd1_cnt : ++amsys->motd2_cnt;
     }
   (void) closedir(dirp);
   }
@@ -3434,10 +3564,10 @@ int get_motd_num(int motd)
 int num;
 srand(time(0));
 
-if (!random_motds) return 1;
+if (!amsys->random_motds) return 1;
 switch(motd) {
-  case 1: num=rand()%motd1_cnt+1;  break;
-  case 2: num=rand()%motd2_cnt+1;  break;
+  case 1: num=rand()%amsys->motd1_cnt+1;  break;
+  case 2: num=rand()%amsys->motd2_cnt+1;  break;
   default: num=0;  break;
   }
 return (!num) ? 1:num;
@@ -3560,13 +3690,30 @@ void write_sock(int sock, char *str)
 }
 
 
+/* a vargs wrapper for the write_user function.  This will enable you
+   to send arguments directly to this function.
+   before ya mention it, Squirt, I already had this in a file before your snippet...
+   but I gotta admit that your snippet kicked my butt into actually implementing this ;)
+*/
+void vwrite_user(UR_OBJECT user, char *str, ...)
+{
+va_list args;
+
+vtext[0]='\0';
+va_start(args,str);
+vsprintf(vtext,str,args);
+va_end(args);
+write_user(user,vtext);
+}
+
+
 /*** Send message to user ***/
 void write_user(UR_OBJECT user, char *str)
 {
 int buffpos,sock,i,cnt;
 char *start,buff[OUT_BUFF_SIZE];
 #ifdef NETLINKS
-  char mesg[ARR_SIZE];
+ char mesg[ARR_SIZE];
 #endif
 
 if (user==NULL) return;
@@ -3679,10 +3826,41 @@ for(u=user_first;u!=NULL;u=u->next) {
 }
 
 
+/* a vargs wrapper for the write_room function.  This will enable you
+   to send arguments directly to this function 
+   This is more a subsid than a wrapper as it doesn't directly call write_room
+*/
+void vwrite_room(RM_OBJECT rm, char *str, ...)
+{
+va_list args;
+
+vtext[0]='\0';
+va_start(args,str);
+vsprintf(vtext,str,args);
+va_end(args);
+write_room_except(rm,vtext,NULL);
+}
+
+
 /*** Subsid function to below but this one is used the most ***/
 void write_room(RM_OBJECT rm, char *str)
 {
   write_room_except(rm,str,NULL);
+}
+
+
+/* a vargs wrapper for the write_room_except function.  This will enable you
+   to send arguments directly to this function 
+*/
+void vwrite_room_except(RM_OBJECT rm, UR_OBJECT user, char *str, ...)
+{
+va_list args;
+
+vtext[0]='\0';
+va_start(args,str);
+vsprintf(vtext,str,args);
+va_end(args);
+write_room_except(rm,vtext,user);
 }
 
 
@@ -3691,7 +3869,6 @@ void write_room(RM_OBJECT rm, char *str)
 void write_room_except(RM_OBJECT rm, char *str, UR_OBJECT user)
 {
 UR_OBJECT u;
-char text2[ARR_SIZE];
 
 for(u=user_first;u!=NULL;u=u->next) {
   if (u->login 
@@ -3711,8 +3888,7 @@ for(u=user_first;u!=NULL;u=u->next) {
     if (u->clone_hear==CLONE_HEAR_SWEARS) {
       if (!contains_swearing(str)) continue;
       }
-    sprintf(text2,"~FT[ %s ]:~RS %s",u->room->name,str);
-    write_user(u->owner,text2);
+    vwrite_user(u->owner,"~FT[ %s ]:~RS %s",u->room->name,str);
     }
   else write_user(u,str); 
   } /* end for */
@@ -3740,27 +3916,47 @@ for(u=user_first;u!=NULL;u=u->next) {
 }
 
 
-/*** Write a string to system log ***/
-void write_syslog(char *str, int write_time, int type)
+/*** Write a string to system log 
+     type = what syslog to write to
+     write_time = whether or not you have a time stamp imcluded
+     str = string passed - possibly with %s, %d, etc
+     ... = variable length args passed
+***/
+void write_syslog(int type, int write_time, char *str, ...)
 {
 FILE *fp;
+int i=0;
+va_list args;
+char filename[80];
 
-fp=NULL;
+fp=NULL;  vtext[0]='\0';
 switch(type) {
   case SYSLOG:
-    if (!system_logging || !(fp=fopen(MAINSYSLOG,"a"))) return;
+    sprintf(filename,"%s/%s.%d",LOGFILES,MAINSYSLOG,amsys->pid);
+    if (!BIT_TEST(amsys->logging,SYSLOG) || !(fp=fopen(filename,"a"))) return;
     break;
   case REQLOG:
-    if (!system_logging || !(fp=fopen(REQSYSLOG,"a"))) return;
+    sprintf(filename,"%s/%s.%d",LOGFILES,REQSYSLOG,amsys->pid);
+    if (!BIT_TEST(amsys->logging,REQLOG) || !(fp=fopen(filename,"a"))) return;
     break;
-#ifdef NETLINKS
   case NETLOG:
-    if (!system_logging || !(fp=fopen(NETSYSLOG,"a"))) return;
+#ifdef NETLINKS
+    sprintf(filename,"%s/%s.%d",LOGFILES,NETSYSLOG,amsys->pid);
+    if (!BIT_TEST(amsys->logging,NETLOG) || !(fp=fopen(filename,"a"))) return;
     break;
+#else
+    return;
 #endif
   }
-if (!write_time) fputs(str,fp);
-else fprintf(fp,"%02d/%02d %02d:%02d:%02d: %s",tmday,tmonth+1,thour,tmin,tsec,str);
+va_start(args,str);
+if (write_time) {
+  sprintf(vtext,"%02d/%02d %02d:%02d:%02d: ",tmday,tmonth+1,thour,tmin,tsec);
+  i=strlen(vtext);
+  vsprintf(vtext+i,str,args);
+  }
+else vsprintf(vtext,str,args);
+va_end(args);
+fputs(vtext,fp);
 fclose(fp);
 }
 
@@ -3769,11 +3965,11 @@ fclose(fp);
    thanks to Karri (The Bat) Kalpio who makes KTserv */
 
 /* record the last command executed - helps find crashes */
-void record_last_command(UR_OBJECT user, int comnum)
+void record_last_command(UR_OBJECT user, int comnum, int len)
 {
-sprintf(cmd_history[last_cmd_cnt & 15],"[%5d] %02d/%02d, %02d:%02d:%02d  -  %-20s (%s)",
-	last_cmd_cnt,tmday,tmonth+1,thour,tmin,tsec,command_table[comnum].name,user->name);
-last_cmd_cnt++;
+sprintf(cmd_history[amsys->last_cmd_cnt & 15],"[%5d] %02d/%02d, %02d:%02d:%02d - %-15s - %3d/%-2d - %s",
+	amsys->last_cmd_cnt,tmday,tmonth+1,thour,tmin,tsec,command_table[comnum].name,len,word_count,user->name);
+amsys->last_cmd_cnt++;
 }
 
 
@@ -3782,10 +3978,10 @@ void dump_commands(int foo) {
 FILE *fp;
 char filename[32];
 
-sprintf(filename,"%s/%s.%d",LASTCMDLOGS,LAST_CMD,(int)getpid());
+sprintf(filename,"%s/%s.%d",LOGFILES,LAST_CMD,amsys->pid);
 if((fp=fopen(filename, "w"))) {
   int i,j;
-  for (i=((j=last_cmd_cnt-16)>0?j:0);i<last_cmd_cnt;i++) fprintf(fp, "%s\n", cmd_history[i&15]);
+  for (i=((j=amsys->last_cmd_cnt-16)>0?j:0);i<amsys->last_cmd_cnt;i++) fprintf(fp, "%s\n", cmd_history[i&15]);
   fclose(fp);
   }
 }  
@@ -3796,12 +3992,11 @@ void write_monitor(UR_OBJECT user, RM_OBJECT rm, int rec)
 {
 UR_OBJECT u;
 
-sprintf(text,"~BB~FG[%s]~RS ",user->name);
 for(u=user_first;u!=NULL;u=u->next) {
   if (u==user || u->login || u->type==CLONE_TYPE) continue;
   if (u->level<command_table[MONITOR].level || !u->monitor) continue;
   if (u->room==rm || rm==NULL) {
-    if (!u->ignall && !u->editing) write_user(u,text);
+    if (!u->ignall && !u->editing) vwrite_user(u,"~BB~FG[%s]~RS ",user->name);
     if (rec) record_tell(u,text);
     }
   } /* end for */
@@ -3901,9 +4096,9 @@ while(!feof(fp) && (lines<pager || user==NULL)) {
 	    write(sock,buff,buffpos);  buffpos=0;
 	    }
 	  if (user!=NULL) {
-	    memcpy(buff+buffpos,user->recap,strlen(user->recap));
-	    buffpos+=strlen(user->recap)-1;
-	    cnt+=strlen(user->recap)-1;
+	    memcpy(buff+buffpos,user->bw_recap,strlen(user->bw_recap));
+	    buffpos+=strlen(user->bw_recap)-1;
+	    cnt+=strlen(user->bw_recap)-1;
 	    }
 	  else {
 	    buffpos--;  cnt--;
@@ -3961,8 +4156,7 @@ else  {
   /* We use E here instead of Q because when on a remote system and
      in COMMAND mode the Q will be intercepted by the home system and 
      quit the user */
-  sprintf(text,"~BB~FG-=[~OL%d%%~RS~BB~FG]=- (~OLR~RS~BB~FG)EDISPLAY, (~OLB~RS~BB~FG)ACK, (~OLE~RS~BB~FG)XIT, <RETURN> TO CONTINUE:~RS ",fperc);
-  write_user(user,text);
+  vwrite_user(user,"~BB~FG-=[~OL%d%%~RS~BB~FG]=- (~OLR~RS~BB~FG)EDISPLAY, (~OLB~RS~BB~FG)ACK, (~OLE~RS~BB~FG)XIT, <RETURN> TO CONTINUE:~RS ",fperc);
   no_prompt=1;
   }
 fclose(fp);
@@ -3993,8 +4187,7 @@ if (user->user_page_lev==-1) {
       user->misc_op=16;
       return retval;
       }
-    sprintf(text,"%d) %-*s : %s\n",entry->level,USER_NAME_LEN,entry->name,entry->date);
-    write_user(user,text);
+    vwrite_user(user,"%d) %-*s : %s\n",entry->level,USER_NAME_LEN,entry->name,entry->date);
     entry=entry->next;
     user->user_page_pos++;
     lines++;
@@ -4005,7 +4198,7 @@ if (user->user_page_lev==-1) {
   } /* end if for listing all users */
 
 /* list only those users of a specific level */
-if (!level_count[user->user_page_lev]) return 0;
+if (!amsys->level_count[user->user_page_lev]) return 0;
 if (!user->user_page_pos) entry=first_dir_entry;
 else {
   /* get to the position of the user level */
@@ -4033,8 +4226,7 @@ while (entry!=NULL) {
     return retval;
     }
   /* doesn't matter if didn't boot in verbose mode as entry->date will be null anyway */
-  sprintf(text,"%-*s : %s\n",USER_NAME_LEN,entry->name,entry->date);
-  write_user(user,text);
+  vwrite_user(user,"%-*s : %s\n",USER_NAME_LEN,entry->name,entry->date);
   entry=entry->next;
   user->user_page_pos++;
   lines++;
@@ -4059,13 +4251,14 @@ if ((fp=fopen(filename,"a"))) {
   if (!showtime) fprintf(fp,"%s",str);
   else fprintf(fp,"%02d/%02d %02d:%02d: %s",tmday,tmonth+1,thour,tmin,str);
   fclose(fp);
+  write_syslog(SYSLOG,1,"HISTORY added for %s.\n",name);
   }
 }
 
 
 
 /******************************************************************************
- Logon/off fucntions
+ Logon/off functions
  *****************************************************************************/
 
 
@@ -4089,17 +4282,19 @@ switch(user->login) {
       disconnect_user(user);  return;
       }
     if (!strcmp(name,"who")) {
-      who(user,0);  
+      /* if you don't like this logon who, then replace it with the normal
+	 one of who(user,0); */
+      login_who(user);
       write_user(user,"\nGive me a name: ");
       return;
       }
     if (!strcmp(name,"version")) {
-      sprintf(text,"\nAmnuts version %s\n\nGive me a name: ",AMNUTSVER);
-      write_user(user,text);  return;
+      vwrite_user(user,"\nAmnuts version %s\n\nGive me a name: ",AMNUTSVER);
+      return;
       }
     if (!strcmp(name,"Version")) {
-      sprintf(text,"\nAmnuts version %s\n\nGive me a name: ",AMNUTSVER);
-      write_user(user,text);  return;
+      vwrite_user(user,"\nAmnuts version %s\n\nGive me a name: ",AMNUTSVER);
+      return;
       }
     if (strlen(name)<3) {
       write_user(user,"\nName too short.\n\n");  
@@ -4125,8 +4320,7 @@ switch(user->login) {
     if (user_banned(name)) {
       write_user(user,"\nYou are banned from this talker.\n\n");
       disconnect_user(user);
-      sprintf(text,"Attempted login by banned user %s.\n",name);
-      write_syslog(text,1,SYSLOG);
+      write_syslog(SYSLOG,1,"Attempted login by banned user %s.\n",name);
       return;
       }
     strcpy(user->name,name);
@@ -4143,28 +4337,26 @@ switch(user->login) {
 	disconnect_user(user);  
 	return;
         }
-      if (minlogin_level>-1) {
+      if (amsys->minlogin_level>-1) {
 	write_user(user,"\nSorry, new logins cannot be created at this time.\n\n");
 	disconnect_user(user);  
 	return;
         }
       if (site_banned(user->site,1)) {
 	write_user(user,"\nSorry, new accounts from your site have been banned.\n\n");
-	sprintf(text,"Attempted login by a new user from banned new users site %s.\n",user->site);
-	write_syslog(text,1,SYSLOG);
+	write_syslog(SYSLOG,1,"Attempted login by a new user from banned new users site %s.\n",user->site);
 	disconnect_user(user);
 	return;
         }
       write_user(user,"New user...\n");
       }
     else {
-      if (user->port==port[1] && user->level<wizport_level) {
-	sprintf(text,"\nSorry, only users of level %s and above can log in on this port.\n\n",level_name[wizport_level]);
-	write_user(user,text);
+      if (user->port==port[1] && user->level<amsys->wizport_level) {
+	vwrite_user(user,"\nSorry, only users of level %s and above can log in on this port.\n\n",user_level[amsys->wizport_level].name);
 	disconnect_user(user);  
 	return;
         }
-      if (user->level<minlogin_level) {
+      if (user->level<amsys->minlogin_level) {
 	write_user(user,"\nSorry, the talker is currently locked out to users of your level.\n\n");
 	disconnect_user(user);  
 	return;
@@ -4199,7 +4391,7 @@ switch(user->login) {
       }
     else {
       if (!strcmp(user->pass,(char *)crypt(passwd,crypt_salt))) {
-	echo_on(user);  logons_old++;
+	echo_on(user);  amsys->logons_old++;
 	/* Instead of connecting the user with:  'connect_user(user);  return;'
 	   Show the user the MOTD2 so that they can read it.  If you wanted, you
 	   could make showing the MOTD2 optional, in which case use an 'if' clause
@@ -4207,7 +4399,7 @@ switch(user->login) {
 	   */
 	cls(user);
 	/* If there is no motd2 files then don't display them */
-	if (motd2_cnt) {
+	if (amsys->motd2_cnt) {
 	  sprintf(motdname,"%s/motd2/motd%d",MOTDFILES,(get_motd_num(2)));
 	  more(user,user->socket,motdname);
 	  } 
@@ -4233,26 +4425,26 @@ switch(user->login) {
     strcpy(user->out_phrase,"goes");	
     strcpy(user->date,(long_date(1)));
     strcpy(user->recap,user->name);
+    strcpy(user->bw_recap,colour_com_strip(user->recap));
     user->last_site[0]='\0';
     user->level=NEW;
     user->unarrest=NEW;
     user->muzzled=0;
     user->command_mode=0;
-    user->prompt=prompt_def;
-    user->colour=colour_def;
-    user->charmode_echo=charecho_def;
+    user->prompt=amsys->prompt_def;
+    user->colour=amsys->colour_def;
+    user->charmode_echo=amsys->charecho_def;
     save_user_details(user,1);
     add_user_node(user->name,user->level);
     add_user_date_node(user->name,(long_date(1)));
     add_history(user->name,1,"Was initially created.\n");
-    sprintf(text,"New user \"%s\" created.\n",user->name);
-    write_syslog(text,1,SYSLOG);
-    logons_new++;
-    level_count[user->level]++;
+    write_syslog(SYSLOG,1,"New user \"%s\" created.\n",user->name);
+    amsys->logons_new++;
+    amsys->level_count[user->level]++;
     /* Check out above for explaination of this */
     cls(user);
     /* If there is no motd2 files then don't display them */
-    if (motd2_cnt) {
+    if (amsys->motd2_cnt) {
       sprintf(motdname,"%s/motd2/motd%d",MOTDFILES,(get_motd_num(2)));
       more(user,user->socket,motdname);
       } 
@@ -4301,34 +4493,32 @@ int cnt,yes,newmail;
 for(u=user_first;u!=NULL;u=u->next) {
   if (user!=u && user->type!=CLONE_TYPE && !strcmp(user->name,u->name)) {
     rm=u->room;
-  #ifdef NETLINKS
+#ifdef NETLINKS
     /* deal with a login if the user is connected to a remote talker */
     if (u->type==REMOTE_TYPE) {
       write_user(u,"\n~FB~OLYou are pulled back through cyberspace...\n");
       sprintf(text,"REMVD %s\n",u->name);
       write_sock(u->netlink->socket,text);
-      sprintf(text,"%s vanishes.\n",u->name);
+      vwrite_room(rm,"%s vanishes.\n",u->name);
       destruct_user(u);
-      write_room(rm,text);
       reset_access(rm);
-      num_of_users--;
+      amsys->num_of_users--;
       break;
       }
-  #endif
+#endif
     write_user(user,"\n\nYou are already connected - switching to old session...\n");
-    sprintf(text,"%s swapped sessions (%s)\n",user->name,user->site);
-    write_syslog(text,1,SYSLOG);
+    write_syslog(SYSLOG,1,"%s swapped sessions (%s)\n",user->name,user->site);
     close(u->socket);
     u->socket=user->socket;
     strcpy(u->site,user->site);
     u->site_port=user->site_port;
     destruct_user(user);
-    num_of_logins--;
+    amsys->num_of_logins--;
     if (rm==NULL) {
-      #ifdef NETLINKS
-        sprintf(text,"ACT %s look\n",u->name);
-	write_sock(u->netlink->socket,text);
-      #endif
+#ifdef NETLINKS
+      sprintf(text,"ACT %s look\n",u->name);
+      write_sock(u->netlink->socket,text);
+#endif
       }
     else {
       look(u);  prompt(u);
@@ -4354,22 +4544,20 @@ if (user->room==room_first) rmname[0]='\0';
 else if (user->room->access==PERSONAL_LOCKED || user->room->access==PERSONAL_UNLOCKED) sprintf(rmname,"~RS %s~OL",user->room->name);
 else sprintf(rmname,"~RS (%s)~OL",user->room->name);
 if (user->level==JAILED) {
-  sprintf(text,"~OL[Being thrown into jail is:~RS %s %s~RS~OL]\n",user->recap,user->desc);
-  write_room_except(NULL,text,user);
+  vwrite_room_except(NULL,user,"~OL[Being thrown into jail is:~RS %s~RS %s~RS~OL]\n",user->recap,user->desc);
   sprintf(text,"~FT%s (Site %s : Site Port : %d : Talker Port %d)\n",user->name,user->site,user->site_port,user->port);
   write_level(ARCH,1,text,user);
   }
 else {
   if (user->vis) {
-    if (user->level<WIZ) sprintf(text,"~OL[Entering%s is:~RS %s %s~RS~OL]\n",rmname,user->recap,user->desc);
-    else sprintf(text,"\07~OL[Entering%s is:~RS %s %s~RS~OL]\n",rmname,user->recap,user->desc);
-    write_room(NULL,text);
+    if (user->level<WIZ) vwrite_room(NULL,"~OL[Entering%s is:~RS %s~RS %s~RS~OL]\n",rmname,user->recap,user->desc);
+    else vwrite_room(NULL,"\07~OL[Entering%s is:~RS %s~RS %s~RS~OL]\n",rmname,user->recap,user->desc);
     sprintf(text,"~FT%s (Site %s : Site Port %d : Talker Port %d)\n",user->name,user->site,user->site_port,user->port);
     write_level(ARCH,1,text,user);
     }
   else {
     if (user->level<ARCH) write_room_except(user->room,invisenter,user);
-    sprintf(text,"~OL~FY[ INVIS ]~RS ~OL[Entering%s is:~RS %s %s~RS~OL]\n",rmname,user->recap,user->desc);
+    sprintf(text,"~OL~FY[ INVIS ]~RS ~OL[Entering%s is:~RS %s~RS %s~RS~OL]\n",rmname,user->recap,user->desc);
     write_level(WIZ,1,text,user);
     sprintf(text,"~OL~FY[ INVIS ]~RS ~FT%s (Site %s : Site Port %d : Talker Port : %d)\n",user->name,user->site,user->site_port,user->port);
     write_level(ARCH,1,text,user); 
@@ -4383,12 +4571,10 @@ else user->t_expire=time(0)+(USER_EXPIRES*86400);
 if (user->last_site[0]) {
   sprintf(temp,"%s",ctime(&user->last_login));
   temp[strlen(temp)-1]='\0';
-  sprintf(text,"~OLWelcome~RS %s...\n\n~BBYou were last logged in on %s from %s.\n\n",user->recap,temp,user->last_site);
+  vwrite_user(user,"~OLWelcome~RS %s~RS...\n\n~BBYou were last logged in on %s from %s.\n\n",user->recap,temp,user->last_site);
   }
-else sprintf(text,"~OLWelcome~RS %s...\n\n",user->recap);
-write_user(user,text);
-sprintf(text,"~FTYour level is:~RS~OL %s\n",level_name[user->level]);
-write_user(user,text);
+else vwrite_user(user,"~OLWelcome~RS %s~RS...\n\n",user->recap);
+vwrite_user(user,"~FTYour level is:~RS~OL %s\n",user_level[user->level].name);
 text2[0]='\0';
 if (user->level>=command_table[INVIS].level) {
   sprintf(text,"~FTYou are currently~RS ~OL%s~RS",see[user->vis]);
@@ -4414,26 +4600,18 @@ if (!yes) {
   if (user->igngreets) { strcat(text2,"~OLGreets~RS   ");  yes=1; }
   if (user->ignbeeps) { strcat(text2,"~OLBeeps~RS   ");  yes=1; }
   }
-if (yes) {
-  sprintf(text,"~FTIgnoring:~RS %s\n",text2);
-  write_user(user,text);
-  }
+if (yes) vwrite_user(user,"~FTIgnoring:~RS %s\n",text2);
 write_user(user,"\n");
 
 user->last_login=time(0); /* set to now */
 look(user);
 /* show how much mail the user has */
 newmail=mail_sizes(user->name,1);
-if (newmail) {
-  sprintf(text,"\007~FT~OL*** YOU HAVE ~RS~OL%d~FT UNREAD MAIL MESSAGE%s ***\n",newmail,newmail==1?"":"S");
-  write_user(user,text);
-  }
-else if ((cnt=mail_sizes(user->name,0))) {
-  sprintf(text,"~FT*** You have ~RS~OL%d~RS~FT message%s in your mail box ***\n",cnt,PLTEXT_S(cnt));
-  write_user(user,text);
-  }
+if (newmail) vwrite_user(user,"\007~FT~OL*** YOU HAVE ~RS~OL%d~FT UNREAD MAIL MESSAGE%s ***\n",newmail,newmail==1?"":"S");
+else if ((cnt=mail_sizes(user->name,0))) 
+  vwrite_user(user,"~FT*** You have ~RS~OL%d~RS~FT message%s in your mail box ***\n",cnt,PLTEXT_S(cnt));
 /* should they get the autopromote message? */
-if (user->accreq!=1 && auto_promote) {
+if (user->accreq!=-1 && amsys->auto_promote) {
   write_user(user,"\n\007~OL~FY****************************************************************************\n");
   write_user(user,"~OL~FY*               ~FRTO BE AUTO-PROMOTED PLEASE READ CAREFULLY~FY                  *\n");
   write_user(user,"~OL~FY* You must set your description (.desc), set your gender (.set gender) and *\n");
@@ -4443,10 +4621,9 @@ if (user->accreq!=1 && auto_promote) {
 
 prompt(user);
 record_last_login(user->name);
-sprintf(text,"%s logged in on port %d from %s:%d.\n",user->name,user->port,user->site,user->site_port);
-write_syslog(text,1,SYSLOG);
-num_of_users++;
-num_of_logins--;
+write_syslog(SYSLOG,1,"%s logged in on port %d from %s:%d.\n",user->name,user->port,user->site,user->site_port);
+amsys->num_of_users++;
+amsys->num_of_logins--;
 }
 
 
@@ -4463,30 +4640,24 @@ rm=user->room;
 if (user->login) {
   close(user->socket);  
   destruct_user(user);
-  num_of_logins--;  
+  amsys->num_of_logins--;  
   return;
   }
 if (user->type!=REMOTE_TYPE) {
   onfor=(int)(time(0)-user->last_login);
   hours=(onfor%86400)/3600;
   mins=(onfor%3600)/60;
-  save_user_details(user,1);  
-  sprintf(text,"%s logged out.\n",user->name);
-  write_syslog(text,1,SYSLOG);
+  save_user_details(user,1);
+  write_syslog(SYSLOG,1,"%s logged out.\n",user->name);
   write_user(user,"\n~OL~FBYou are removed from this reality...\n\n");
-  sprintf(text,"You were logged on from site %s\n",user->site);
-  write_user(user,text);
-  sprintf(text,"On %s, %d%s %s, for a total of %d hour%s and %d minute%s.\n\n",
+  vwrite_user(user,"You were logged on from site %s\n",user->site);
+  vwrite_user(user,"On %s, %d%s %s, for a total of %d hour%s and %d minute%s.\n\n",
 	  day[twday],tmday,ordinal_text(tmday),month[tmonth],(int)hours,PLTEXT_S(hours),(int)mins,PLTEXT_S(mins));
-  write_user(user,text);
   close(user->socket);
   logon_flag=1;
-  if (user->vis) {
-    sprintf(text,"~OL[Leaving is:~RS %s %s~RS~OL]\n",user->recap,user->desc);
-    write_room(NULL,text);
-    }
+  if (user->vis) vwrite_room(NULL,"~OL[Leaving is:~RS %s~RS %s~RS~OL]\n",user->recap,user->desc);
   else {
-    sprintf(text,"~OL~FY[ INVIS ]~RS ~OL[Leaving is:~RS %s %s~RS~OL]\n",user->recap,user->desc);
+    sprintf(text,"~OL~FY[ INVIS ]~RS ~OL[Leaving is:~RS %s~RS %s~RS~OL]\n",user->recap,user->desc);
     write_level(WIZ,1,text,NULL);
     }
   logon_flag=0;
@@ -4506,14 +4677,12 @@ else {
   write_user(user,"\n~FR~OLYou are pulled back in disgrace to your own domain...\n");
   sprintf(text,"REMVD %s\n",user->name);
   write_sock(user->netlink->socket,text);
-  sprintf(text,"~FR~OL%s is banished from here!\n",user->name);
-  write_room_except(rm,text,user);
-  sprintf(text,"NETLINK: Remote user %s removed.\n",user->name);
-  write_syslog(text,1,NETLOG);
+  vwrite_room_except(rm,user,"~FR~OL%s is banished from here!\n",user->name);
+  write_syslog(NETLOG,1,"NETLINK: Remote user %s removed.\n",user->name);
   }
 #endif
 if (user->malloc_start!=NULL) free(user->malloc_start);
-num_of_users--;
+amsys->num_of_users--;
 record_last_logout(user->name);
 /* Destroy any clones */
 destroy_user_clones(user);
@@ -4538,15 +4707,14 @@ int i=0;
 switch(user->misc_op) {
   case 1: 
     if (toupper(inpstr[0])=='Y') {
-      if (rs_countdown && !rs_which) {
-	if (rs_countdown>60) 
-	  sprintf(text,"\n\07~OLSYSTEM: ~FR~LISHUTDOWN INITIATED, shutdown in %d minutes, %d seconds!\n\n",rs_countdown/60,rs_countdown%60);
-	else sprintf(text,"\n\07~OLSYSTEM: ~FR~LISHUTDOWN INITIATED, shutdown in %d seconds!\n\n",rs_countdown);
-	write_room(NULL,text);
-	sprintf(text,"%s initiated a %d seconds SHUTDOWN countdown.\n",user->name,rs_countdown);
-	write_syslog(text,1,SYSLOG);
-	rs_user=user;
-	rs_announce=time(0);
+      if (amsys->rs_countdown && !amsys->rs_which) {
+	if (amsys->rs_countdown>60) 
+	  vwrite_room(NULL,"\n\07~OLSYSTEM: ~FR~LISHUTDOWN INITIATED, shutdown in %d minute%s, %d second%s!\n\n",
+		  amsys->rs_countdown/60,PLTEXT_S(amsys->rs_countdown/60),amsys->rs_countdown%60,PLTEXT_S(amsys->rs_countdown%60));
+	else vwrite_room(NULL,"\n\07~OLSYSTEM: ~FR~LISHUTDOWN INITIATED, shutdown in %d second%s!\n\n",amsys->rs_countdown,PLTEXT_S(amsys->rs_countdown));
+	write_syslog(SYSLOG,1,"%s initiated a %d second%s SHUTDOWN countdown.\n",user->name,amsys->rs_countdown,PLTEXT_S(amsys->rs_countdown));
+	amsys->rs_user=user;
+	amsys->rs_announce=time(0);
 	user->misc_op=0;  
 	prompt(user);
 	return 1;
@@ -4554,10 +4722,10 @@ switch(user->misc_op) {
       talker_shutdown(user,NULL,0); 
       }
     /* This will reset any reboot countdown that was started, oh well */
-    rs_countdown=0;
-    rs_announce=0;
-    rs_which=-1;
-    rs_user=NULL;
+    amsys->rs_countdown=0;
+    amsys->rs_announce=0;
+    amsys->rs_which=-1;
+    amsys->rs_user=NULL;
     user->misc_op=0;  
     prompt(user);
     return 1;
@@ -4601,25 +4769,24 @@ switch(user->misc_op) {
     
   case 7:
     if (toupper(inpstr[0])=='Y') {
-      if (rs_countdown && rs_which==1) {
-	if (rs_countdown>60) 
-	  sprintf(text,"\n\07~OLSYSTEM: ~FY~LIREBOOT INITIATED, rebooting in %d minutes, %d seconds!\n\n",rs_countdown/60,rs_countdown%60);
-	else sprintf(text,"\n\07~OLSYSTEM: ~FY~LIREBOOT INITIATED, rebooting in %d seconds!\n\n",rs_countdown);
-	write_room(NULL,text);
-	sprintf(text,"%s initiated a %d seconds REBOOT countdown.\n",user->name,rs_countdown);
-	write_syslog(text,1,SYSLOG);
-	rs_user=user;
-	rs_announce=time(0);
+      if (amsys->rs_countdown && amsys->rs_which==1) {
+	if (amsys->rs_countdown>60) 
+	  vwrite_room(NULL,"\n\07~OLSYSTEM: ~FY~LIREBOOT INITIATED, rebooting in %d minute%s, %d second%s!\n\n",
+		  amsys->rs_countdown/60,PLTEXT_S(amsys->rs_countdown/60),amsys->rs_countdown%60,PLTEXT_S(amsys->rs_countdown%60));
+	else vwrite_room(NULL,"\n\07~OLSYSTEM: ~FY~LIREBOOT INITIATED, rebooting in %d second%s!\n\n",amsys->rs_countdown,PLTEXT_S(amsys->rs_countdown));
+	write_syslog(SYSLOG,1,"%s initiated a %d second%s REBOOT countdown.\n",user->name,amsys->rs_countdown,PLTEXT_S(amsys->rs_countdown));
+	amsys->rs_user=user;
+	amsys->rs_announce=time(0);
 	user->misc_op=0;  
 	prompt(user);
 	return 1;
         }
       talker_shutdown(user,NULL,1); 
       }
-    if (rs_which==1 && rs_countdown && rs_user==NULL) {
-      rs_countdown=0;
-      rs_announce=0;
-      rs_which=-1;
+    if (amsys->rs_which==1 && amsys->rs_countdown && amsys->rs_user==NULL) {
+      amsys->rs_countdown=0;
+      amsys->rs_announce=0;
+      amsys->rs_which=-1;
       }
     user->misc_op=0;  
     prompt(user);
@@ -4732,8 +4899,7 @@ if (user->edit_op) {
       /* if (*user->malloc_end--!='\n') *user->malloc_end--='\n'; */
       if (user->vis) name=user->recap;  else  name=invisname;
       if (!user->vis) write_monitor(user,user->room,0);
-      sprintf(text,"%s finishes composing some text.\n",name);
-      write_room_except(user->room,text,user);
+      vwrite_room_except(user->room,user,"%s~RS finishes composing some text.\n",name);
       switch(user->misc_op) {
         case 3:  write_board(user,NULL,1);  break;
         case 4:  smail(user,NULL,1);  break;
@@ -4752,16 +4918,14 @@ if (user->edit_op) {
       user->malloc_end=user->malloc_start;
       *user->malloc_start='\0';
       write_user(user,"\nRedo message...\n\n");
-      sprintf(text,"[---------------- Please try to keep between these two markers ----------------]\n\n~FG%d>~RS",user->edit_line);
-      write_user(user,text);
+      vwrite_user(user,"[---------------- Please try to keep between these two markers ----------------]\n\n~FG%d>~RS",user->edit_line);
       return;
       
     case 'A':
       write_user(user,"\nMessage aborted.\n");
       if (user->vis) name=user->recap;  else  name=invisname;
       if (!user->vis) write_monitor(user,user->room,0);
-      sprintf(text,"%s gives up composing some text.\n",name);
-      write_room_except(user->room,text,user);
+      vwrite_room_except(user->room,user,"%s~RS gives up composing some text.\n",name);
       editor_done(user);  
       return;
 
@@ -4779,9 +4943,8 @@ if (user->edit_op) {
 /* Allocate memory if user has just started editing */
 if (user->malloc_start==NULL) {
   if ((user->malloc_start=(char *)malloc(MAX_LINES*81))==NULL) {
-    sprintf(text,"%s: failed to allocate buffer memory.\n",syserror);
-    write_user(user,text);
-    write_syslog("ERROR: Failed to allocate memory in editor().\n",0,SYSLOG);
+    vwrite_user(user,"%s: failed to allocate buffer memory.\n",syserror);
+    write_syslog(SYSLOG,0,"ERROR: Failed to allocate memory in editor().\n");
     user->misc_op=0;
     prompt(user);
     return;
@@ -4794,13 +4957,11 @@ if (user->malloc_start==NULL) {
   user->editing=1;
   user->malloc_end=user->malloc_start;
   *user->malloc_start='\0';
-  sprintf(text,"~FTMaximum of %d lines, end with a '.' on a line by itself.\n\n",MAX_LINES);
-  write_user(user,text);
+  vwrite_user(user,"~FTMaximum of %d lines, end with a '.' on a line by itself.\n\n",MAX_LINES);
   write_user(user,"[---------------- Please try to keep between these two markers ----------------]\n\n~FG1>~RS");
   if (user->vis) name=user->recap;  else  name=invisname;
   if (!user->vis) write_monitor(user,user->room,0);
-  sprintf(text,"%s starts composing some text...\n",name);
-  write_room_except(user->room,text,user);
+  vwrite_room_except(user->room,user,"%s~RS starts composing some text...\n",name);
   return;
   }
 /* Check for empty line */
@@ -4812,8 +4973,7 @@ if (!word_count) {
     }
   *user->malloc_end++='\n';
   if (user->edit_line==MAX_LINES) goto END;
-  sprintf(text,"~FG%d>~RS",++user->edit_line);
-  write_user(user,text);
+  vwrite_user(user,"~FG%d>~RS",++user->edit_line);
   user->charcnt=0;
   return;
   }
@@ -4831,8 +4991,7 @@ while(*inpstr) {
 if (line!=user->edit_line) {
   ptr=(char *)(user->malloc_end-cnt);
   *user->malloc_end='\0';
-  sprintf(text,"~FG%d>~RS%s",user->edit_line,ptr);
-  write_user(user,text);
+  vwrite_user(user,"~FG%d>~RS%s",user->edit_line,ptr);
   user->charcnt=cnt;
   return;
   }
@@ -4841,8 +5000,7 @@ else {
   user->charcnt=0;
   }
 if (user->edit_line!=MAX_LINES) {
-  sprintf(text,"~FG%d>~RS",++user->edit_line);
-  write_user(user,text);
+  vwrite_user(user,"~FG%d>~RS",++user->edit_line);
   return;
   }
 
@@ -4856,8 +5014,7 @@ if (*user->malloc_start) {
 write_user(user,"\nNo text.\n");
 if (user->vis) name=user->recap;  else  name=invisname;
 if (!user->vis) write_monitor(user,user->room,0);
-sprintf(text,"%s gives up composing some text.\n",name);
-write_room_except(user->room,text,user);
+vwrite_room_except(user->room,user,"%s~RS gives up composing some text.\n",name);
 editor_done(user);
 }
 
@@ -4885,6 +5042,76 @@ prompt(user);
  *****************************************************************************/
 
 
+/* control what happens when a command abbreivation is used.  Whether it needs
+   to have word recount, abbreviation parsed, or whatever.
+*/
+int process_input_string(UR_OBJECT user, char *inpstr)
+{
+  switch(inpstr[0]) {
+  case '>': 
+    if (isspace(inpstr[1])) strcpy(word[0],"tell");
+    else { split_command_string(inpstr);  strcpy(word[0],"tell"); }
+    break;
+  case ';':
+  case ':':
+    if (isspace(inpstr[1])) strcpy(word[0],"emote");
+    else { split_command_string(inpstr);  strcpy(word[0],"emote"); }
+    break;
+  case '<':
+  case '/':
+    if (isspace(inpstr[1])) strcpy(word[0],"pemote");
+    else { split_command_string(inpstr);  strcpy(word[0],"pemote"); }
+    break;
+  case '&':
+  case '!':
+    if (isspace(inpstr[1])) strcpy(word[0],"semote");
+    else { split_command_string(inpstr);  strcpy(word[0],"semote"); }
+    break;
+  case '[':
+    if (isspace(inpstr[1])) strcpy(word[0],"shout");
+    else { split_command_string(inpstr);  strcpy(word[0],"shout"); }
+    break;
+  case '+':
+    if (isspace(inpstr[1])) strcpy(word[0],"echo");
+    else { split_command_string(inpstr);  strcpy(word[0],"echo"); }
+    break;
+  case '\'':
+    if (isspace(inpstr[1])) strcpy(word[0],"show");
+    else { split_command_string(inpstr);  strcpy(word[0],"show"); }
+    break;
+  case '-':
+    if (isspace(inpstr[1])) strcpy(word[0],"sayto");
+    else { split_command_string(inpstr);  strcpy(word[0],"sayto"); }
+    break;
+  case ',':
+    if (!user->call[0]) {
+      write_user(user,"Quick call not set.\n");
+      return 0;
+      }
+    if (isspace(inpstr[1])) strcpy(word[0],"tell");
+    else { split_command_string(inpstr);  strcpy(word[0],"tell"); }
+    /* , needs to remain in inpstr for checking in the tell() function for quick call */
+    return 2;
+  case '@':
+    strcpy(word[0],"who");    return 2;
+  case '*':
+    strcpy(word[0],"cbuff");  return 2;
+  }
+return 1;
+}
+
+
+/* split up command abbreviations */
+void split_command_string(char *inpstr)
+{
+char tmp[ARR_SIZE+2];
+
+strcpy(tmp,&inpstr[1]);
+inpstr[1]=' ';
+strcpy(&inpstr[2],tmp);
+word_count=wordfind(inpstr);
+}
+
 
 /*** Deal with user input ***/
 int exec_com(UR_OBJECT user, char *inpstr)
@@ -4900,51 +5127,13 @@ if (!comword[0]) {
   write_user(user,"Unknown command.\n");  return 0;
   }
 
-/* get com_num */
-if (!strcmp(word[0],">")) strcpy(word[0],"tell");
-if (!strcmp(word[0],";")) strcpy(word[0],"emote");
-if (!strcmp(word[0],":")) strcpy(word[0],"emote");
-if (!strcmp(word[0],"<")) strcpy(word[0],"pemote");
-if (!strcmp(word[0],"/")) strcpy(word[0],"pemote");
-if (!strcmp(word[0],"&")) strcpy(word[0],"semote");
-if (!strcmp(word[0],"!")) strcpy(word[0],"semote");
-if (!strcmp(word[0],"[")) strcpy(word[0],"shout");
-if (!strcmp(word[0],"@")) strcpy(word[0],"who");
-if (!strcmp(word[0],"'")) strcpy(word[0],"show");
-if (!strcmp(word[0],"*")) strcpy(word[0],"cbuff");
-if (!strcmp(word[0],"+")) strcpy(word[0],"echo");
-if (!strcmp(word[0],"-")) strcpy(word[0],"sayto");
-if (!strcmp(word[0],",")) {
-  if (!user->call[0]) {
-    write_user(user,"Quick call not set.\n");
-    return 0;
-    }
-  strcpy(word[0],"tell");
-  goto QCSKIP;
+/* sort out shortcuts and commands */
+switch (process_input_string(user,inpstr)) {
+  case 0: return 0;
+  case 1: inpstr=remove_first(inpstr);
+  default: break;
   }
 
-if (inpstr[0]=='>' && !isspace(inpstr[1]))    { strcpy(word[1],word[0]+1); strcpy(word[0],"tell"); }
-else if (inpstr[0]==';' && !isspace(inpstr[1]))    { strcpy(word[0],"emote"); inpstr++; }
-else if (inpstr[0]==':' && !isspace(inpstr[1]))    { strcpy(word[0],"emote"); inpstr++; }
-else if (inpstr[0]=='<' && !isspace(inpstr[1]))    { strcpy(word[1],word[0]+1); strcpy(word[0],"pemote"); }
-else if (inpstr[0]=='/' && !isspace(inpstr[1]))    { strcpy(word[1],word[0]+1); strcpy(word[0],"pemote"); }
-else if (inpstr[0]=='&' && !isspace(inpstr[1]))    { strcpy(word[0],"semote"); inpstr++; }
-else if (inpstr[0]=='!' && !isspace(inpstr[1]))    { strcpy(word[0],"semote"); inpstr++; }
-else if (inpstr[0]=='[' && !isspace(inpstr[1]))    { strcpy(word[0],"shout"); inpstr++; }
-else if (inpstr[0]=='\''  && !isspace(inpstr[1]))  { strcpy(word[0],"show"); inpstr++; }
-else if (inpstr[0]=='+' && !isspace(inpstr[1]))    { strcpy(word[0],"echo"); inpstr++; }
-else if (inpstr[0]=='-' && !isspace(inpstr[1]))    { strcpy(word[1],word[0]+1); strcpy(word[0],"sayto"); }
-else if (inpstr[0]==',' && !isspace(inpstr[1])) {
-  if (!user->call[0]) {
-    write_user(user,"Quick call not set.\n");
-    return 0;
-    }
-  strcpy(word[1],word[0]+1);
-  strcpy(word[0],"tell");
-  }
-else inpstr=remove_first(inpstr);
-
-QCSKIP:
 i=0;
 len=strlen(comword);
 while(command_table[i].name[0]!='*') {
@@ -4954,7 +5143,7 @@ while(command_table[i].name[0]!='*') {
 if (user->room!=NULL && com_num==-1) {
   write_user(user,"Unknown command.\n");  return 0;
   }
-record_last_command(user,com_num);
+record_last_command(user,com_num,strlen(inpstr));
 
 /* You may wonder why I'm using com_num above and then scrolling through the command
    linked list again.  This is because many people like to put their commands in a
@@ -4964,7 +5153,7 @@ record_last_command(user,com_num);
    times the command has been used we still need to ++ that commands node, hence
    scrolling through the linked list.
    Also have to check the level using the command list nodes because the level of
-   the commands can now be altered, therefore reading the hard-coded levels from
+   the commands can now be altered, therefore rendering the hard-coded levels from
    com_level[] is wrong
    Then again, you might be wondering ;)
    */
@@ -5077,9 +5266,9 @@ switch(com_num) {
   case WIPE  : wipe_board(user);  break;
   case SEARCH: search_boards(user);  break;
   case REVIEW: review(user);  break;
-  #ifdef NETLINKS
-    case HOME  : home(user);  break;
-  #endif
+#ifdef NETLINKS
+  case HOME  : home(user);  break;
+#endif
   case STATUS: status(user);  break;
   case VER: show_version(user);  break;
   case RMAIL   : rmail(user);  break;
@@ -5089,13 +5278,13 @@ switch(com_num) {
   case ENTPRO  : enter_profile(user,0);  break;
   case EXAMINE : examine(user);  break;
   case RMST    : rooms(user,1,0);  break;
-  #ifdef NETLINKS
-    case RMSN    : rooms(user,0,0);  break;
-    case NETSTAT : netstat(user);  break;
-    case NETDATA : netdata(user);  break;
-    case CONN    : connect_netlink(user);  break;
-    case DISCONN : disconnect_netlink(user);  break;
-  #endif
+#ifdef NETLINKS
+  case RMSN    : rooms(user,0,0);  break;
+  case NETSTAT : netstat(user);  break;
+  case NETDATA : netdata(user);  break;
+  case CONN    : connect_netlink(user);  break;
+  case DISCONN : disconnect_netlink(user);  break;
+#endif
   case PASSWD  : change_pass(user);  break;
   case KILL    : kill_user(user);  break;
   case PROMOTE : promote(user);  break;
@@ -5111,7 +5300,11 @@ switch(com_num) {
   case MUZZLE  : muzzle(user);  break;
   case UNMUZZLE: unmuzzle(user);  break;
   case MAP:
-    sprintf(filename,"%s/%s",DATAFILES,MAPFILE);
+    if (user->room==NULL) {
+      write_user(user,"You don't need no map - where you are is where it's at!\n");
+      return 0;
+      }
+    sprintf(filename,"%s/%s.map",DATAFILES,user->room->map);
     switch(more(user,user->socket,filename)) {
       case 0: write_user(user,"You don't need no map - where you are is where it's at!\n");  break;
       case 1: user->misc_op=2;
@@ -5134,9 +5327,9 @@ switch(com_num) {
   case SWITCH: clone_switch(user);  break;
   case CSAY  : clone_say(user,inpstr);  break;
   case CHEAR : clone_hear(user);  break;
-  #ifdef NETLINKS
-    case RSTAT : remote_stat(user);  break;
-  #endif
+#ifdef NETLINKS
+  case RSTAT : remote_stat(user);  break;
+#endif
   case SWBAN : toggle_swearban(user);  break;
   case AFK   : afk(user,inpstr);  break;
   case CLS   : cls(user);  break;
@@ -5190,16 +5383,14 @@ switch(com_num) {
   case VERIFY: verify_email(user);  break;
   case ADDHISTORY: manual_history(user,inpstr);  break;
   case FORWARDING: 
-    switch((int)forwarding) {
+    switch((int)amsys->forwarding) {
       case 0: write_user(user,"You have turned ~FGon~RS smail auto-forwarding.\n");
-	forwarding=1;
-	sprintf(text,"%s turned ON mail forwarding.\n",user->name);
-	write_syslog(text,1,SYSLOG);
+	amsys->forwarding=1;
+	write_syslog(SYSLOG,1,"%s turned ON mail forwarding.\n",user->name);
 	break;
       case 1: write_user(user,"You have turned ~FRoff~RS smail auto-forwarding.\n");
-	forwarding=0;
-	sprintf(text,"%s turned OFF mail forwarding.\n",user->name);
-	write_syslog(text,1,SYSLOG);
+	amsys->forwarding=0;
+	write_syslog(SYSLOG,1,"%s turned OFF mail forwarding.\n",user->name);
 	break;
       }
     break;
@@ -5255,16 +5446,14 @@ switch(com_num) {
   case CMDCOUNT: show_command_counts(user);  break;
   case RCOUNTU: recount_users(user,0);  break;
   case RECAPS:
-    switch(allow_recaps) {
+    switch(amsys->allow_recaps) {
       case 0: write_user(user,"You ~FGallow~RS names to be recapped.\n");
-	      allow_recaps=1;
-	      sprintf(text,"%s turned ON recapping of names.\n",user->name);
-	      write_syslog(text,1,SYSLOG);
+	      amsys->allow_recaps=1;
+	      write_syslog(SYSLOG,1,"%s turned ON recapping of names.\n",user->name);
 	      break;
       case 1: write_user(user,"You ~FRdisallow~RS names to be recapped.\n");
-	      allow_recaps=0;
-	      sprintf(text,"%s turned OFF recapping of names.\n",user->name);
-	      write_syslog(text,1,SYSLOG);
+	      amsys->allow_recaps=0;
+	      write_syslog(SYSLOG,1,"%s turned OFF recapping of names.\n",user->name);
 	      break;
       }
     break;
@@ -5277,16 +5466,14 @@ switch(com_num) {
   case SFROM: suggestions_from(user);  break;
   case RLOADRM: reload_room_description(user);  break;
   case SETAUTOPROMO: 
-    switch(auto_promote) {
+    switch(amsys->auto_promote) {
       case 0: write_user(user,"You have turned ~FGon~RS auto-promotes for new users.\n");
-	auto_promote=1;
-	sprintf(text,"%s turned ON auto-promotes.\n",user->name);
-	write_syslog(text,1,SYSLOG);
+	amsys->auto_promote=1;
+	write_syslog(SYSLOG,1,"%s turned ON auto-promotes.\n",user->name);
 	break;
       case 1: write_user(user,"You have turned ~FRoff~RS auto-promotes for new users.\n");
-	auto_promote=0;
-	sprintf(text,"%s turned OFF auto-promotes.\n",user->name);
-	write_syslog(text,1,SYSLOG);
+	amsys->auto_promote=0;
+	write_syslog(SYSLOG,1,"%s turned OFF auto-promotes.\n",user->name);
 	break;
       }
     break;
@@ -5306,6 +5493,19 @@ switch(com_num) {
   case RMADMIN: personal_room_admin(user);  break;
   case MYKEY: personal_room_key(user);  break;
   case MYBGONE: personal_room_bgone(user);  break;
+  case WIZRULES:
+    sprintf(filename,"%s/%s",MISCFILES,WIZRULESFILE);
+    switch(more(user,user->socket,filename)) {
+      case 0: write_user(user,"\nThere are currrently no admin rules...\n");  break;
+      case 1: user->misc_op=2;
+      }
+    break;
+  case DISPLAY: display_files(user,0);  break;
+  case DISPLAYADMIN: display_files(user,1);  break;
+  case DUMPCMD: dump_to_file(user);  break;
+  case TEMPRO : temporary_promote(user);  break;
+  case MORPH  : change_user_name(user);  break;
+  case FMAIL : forward_specific_mail(user);  break;
   default: write_user(user,"Command not executed.\n");
   } /* end main switch */
 return 1;
@@ -5323,22 +5523,23 @@ int i;
 char *ptr;
 char *args[]={ progname,confile,NULL };
 
-if (user!=NULL) ptr=user->recap; else ptr=str;
+if (user!=NULL) ptr=user->bw_recap; else ptr=str;
 if (reboot) {
   write_room(NULL,"\007\n~OLSYSTEM:~FY~LI Rebooting now!!\n\n");
-  sprintf(text,"*** REBOOT initiated by %s ***\n",ptr);
+  write_syslog(SYSLOG,0,"*** REBOOT initiated by %s ***\n",ptr);
   }
 else {
   write_room(NULL,"\007\n~OLSYSTEM:~FR~LI Shutting down now!!\n\n");
-  sprintf(text,"*** SHUTDOWN initiated by %s ***\n",ptr);
+  write_syslog(SYSLOG,0,"*** SHUTDOWN initiated by %s ***\n",ptr);
   }
-write_syslog(text,0,SYSLOG);
 #ifdef NETLINKS
   for(nl=nl_first;nl!=NULL;nl=nl->next) shutdown_netlink(nl);
 #endif
 u=user_first;
 while (u) {
   next=u->next;
+  /* reset ignore status - incase user was in the editor */
+  if (u->editing) u->ignall=u->ignall_store;
   disconnect_user(u);
   u=next;
   }
@@ -5348,12 +5549,10 @@ if (reboot) {
      prog has been running this won't work */
   execvp(progname,args);
   /* If we get this far it hasn't worked */
-  sprintf(text,"*** REBOOT FAILED %s: %s ***\n\n",long_date(1),sys_errlist[errno]);
-  write_syslog(text,0,SYSLOG);
+  write_syslog(SYSLOG,0,"*** REBOOT FAILED %s: %s ***\n\n",long_date(1),strerror(errno));
   exit(12);
   }
-sprintf(text,"*** SHUTDOWN complete %s ***\n\n",long_date(1));
-write_syslog(text,0,SYSLOG);
+write_syslog(SYSLOG,0,"*** SHUTDOWN complete %s ***\n\n",long_date(1));
 exit(0);
 }
 
@@ -5362,44 +5561,43 @@ exit(0);
 	we can specify less than a minute till reboot. ***/
 void shutdown_com(UR_OBJECT user)
 {
-if (rs_which==1) {
+if (amsys->rs_which==1) {
   write_user(user,"The reboot countdown is currently active, you must cancel it first.\n");
   return;
   }
 if (!strcmp(word[1],"cancel")) {
-  if (!rs_countdown || rs_which!=0) {
+  if (!amsys->rs_countdown || amsys->rs_which!=0) {
     write_user(user,"The shutdown countdown is not currently active.\n");
     return;
     }
-  if (rs_countdown && !rs_which && rs_user==NULL) {
+  if (amsys->rs_countdown && !amsys->rs_which && amsys->rs_user==NULL) {
     write_user(user,"Someone else is currently setting the shutdown countdown.\n");
     return;
     }
   write_room(NULL,"~OLSYSTEM:~RS~FG Shutdown cancelled.\n");
-  sprintf(text,"%s cancelled the shutdown countdown.\n",user->name);
-  write_syslog(text,1,SYSLOG);
-  rs_countdown=0;
-  rs_announce=0;
-  rs_which=-1;
-  rs_user=NULL;
+  write_syslog(SYSLOG,1,"%s cancelled the shutdown countdown.\n",user->name);
+  amsys->rs_countdown=0;
+  amsys->rs_announce=0;
+  amsys->rs_which=-1;
+  amsys->rs_user=NULL;
   return;
   }
 if (word_count>1 && !is_number(word[1])) {
   write_user(user,"Usage: shutdown [<secs>/cancel]\n");  return;
   }
-if (rs_countdown && !rs_which) {
+if (amsys->rs_countdown && !amsys->rs_which) {
   write_user(user,"The shutdown countdown is currently active, you must cancel it first.\n");
   return;
   }
 if (word_count<2) {
-  rs_countdown=0;  
-  rs_announce=0;
-  rs_which=-1; 
-  rs_user=NULL;
+  amsys->rs_countdown=0;  
+  amsys->rs_announce=0;
+  amsys->rs_which=-1; 
+  amsys->rs_user=NULL;
   }
 else {
-  rs_countdown=atoi(word[1]);
-  rs_which=0;
+  amsys->rs_countdown=atoi(word[1]);
+  amsys->rs_which=0;
   }
 write_user(user,"\n\07~FR~OL~LI*** WARNING - This will shutdown the talker! ***\n\nAre you sure about this (y/n)? ");
 user->misc_op=1;  
@@ -5410,44 +5608,43 @@ no_prompt=1;
 /*** Reboot talker interface func. ***/
 void reboot_com(UR_OBJECT user)
 {
-if (!rs_which) {
+if (!amsys->rs_which) {
   write_user(user,"The shutdown countdown is currently active, you must cancel it first.\n");
   return;
   }
 if (!strcmp(word[1],"cancel")) {
-  if (!rs_countdown) {
+  if (!amsys->rs_countdown) {
     write_user(user,"The reboot countdown is not currently active.\n");
     return;
     }
-  if (rs_countdown && rs_user==NULL) {
+  if (amsys->rs_countdown && amsys->rs_user==NULL) {
     write_user(user,"Someone else is currently setting the reboot countdown.\n");
     return;
     }
   write_room(NULL,"~OLSYSTEM:~RS~FG Reboot cancelled.\n");
-  sprintf(text,"%s cancelled the reboot countdown.\n",user->name);
-  write_syslog(text,1,SYSLOG);
-  rs_countdown=0;
-  rs_announce=0;
-  rs_which=-1;
-  rs_user=NULL;
+  write_syslog(SYSLOG,1,"%s cancelled the reboot countdown.\n",user->name);
+  amsys->rs_countdown=0;
+  amsys->rs_announce=0;
+  amsys->rs_which=-1;
+  amsys->rs_user=NULL;
   return;
   }
 if (word_count>1 && !is_number(word[1])) {
   write_user(user,"Usage: reboot [<secs>/cancel]\n");  return;
   }
-if (rs_countdown) {
+if (amsys->rs_countdown) {
   write_user(user,"The reboot countdown is currently active, you must cancel it first.\n");
   return;
   }
 if (word_count<2) {
-  rs_countdown=0;  
-  rs_announce=0;
-  rs_which=-1; 
-  rs_user=NULL;
+  amsys->rs_countdown=0;  
+  amsys->rs_announce=0;
+  amsys->rs_which=-1; 
+  amsys->rs_user=NULL;
   }
 else {
-  rs_countdown=atoi(word[1]);
-  rs_which=1;
+  amsys->rs_countdown=atoi(word[1]);
+  amsys->rs_which=1;
   }
 write_user(user,"\n\07~FY~OL~LI*** WARNING - This will reboot the talker! ***\n\nAre you sure about this (y/n)? ");
 user->misc_op=7;  
@@ -5478,10 +5675,10 @@ user->revline=(user->revline+1)%REVTELL_LINES;
 /*** Records shouts and shemotes sent over the talker. ***/
 void record_shout(char *str)
 {
-strncpy(shoutbuff[sbuffline],str,REVIEW_LEN);
-shoutbuff[sbuffline][REVIEW_LEN]='\n';
-shoutbuff[sbuffline][REVIEW_LEN+1]='\0';
-sbuffline=(sbuffline+1)%REVIEW_LINES;
+strncpy(amsys->shoutbuff[amsys->sbuffline],str,REVIEW_LEN);
+amsys->shoutbuff[amsys->sbuffline][REVIEW_LEN]='\n';
+amsys->shoutbuff[amsys->sbuffline][REVIEW_LEN+1]='\0';
+amsys->sbuffline=(amsys->sbuffline+1)%REVIEW_LINES;
 }
 
 
@@ -5536,8 +5733,8 @@ user->revline=0;
 void clear_shouts(void)
 {
 int c;
-for(c=0;c<REVIEW_LINES;++c) shoutbuff[c][0]='\0';
-sbuffline=0;
+for(c=0;c<REVIEW_LINES;++c) amsys->shoutbuff[c][0]='\0';
+amsys->sbuffline=0;
 }
 
 
@@ -5578,16 +5775,15 @@ c=to;  service=NULL;
 while(*c) {
   if (*c=='@') {  
     service=c+1;  *c='\0'; 
-    #ifdef NETLINKS
-      for(nl=nl_first;nl!=NULL;nl=nl->next) {
-	if (!strcmp(nl->service,service) && nl->stage==UP) {
-	  send_external_mail(nl,user,to,ptr);
-	  return 1;
-          }
+#ifdef NETLINKS
+    for(nl=nl_first;nl!=NULL;nl=nl->next) {
+      if (!strcmp(nl->service,service) && nl->stage==UP) {
+	send_external_mail(nl,user,to,ptr);
+	return 1;
         }
-    #endif
-    sprintf(text,"Service %s unavailable.\n",service);
-    write_user(user,text); 
+      }
+#endif
+    vwrite_user(user,"Service %s unavailable.\n",service);
     return 0;
     }
   ++c;
@@ -5595,7 +5791,7 @@ while(*c) {
 /* Local mail */
 if (!(outfp=fopen("tempfile","w"))) {
   write_user(user,"Error in mail delivery.\n");
-  write_syslog("ERROR: Couldn't open tempfile in send_mail().\n",0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open tempfile in send_mail().\n");
   return 0;
   }
 /* Copy current mail file into tempfile if it exists */
@@ -5622,12 +5818,12 @@ else cc[0]='\0';
 header[0]='\0';
 /* Put new mail in tempfile */
 if (user!=NULL) {
-  #ifdef NETLINKS
-    if (user->type==REMOTE_TYPE)
-      sprintf(header,"~OLFrom: %s@%s  %s %s\n",user->name,user->netlink->service,long_date(0),cc);
-    else 
-  #endif
-      sprintf(header,"~OLFrom: %s  %s %s\n",user->recap,long_date(0),cc);
+#ifdef NETLINKS
+  if (user->type==REMOTE_TYPE)
+    sprintf(header,"~OLFrom: %s@%s  %s %s\n",user->name,user->netlink->service,long_date(0),cc);
+  else 
+#endif
+    sprintf(header,"~OLFrom: %s  %s %s\n",user->bw_recap,long_date(0),cc);
   }
 else sprintf(header,"~OLFrom: MAILER  %s %s\n",long_date(0),cc);
 fputs(header,outfp);
@@ -5640,10 +5836,7 @@ switch(iscopy) {
   case 1: sprintf(text,"Mail is copied to %s\n",to); break;
   }
 write_user(user,text);
-if (!iscopy) {
-  sprintf(text,"%s sent mail to %s\n",user->name,to);
-  write_syslog(text,1,SYSLOG);
-  }
+if (!iscopy) write_syslog(SYSLOG,1,"%s sent mail to %s\n",user->name,to);
 write_user(get_user(to),"\07~FT~OL~LI** YOU HAVE NEW MAIL **\n");
 forward_email(to,header,ptr);
 return 1;
@@ -5663,8 +5856,7 @@ sprintf(filename,"%s/OUT_%s_%s@%s",MAILSPOOL,user->name,to,nl->service);
 if (!(fp=fopen(filename,"a"))) {
   sprintf(text,"%s: unable to spool mail.\n",syserror);
   write_user(user,text);
-  sprintf(text,"ERROR: Couldn't open file %s to append in send_external_mail().\n",filename);
-  write_syslog(text,0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open file %s to append in send_external_mail().\n",filename);
   return;
   }
 putc('\n',fp);
@@ -5729,16 +5921,14 @@ if (!remote) {
     return;
     }
   if ((check_igusers(u,user))!=-1 && user->level<GOD) {
-    sprintf(text,"%s is ignoring smails from you.\n",u->recap);
-    write_user(user,text);
+    vwrite_user(user,"%s~RS is ignoring smails from you.\n",u->recap);
     return;
     }
   if (u!=NULL) strcpy(word[1],u->name); 
   if (!has_account) {
     /* See if user has local account */
     if (!(find_user_listed(word[1]))) {
-      sprintf(text,"%s is a remote user and does not have a local account.\n",u->name);
-      write_user(user,text);  
+      vwrite_user(user,"%s is a remote user and does not have a local account.\n",u->name);
       return;
       }
     }
@@ -5756,8 +5946,7 @@ if (word_count>2) {
     return;
     }
 #endif
-sprintf(text,"\n~BB*** Writing mail message to %s ***\n\n",word[1]);
-write_user(user,text);
+vwrite_user(user,"\n~BB*** Writing mail message to %s ***\n\n",word[1]);
 user->misc_op=4;
 strcpy(user->mail_to,word[1]);
 editor(user,NULL);
@@ -5814,8 +6003,7 @@ if (!smail_number) {
   return;
   }
 if (smail_number>total) {
-  sprintf(text,"You only have %d message%s in your mailbox.\n",total,PLTEXT_S(total));
-  write_user(user,text);
+  vwrite_user(user,"You only have %d message%s in your mailbox.\n",total,PLTEXT_S(total));
   return;
   }
 /* Update last read / new mail received time at head of file */
@@ -5826,8 +6014,7 @@ if (!(reset_mail_counts(user))) {
 sprintf(filename,"%s/%s/%s.M",USERFILES,USERMAILS,user->name);
 if (!(fp=fopen(filename,"r"))) {
   write_user(user,"There was an error trying to read your mailbox.\n");
-  sprintf(text,"Unable to open %s's mailbox in read_mail_specific.\n",user->name);
-  write_syslog(text,0,SYSLOG);
+  write_syslog(SYSLOG,0,"Unable to open %s's mailbox in read_mail_specific.\n",user->name);
   return;
   }
 valid=1;  cnt=1;
@@ -5851,8 +6038,7 @@ while(!feof(fp)) {
   }
 SKIP:
 fclose(fp);
-sprintf(text,"\nMail message number ~FM~OL%d~RS out of ~FM~OL%d~RS.\n\n",smail_number,total);
-write_user(user,text);
+vwrite_user(user,"\nMail message number ~FM~OL%d~RS out of ~FM~OL%d~RS.\n\n",smail_number,total);
 }
 
 
@@ -5926,19 +6112,17 @@ if (user->wipe_from==-1) {
   return;
   }
 if (user->wipe_from>num) {
-  sprintf(text,"You only have %d mail message%s.\n",num,PLTEXT_S(num));
-  write_user(user,text);   return;
+  vwrite_user(user,"You only have %d mail message%s.\n",num,PLTEXT_S(num));
+  return;
   }
 cnt=wipe_messages(filename,user->wipe_from,user->wipe_to,1);
 reset_mail_counts(user);
 if (cnt==num) {
   unlink(filename);
-  sprintf(text,"There %s only %d mail message%s, all now deleted.\n",PLTEXT_WAS(cnt),cnt,PLTEXT_S(cnt));
-  write_user(user,text);
+  vwrite_user(user,"There %s only %d mail message%s, all now deleted.\n",PLTEXT_WAS(cnt),cnt,PLTEXT_S(cnt));
   return;
   }
-sprintf(text,"%d mail message%s deleted.\n",cnt,PLTEXT_S(cnt));
-write_user(user,text);
+vwrite_user(user,"%d mail message%s deleted.\n",cnt,PLTEXT_S(cnt));
 user->read_mail=time(0)+1;
 }
 
@@ -5964,15 +6148,13 @@ while(!feof(fp)) {
   sscanf(line,"%s",w1);
   if (valid && (!strcmp(w1,"~OLFrom:") || !strcmp(w1,"From:"))) {
     cnt++;  valid=0;
-    sprintf(text,"~FT%2d)~RS %s",cnt,remove_first(line));
-    write_user(user,text);
+    vwrite_user(user,"~FT%2d)~RS %s",cnt,remove_first(line));
     }
   fgets(line,ARR_SIZE-1,fp);
   }
 fclose(fp);
 nmail=mail_sizes(user->name,1);
-sprintf(text,"\nTotal of ~OL%d~RS message%s, ~OL%d~RS of which %s new.\n\n",cnt,PLTEXT_S(cnt),nmail,PLTEXT_IS(nmail));
-write_user(user,text);
+vwrite_user(user,"\nTotal of ~OL%d~RS message%s, ~OL%d~RS of which %s new.\n\n",cnt,PLTEXT_S(cnt),nmail,PLTEXT_IS(nmail));
 }
 
 
@@ -5999,8 +6181,8 @@ if (word_count<2) {
   return;
   }
 if (word_count>MAX_COPIES+1) {      /* +1 because 1 count for command */
-  sprintf(text,"You can only copy to a maximum of %d people.\n",MAX_COPIES);
-  write_user(user,text);  return;
+  vwrite_user(user,"You can only copy to a maximum of %d people.\n",MAX_COPIES);
+  return;
   }
 write_user(user,"\n");
 cnt=0;
@@ -6012,8 +6194,8 @@ for (i=1; i<word_count; i++) {
   while(*c) {
     if (*c=='@') {
       if (c==word[i]) {
-	sprintf(text,"Name missing before @ sign for copy to name '%s'.\n",word[i]);
-	write_user(user,text);  docopy=0; goto SKIP;
+	vwrite_user(user,"Name missing before @ sign for copy to name '%s'.\n",word[i]);
+        docopy=0; goto SKIP;
         }
       remote=1;  docopy=1;  goto SKIP;
       }
@@ -6027,8 +6209,7 @@ for (i=1; i<word_count; i++) {
   word[i][0]=toupper(word[i][0]);
   if (!remote) {
     if (!(find_user_listed(word[i]))) {
-      sprintf(text,"There is no such user with the name '%s' to copy to.\n",word[i]);
-      write_user(user,text);
+      vwrite_user(user,"There is no such user with the name '%s' to copy to.\n",word[i]);
       docopy=0;
       }
     else docopy=1;
@@ -6058,10 +6239,8 @@ int i,found=0;
 for (i=0; i<MAX_COPIES; i++) {
   if (!user->copyto[i][0]) continue;
   if (++found==1) write_user(user,"Attempting to send copies of smail...\n");
-  if (send_mail(user,user->copyto[i],ptr,1)) {
-    sprintf(text,"%s sent a copy of mail to %s.\n",user->name,user->copyto[i]);
-    write_syslog(text,1,SYSLOG);
-    }
+  if (send_mail(user,user->copyto[i],ptr,1))
+    write_syslog(SYSLOG,1,"%s sent a copy of mail to %s.\n",user->name,user->copyto[i]);
   }
 for (i=0; i<MAX_COPIES; i++) user->copyto[i][0]='\0';
 }
@@ -6080,27 +6259,20 @@ if (done_editing) {
   switch(user->lmail_lev) {
     case -1:
       for (i=WIZ;i<=GOD;i++) {
-	if (send_broadcast_mail(user,user->malloc_start,i,-1)) {
-	  sprintf(text,"You have sent mail to all the %ss.\n",level_name[i]);
-	  write_user(user,text);
-          }
+	if (send_broadcast_mail(user,user->malloc_start,i,-1))
+	  vwrite_user(user,"You have sent mail to all the %ss.\n",user_level[i].name);
         }
-      sprintf(text,"%s sent mail to all the Wizzes.\n",user->name);
-      write_syslog(text,1,SYSLOG);
+      write_syslog(SYSLOG,1,"%s sent mail to all the Wizzes.\n",user->name);
       return;
     case -2:
       if (send_broadcast_mail(user,user->malloc_start,-1,-2))
 	write_user(user,"You have sent mail to all the users.\n");
-      sprintf(text,"%s sent mail to all the users.\n",user->name);
-      write_syslog(text,1,SYSLOG);
+      write_syslog(SYSLOG,1,"%s sent mail to all the users.\n",user->name);
       return;
     } /* end switch */
-  if (send_broadcast_mail(user,user->malloc_start,user->lmail_lev,user->lmail_lev)) {
-    sprintf(text,"You have sent mail to all the %ss.\n",level_name[user->lmail_lev]);
-    write_user(user,text);
-    }
-  sprintf(text,"%s sent mail to all the %ss.\n",user->name,level_name[user->lmail_lev]);
-  write_syslog(text,1,SYSLOG);
+  if (send_broadcast_mail(user,user->malloc_start,user->lmail_lev,user->lmail_lev))
+    vwrite_user(user,"You have sent mail to all the %ss.\n",user_level[user->lmail_lev].name);
+  write_syslog(SYSLOG,1,"%s sent mail to all the %ss.\n",user->name,user_level[user->lmail_lev].name);
   user->lmail_lev=-3;
   return;
   }
@@ -6117,27 +6289,20 @@ if (word_count>2) {
   switch(level) {
     case -1:
       for (i=WIZ;i<=GOD;i++) {
-  	  if (send_broadcast_mail(user,remove_first(inpstr),i,-1)) {
-	    sprintf(text,"You have sent mail to all the %ss.\n",level_name[i]);
-	    write_user(user,text);
-	    }
+  	  if (send_broadcast_mail(user,remove_first(inpstr),i,-1))
+	    vwrite_user(user,"You have sent mail to all the %ss.\n",user_level[i].name);
         }
-      sprintf(text,"%s sent mail to all the Wizzes.\n",user->name);
-      write_syslog(text,1,SYSLOG);
+      write_syslog(SYSLOG,1,"%s sent mail to all the Wizzes.\n",user->name);
       return;
     case -2:
       if (send_broadcast_mail(user,remove_first(inpstr),-1,-2))
 	write_user(user,"You have sent mail to all the users.\n");
-      sprintf(text,"%s sent mail to all the users.\n",user->name);
-      write_syslog(text,1,SYSLOG);
+      write_syslog(SYSLOG,1,"%s sent mail to all the users.\n",user->name);
       return;
     } /* end switch */
-  if (send_broadcast_mail(user,remove_first(inpstr),level,level)) {
-    sprintf(text,"You have sent mail to all the %ss.\n",level_name[level]);
-    write_user(user,text);
-    }
-  sprintf(text,"%s sent mail to all the %ss.\n",user->name,level_name[level]);
-  write_syslog(text,1,SYSLOG);
+  if (send_broadcast_mail(user,remove_first(inpstr),level,level))
+    vwrite_user(user,"You have sent mail to all the %ss.\n",user_level[level].name);
+  write_syslog(SYSLOG,1,"%s sent mail to all the %ss.\n",user->name,user_level[level].name);
   return;
   }
 if (user->type==REMOTE_TYPE) {
@@ -6157,7 +6322,7 @@ write_user(user,"~FR~LICaution~RS:  This will hang the talker until the process 
 write_user(user,"          Use only when there are no, or a nominal amount of users logged on.\n");
 if (user->lmail_lev==-1) sprintf(text,"\n~FG*** Writing broadcast level mail message to all the Wizzes ***\n\n");
 else if (user->lmail_lev==-2) sprintf(text,"\n~FG*** Writing broadcast level mail message to everyone ***\n\n");
-else sprintf(text,"\n~FG*** Writing broadcast level mail message to all the %ss ***\n\n",level_name[user->lmail_lev]);
+else sprintf(text,"\n~FG*** Writing broadcast level mail message to all the %ss ***\n\n",user_level[user->lmail_lev].name);
 write_user(user,text);
 user->misc_op=9;
 editor(user,NULL);
@@ -6184,7 +6349,7 @@ while (entry!=NULL) {
   entry->name[0]=toupper(entry->name[0]);
   if (!(outfp=fopen("tempfile","w"))) {
     write_user(user,"Error in mail delivery.\n");
-    write_syslog("ERROR: Couldn't open tempfile in send_broadcast_mail().\n",0,SYSLOG);
+    write_syslog(SYSLOG,0,"ERROR: Couldn't open tempfile in send_broadcast_mail().\n");
     entry=entry->next;
     continue;
     }
@@ -6210,17 +6375,17 @@ while (entry!=NULL) {
   switch(type) {
   case -1: cc="(BCLM Wizzes)";  break;
   case -2: cc="(BCLM All users)";  break;
-  default: sprintf(text,"(BCLM %s lvl)",level_name[lvl]);
+  default: sprintf(text,"(BCLM %s lvl)",user_level[lvl].name);
     cc=text;
     break;
     }
   if (user!=NULL) {
-    #ifdef NETLINKS
-      if (user->type==REMOTE_TYPE)
+#ifdef NETLINKS
+    if (user->type==REMOTE_TYPE)
       sprintf(header,"~OLFrom: %s@%s  %s %s\n",user->name,user->netlink->service,long_date(0),cc);
-      else 
-   #endif
-	sprintf(header,"~OLFrom: %s  %s %s\n",user->recap,long_date(0),cc);
+    else 
+#endif
+      sprintf(header,"~OLFrom: %s  %s %s\n",user->bw_recap,long_date(0),cc);
     }
   else sprintf(header,"~OLFrom: MAILER  %s %s\n",long_date(0),cc);
   fprintf(outfp,header);
@@ -6314,7 +6479,7 @@ if (!user->email[0] || !strcmp(user->email,"#UNSET")) {
   user->autofwd=0;
   return;
   }
-if (!forwarding) {
+if (!amsys->forwarding) {
   write_user(user,"Even though you have set your email, the auto-forwarding function is currently unavaliable.\n");
   user->mail_verified=0;
   user->autofwd=0;
@@ -6325,7 +6490,7 @@ user->autofwd=0;
 /* Let them know by email */
 sprintf(filename,"%s/%s.FWD",MAILSPOOL,user->name);
 if (!(fp=fopen(filename,"w"))) {
-  write_syslog("Unable to open forward mail file in set_forward_email()\n",0,SYSLOG);
+  write_syslog(SYSLOG,0,"Unable to open forward mail file in set_forward_email()\n");
   return;
   }
 sprintf(user->verify_code,"amnuts%d",rand()%999);
@@ -6348,8 +6513,7 @@ fputs(talker_signature,fp);
 fclose(fp);
 /* send the mail */
 send_forward_email(user->email,filename);
-sprintf(text,"%s had mail sent to them by set_forward_email().\n",user->name);
-write_syslog(text,1,SYSLOG);
+write_syslog(SYSLOG,1,"%s had mail sent to them by set_forward_email().\n",user->name);
 /* Inform them online */
 write_user(user,"Now that you have set your email you can use the auto-forward functions.\n");
 write_user(user,"You must verify your address with the code you will receive shortly, via email.\n");
@@ -6373,7 +6537,7 @@ if (!strcmp(user->verify_code,"#EMAILSET")) {
   return;
   }
 if (strcmp(user->verify_code,word[1]) || !strcmp(user->verify_code,"#NONE")) {
-  write_user(user,"That does not match your verification code.  Please check your code and try again.\n");
+  write_user(user,"That does not match your verification code.  Check your code and try again.\n");
   return;
   }
 strcpy(user->verify_code,"#EMAILSET");
@@ -6390,14 +6554,14 @@ UR_OBJECT u;
 char filename[80];
 int on=0;
 
-if (!forwarding) return;
+if (!amsys->forwarding) return;
 if ((u=get_user(name))) {
   on=1;
   goto SKIP;
   }
 /* Have to create temp user if not logged on to check if email verified, etc */
 if ((u=create_user())==NULL) {
-  write_syslog("ERROR: Unable to create temporary user object in forward_email().\n",0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in forward_email().\n");
   return;
   }
 strcpy(u->name,name);
@@ -6419,7 +6583,7 @@ if (!u->autofwd){
 
 sprintf(filename,"%s/%s.FWD",MAILSPOOL,u->name);
 if (!(fp=fopen(filename,"w"))) {
-  write_syslog("Unable to open forward mail file in set_forward_email()\n",0,SYSLOG);
+  write_syslog(SYSLOG,0,"Unable to open forward mail file in set_forward_email()\n");
   return;
   }
 fprintf(fp,"From: %s\n",talker_name);
@@ -6435,8 +6599,7 @@ fputs("\n\n",fp);
 fputs(talker_signature,fp);
 fclose(fp);
 send_forward_email(u->email,filename);
-sprintf(text,"%s had mail sent to their email address.\n",u->name);
-write_syslog(text,1,SYSLOG);
+write_syslog(SYSLOG,1,"%s had mail sent to their email address.\n",u->name);
 if (!on) {
   destruct_user(u);
   destructed=0;
@@ -6483,7 +6646,110 @@ return -1;
 }
 
 
-/***** Message aboards *****/
+
+/* allows a user to email specific messages to themselves */
+void forward_specific_mail(UR_OBJECT user) {
+FILE *fpi,*fpo;
+int valid,cnt,total,smail_number,tmp1,tmp2;
+char w1[ARR_SIZE],line[ARR_SIZE],filenamei[80],filenameo[80];
+
+if (word_count<2) {
+  write_user(user,"Usage: fmail all/<mail number>\n");
+  return;
+  }
+if (!(total=mail_sizes(user->name,0))) {
+  write_user(user,"You currently have no mail.\n");
+  return;
+  }
+if (!user->mail_verified) {
+  write_user(user,"You have not yet verified your email address.\n");
+  return;
+  }
+/* send all smail */ 
+if (!strcasecmp(word[1],"all")) {
+  sprintf(filenameo,"%s/%s.FWD",MAILSPOOL,user->name);
+  if (!(fpo=fopen(filenameo,"w"))) {
+    write_syslog(SYSLOG,0,"Unable to open forward mail file in forward_specific_mail()\n");
+    write_user(user,"Sorry, could not forward any mail to you.\n");
+    return;
+    }
+  sprintf(filenamei,"%s/%s/%s.M",USERFILES,USERMAILS,user->name);
+  if (!(fpi=fopen(filenamei,"r"))) {
+    write_user(user,"Sorry, could not forward any mail to you.\n");
+    write_syslog(SYSLOG,0,"Unable to open %s's mailbox in forward_specific_mail()\n",user->name);
+    fclose(fpo);
+    return;
+    }
+  fprintf(fpo,"From: %s\n",talker_name);
+  fprintf(fpo,"To: %s <%s>\n",user->name,user->email);
+  fprintf(fpo,"Subject: Manual forwarding of smail.\n\n\n");
+  fscanf(fpi,"%d %d\r",&tmp1,&tmp2);
+  fgets(line,ARR_SIZE-1,fpi);
+  while (!feof(fpi)) {
+    fprintf(fpo,"%s",colour_com_strip(line));
+    fgets(line,ARR_SIZE-1,fpi);
+    }
+  fputs(talker_signature,fpo);
+  fclose(fpi);
+  fclose(fpo);
+  send_forward_email(user->email,filenameo);
+  write_user(user,"You have now sent ~OL~FRall~RS your smails to your email account.\n");
+  return;
+  }
+/* send just a specific smail */
+smail_number=atoi(word[1]);
+if (!smail_number) {
+  write_user(user,"Usage: fmail all/<mail number>\n");
+  return;
+  }
+if (smail_number>total) {
+  vwrite_user(user,"You only have %d message%s in your mailbox.\n",total,PLTEXT_S(total));
+  return;
+  }
+sprintf(filenameo,"%s/%s.FWD",MAILSPOOL,user->name);
+if (!(fpo=fopen(filenameo,"w"))) {
+  write_syslog(SYSLOG,0,"Unable to open forward mail file in forward_specific_mail()\n");
+  write_user(user,"Sorry, could not forward any mail to you.\n");
+  return;
+  }
+sprintf(filenamei,"%s/%s/%s.M",USERFILES,USERMAILS,user->name);
+if (!(fpi=fopen(filenamei,"r"))) {
+  write_user(user,"Sorry, could not forward any mail to you.\n");
+  write_syslog(SYSLOG,0,"Unable to open %s's mailbox in forward_specific_mail()\n",user->name);
+  fclose(fpo);
+  return;
+  }
+fprintf(fpo,"From: %s\n",talker_name);
+fprintf(fpo,"To: %s <%s>\n",user->name,user->email);
+fprintf(fpo,"Subject: Manual forwarding of smail.\n\n\n");
+valid=1;  cnt=1;
+fscanf(fpi,"%d %d\r",&tmp1,&tmp2);
+fgets(line,ARR_SIZE-1,fpi);
+while(!feof(fpi)) {
+  if (*line=='\n') valid=1;
+  sscanf(line,"%s",w1);
+  if (valid && (!strcmp(w1,"~OLFrom:") || !strcmp(w1,"From:"))) {
+    if (smail_number==cnt) {
+      while(*line!='\n') {
+	fprintf(fpo,"%s",colour_com_strip(line));
+	fgets(line,ARR_SIZE-1,fpi);
+        }
+      }
+    valid=0;  cnt++;
+    if (cnt>smail_number) goto SKIP; /* no point carrying on if read already */
+    }
+  fgets(line,ARR_SIZE-1,fpi);
+  }
+SKIP:
+fputs(talker_signature,fpo);
+fclose(fpi);
+fclose(fpo);
+send_forward_email(user->email,filenameo);
+vwrite_user(user,"You have now sent smail number ~FM~OL%d~RS to your email account.\n",smail_number);
+}
+
+
+/***** Message boards *****/
 
 
 /*** Read the message board ***/
@@ -6519,8 +6785,7 @@ else {
     return;
     }
   }	
-sprintf(text,"\n~BB*** The %s message board ***\n\n",rm->name);
-write_user(user,text);
+vwrite_user(user,"\n~BB*** The %s message board ***\n\n",rm->name);
 if (rm->access==PERSONAL_LOCKED || rm->access==PERSONAL_UNLOCKED) {
   midcpy(rm->name,rmname,1,strlen(rm->name)-2);
   rmname[0]=toupper(rmname[0]);
@@ -6531,10 +6796,7 @@ if (!(ret=more(user,user->socket,filename)))
   write_user(user,"There are no messages on the board.\n\n");
 else if (ret==1) user->misc_op=2;
 if (user->vis) name=user->recap; else name=invisname;
-if (rm==user->room) {
-  sprintf(text,"%s reads the message board.\n",name);
-  write_room_except(user->room,text,user);
-  }
+if (rm==user->room) vwrite_room_except(user->room,user,"%s~RS reads the message board.\n",name);
 }
 
 
@@ -6546,8 +6808,7 @@ int valid,cnt,pt;
 char id[ARR_SIZE],line[ARR_SIZE],filename[80],*name,rmname[USER_NAME_LEN];
 
 if (!rm->mesg_cnt) {
-  sprintf(text,"There are no messages posted on the %s board.\n",rm->name);
-  write_user(user,text);
+  vwrite_user(user,"There are no messages posted on the %s board.\n",rm->name);
   return;
   }
 if (!msg_number) {
@@ -6555,8 +6816,7 @@ if (!msg_number) {
   return;
   }
 if (msg_number>rm->mesg_cnt) {
-  sprintf(text,"There %s only %d message%s posted on the %s board.\n",PLTEXT_IS(rm->mesg_cnt),rm->mesg_cnt,PLTEXT_S(rm->mesg_cnt),rm->name);
-  write_user(user,text);
+  vwrite_user(user,"There %s only %d message%s posted on the %s board.\n",PLTEXT_IS(rm->mesg_cnt),rm->mesg_cnt,PLTEXT_S(rm->mesg_cnt),rm->name);
   return;
   }
 if (rm!=user->room && !has_room_access(user,rm)) {
@@ -6571,12 +6831,10 @@ if (rm->access==PERSONAL_LOCKED || rm->access==PERSONAL_UNLOCKED) {
 else sprintf(filename,"%s/%s.B",DATAFILES,rm->name);
 if (!(fp=fopen(filename,"r"))) {
   write_user(user,"There was an error trying to read the message board.\n");
-  sprintf(text,"Unable to open message board for %s in read_board_specific().\n",rm->name);
-  write_syslog(text,0,SYSLOG);
+  write_syslog(SYSLOG,0,"Unable to open message board for %s in read_board_specific().\n",rm->name);
   return;
   }
-sprintf(text,"\n~BB~FG*** The %s message board ***\n\n",rm->name);
-write_user(user,text);
+vwrite_user(user,"\n~BB~FG*** The %s message board ***\n\n",rm->name);
 valid=1;  cnt=1;  id[0]='\0';
 fgets(line,ARR_SIZE-1,fp);
 while(!feof(fp)) {
@@ -6596,13 +6854,10 @@ while(!feof(fp)) {
   }
 SKIP:
 fclose(fp);
-sprintf(text,"\nMessage number ~FM~OL%d~RS out of ~FM~OL%d~RS.\n\n",msg_number,rm->mesg_cnt);
-write_user(user,text);
+vwrite_user(user,"\nMessage number ~FM~OL%d~RS out of ~FM~OL%d~RS.\n\n",msg_number,rm->mesg_cnt);
 if (user->vis) name=user->recap;  else name=invisname;
-if (rm==user->room) {
-  sprintf(text,"%s reads the message board.\n",name);
-  if (user->level<GOD || user->vis) write_room_except(user->room,text,user);
-  }
+if (rm==user->room)
+  if (user->level<GOD || user->vis) vwrite_room_except(user->room,user,"%s~RS reads the message board.\n",name);
 }
 
 
@@ -6619,14 +6874,14 @@ if (user->muzzled) {
   }
 if (!done_editing) {
   if (word_count<2) {
-  #ifdef NETLINKS
+#ifdef NETLINKS
     if (user->type==REMOTE_TYPE) {
       /* Editor won't work over netlink cos all the prompts will go
 	 wrong, I'll address this in a later version. */
       write_user(user,"Sorry, due to software limitations remote users cannot use the line editor.\nUse the '.write <mesg>' method instead.\n");
       return;
       }
-  #endif
+#endif
     write_user(user,"\n~BB*** Writing board message ***\n\n");
     user->misc_op=3;
     editor(user,NULL);
@@ -6643,13 +6898,11 @@ if (user->room->access==PERSONAL_LOCKED || user->room->access==PERSONAL_UNLOCKED
   }
 else sprintf(filename,"%s/%s.B",DATAFILES,user->room->name);
 if (!(fp=fopen(filename,"a"))) {
-  sprintf(text,"%s: cannot write to file.\n",syserror);
-  write_user(user,text);
-  sprintf(text,"ERROR: Couldn't open file %s to append in write_board().\n",filename);
-  write_syslog(text,0,SYSLOG);
+  vwrite_user(user,"%s: cannot write to file.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open file %s to append in write_board().\n",filename);
   return;
   }
-if (user->vis) name=user->recap; else name=invisname;
+if (user->vis) name=user->bw_recap; else name=invisname;
 /* The posting time (PT) is the time its written in machine readable form, this 
    makes it easy for this program to check the age of each message and delete 
    as appropriate in check_messages() */
@@ -6670,8 +6923,7 @@ while(*ptr!='\0') {
 if (inp) fputs("\n\n",fp); else putc('\n',fp);
 fclose(fp);
 write_user(user,"You write the message on the board.\n");
-sprintf(text,"%s writes a message on the board.\n",name);
-write_room_except(user->room,text,user);
+vwrite_room_except(user->room,user,"%s writes a message on the board.\n",name);
 user->room->mesg_cnt++;
 }
 
@@ -6720,37 +6972,28 @@ if (!rm->mesg_cnt) {
 if (user->wipe_from==-1) {
   unlink(filename);
   write_user(user,"All messages deleted.\n");
-  sprintf(text,"%s wipes the message board.\n",name);
-  if (user->level<GOD || user->vis) write_room_except(rm,text,user);
-  sprintf(text,"%s wiped all messages from the board in the %s.\n",user->name,rm->name);
-  write_syslog(text,1,SYSLOG);
+  if (user->level<GOD || user->vis) vwrite_room_except(rm,user,"%s~RS wipes the message board.\n",name);
+  write_syslog(SYSLOG,1,"%s wiped all messages from the board in the %s.\n",user->name,rm->name);
   rm->mesg_cnt=0;
   return;
   }
 if (user->wipe_from>rm->mesg_cnt) {
-  sprintf(text,"There %s only %d message%s on the board.\n",PLTEXT_IS(rm->mesg_cnt),rm->mesg_cnt,PLTEXT_S(rm->mesg_cnt));
-  write_user(user,text);
+  vwrite_user(user,"There %s only %d message%s on the board.\n",PLTEXT_IS(rm->mesg_cnt),rm->mesg_cnt,PLTEXT_S(rm->mesg_cnt));
   return;
   }
 cnt=wipe_messages(filename,user->wipe_from,user->wipe_to,0);
 if (cnt==rm->mesg_cnt) {
   unlink(filename);
-  sprintf(text,"There %s only %d message%s on the board, all now deleted.\n",PLTEXT_WAS(rm->mesg_cnt),rm->mesg_cnt,PLTEXT_S(rm->mesg_cnt));
-  write_user(user,text);
-  sprintf(text,"%s wipes the message board.\n",name);
-  if (user->level<GOD || user->vis) write_room_except(rm,text,user);
-  sprintf(text,"%s wiped all messages from the board in the %s.\n",user->name,rm->name);
-  write_syslog(text,1,SYSLOG);
+  vwrite_user(user,"There %s only %d message%s on the board, all now deleted.\n",PLTEXT_WAS(rm->mesg_cnt),rm->mesg_cnt,PLTEXT_S(rm->mesg_cnt));
+  if (user->level<GOD || user->vis) vwrite_room_except(rm,user,"%s wipes the message board.\n",name);
+  write_syslog(SYSLOG,1,"%s wiped all messages from the board in the %s.\n",user->name,rm->name);
   rm->mesg_cnt=0;
   return;
   }
-sprintf(text,"%d board message%s deleted.\n",cnt,PLTEXT_S(cnt));
-write_user(user,text);
 rm->mesg_cnt-=cnt;
-sprintf(text,"%s wipes some messages from the board.\n",name);
-if (user->level<GOD || user->vis) write_room_except(rm,text,user);
-sprintf(text,"%s wiped %d message%s from the board in the %s.\n",user->name,cnt,PLTEXT_S(cnt),rm->name);
-write_syslog(text,1,SYSLOG);
+vwrite_user(user,"%d board message%s deleted.\n",cnt,PLTEXT_S(cnt));
+if (user->level<GOD || user->vis) vwrite_room_except(rm,user,"%s wipes some messages from the board.\n",name);
+write_syslog(SYSLOG,1,"%s wiped %d message%s from the board in the %s.\n",user->name,cnt,PLTEXT_S(cnt),rm->name);
 }
 
 
@@ -6777,8 +7020,7 @@ if (!msg_number) {
   return 0;
   }
 if (msg_number>rm->mesg_cnt) {
-  sprintf(text,"There %s only %d message%s on the board.\n",PLTEXT_IS(rm->mesg_cnt),rm->mesg_cnt,PLTEXT_S(rm->mesg_cnt));
-  write_user(user,text);
+  vwrite_user(user,"There %s only %d message%s on the board.\n",PLTEXT_IS(rm->mesg_cnt),rm->mesg_cnt,PLTEXT_S(rm->mesg_cnt));
   return 0;
   }
 if (rm->access==PERSONAL_LOCKED || rm->access==PERSONAL_UNLOCKED) {
@@ -6789,8 +7031,7 @@ if (rm->access==PERSONAL_LOCKED || rm->access==PERSONAL_UNLOCKED) {
 else sprintf(filename,"%s/%s.B",DATAFILES,rm->name);
 if (!(fp=fopen(filename,"r"))) {
   write_user(user,"There was an error trying to read message board.\n");
-  sprintf(text,"Unable to open message board for %s in check_board_wipe().\n",rm->name);
-  write_syslog(text,0,SYSLOG);
+  write_syslog(SYSLOG,0,"Unable to open message board for %s in check_board_wipe().\n",rm->name);
   return 0;
   }
 valid=1;  cnt=1;  yes=0;
@@ -6859,27 +7100,23 @@ if (rm->access==PERSONAL_LOCKED || rm->access==PERSONAL_UNLOCKED) {
 else sprintf(filename,"%s/%s.B",DATAFILES,rm->name);
 if (!(fp=fopen(filename,"r"))) {
   write_user(user,"There was an error trying to read message board.\n");
-  sprintf(text,"Unable to open message board for %s in board_from().\n",rm->name);
-  write_syslog(text,0,SYSLOG);
+  write_syslog(SYSLOG,0,"Unable to open message board for %s in board_from().\n",rm->name);
   return;
   }
-sprintf(text,"\n~FG~BB*** Posts on the %s message board from ***\n\n",rm->name);
-write_user(user,text);
+vwrite_user(user,"\n~FG~BB*** Posts on the %s message board from ***\n\n",rm->name);
 cnt=0;  line[0]='\0';
 fgets(line,ARR_SIZE-1,fp);
 while(!feof(fp)) {
   sscanf(line,"%s",id);
   if (!strcmp(id,"PT:")) {
     cnt++;
-    sprintf(text,"~FT%2d)~RS %s",cnt,remove_first(remove_first(remove_first(line))));
-    write_user(user,text);
+    vwrite_user(user,"~FT%2d)~RS %s",cnt,remove_first(remove_first(remove_first(line))));
     }
   line[0]='\0';
   fgets(line,ARR_SIZE-1,fp);
   }
 fclose(fp);
-sprintf(text,"\nTotal of ~OL%d~RS messages.\n\n",rm->mesg_cnt);
-write_user(user,text);
+vwrite_user(user,"\nTotal of ~OL%d~RS messages.\n\n",rm->mesg_cnt);
 }
 
 
@@ -6927,8 +7164,7 @@ for(rm=room_first;rm!=NULL;rm=rm->next) {
     for(w=1;w<word_count;++w) {
       if (!yes && strstr(line,word[w])) {  
 	if (!room_given) {
-	  sprintf(text,"~BB*** %s ***\n\n",rm->name);
-	  write_user(user,text);
+	  vwrite_user(user,"~BB*** %s ***\n\n",rm->name);
 	  room_given=1;
 	  }
 	yes=1;  cnt++;  
@@ -6939,10 +7175,7 @@ for(rm=room_first;rm!=NULL;rm=rm->next) {
   if (yes) {  strcat(buff,"\n");  write_user(user,buff);  }
   fclose(fp);
   }
-if (cnt) {
-  sprintf(text,"Total of %d matching message%s.\n\n",cnt,PLTEXT_S(cnt));
-  write_user(user,text);
-  }
+if (cnt) vwrite_user(user,"Total of %d matching message%s.\n\n",cnt,PLTEXT_S(cnt));
 else write_user(user,"No occurences found.\n");
 }
 
@@ -6975,13 +7208,11 @@ if (!done_editing) {
   }
 sprintf(filename,"%s/%s",MISCFILES,SUGBOARD);
 if (!(fp=fopen(filename,"a"))) {
-  sprintf(text,"%s: couldn't add suggestion.\n",syserror);
-  write_user(user,text);
-  sprintf("ERROR: Couldn't open file %s to write in suggestions().\n",filename);
-  write_syslog(text,0,SYSLOG);
+  vwrite_user(user,"%s: couldn't add suggestion.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open file %s to write in suggestions().\n",filename);
   return;
   }
-sprintf(text,"~OLFrom: %s  %s\n",user->recap,long_date(0));
+sprintf(text,"~OLFrom: %s  %s\n",user->bw_recap,long_date(0));
 fputs(text,fp);
 c=user->malloc_start;
 while(c!=user->malloc_end) {
@@ -6992,7 +7223,7 @@ while(c!=user->malloc_end) {
 fprintf(fp,"\n");
 fclose(fp);
 write_user(user,"Suggestion written.  Thank you for your contribution.\n");
-suggestion_count++;
+amsys->suggestion_count++;
 }
 
 
@@ -7011,37 +7242,31 @@ if (word_count<2) {
   }
 if (get_wipe_parameters(user)==-1) return;
 sprintf(filename,"%s/%s",MISCFILES,SUGBOARD);
-if (!suggestion_count) {
+if (!amsys->suggestion_count) {
   write_user(user,"There are no suggestions to delete.\n");  return;
   }
 if (user->wipe_from==-1) {
   unlink(filename);
   write_user(user,"All suggestions deleted.\n");
-  sprintf(text,"%s wiped all suggestions from the %s board\n",user->name,SUGBOARD);
-  write_syslog(text,1,SYSLOG);
-  suggestion_count=0;
+  write_syslog(SYSLOG,1,"%s wiped all suggestions from the %s board\n",user->name,SUGBOARD);
+  amsys->suggestion_count=0;
   return;
   }
-if (user->wipe_from>suggestion_count) {
-  sprintf(text,"There %s only %d suggestion%s on the board.\n",PLTEXT_IS(suggestion_count),suggestion_count,PLTEXT_S(suggestion_count));
-  write_user(user,text);
+if (user->wipe_from>amsys->suggestion_count) {
+  vwrite_user(user,"There %s only %d suggestion%s on the board.\n",PLTEXT_IS(amsys->suggestion_count),amsys->suggestion_count,PLTEXT_S(amsys->suggestion_count));
   return;
   }
 cnt=wipe_messages(filename,user->wipe_from,user->wipe_to,0);
-if (cnt==suggestion_count) {
+if (cnt==amsys->suggestion_count) {
   unlink(filename);
-  sprintf(text,"There %s only %d suggestion%s on the board, all now deleted.\n",PLTEXT_WAS(cnt),cnt,PLTEXT_S(cnt));
-  write_user(user,text);
-  sprintf(text,"%s wiped all suggestions from the %s board\n",user->name,SUGBOARD);
-  write_syslog(text,1,SYSLOG);
-  suggestion_count=0;
+  vwrite_user(user,"There %s only %d suggestion%s on the board, all now deleted.\n",PLTEXT_WAS(cnt),cnt,PLTEXT_S(cnt));
+  write_syslog(SYSLOG,1,"%s wiped all suggestions from the %s board\n",user->name,SUGBOARD);
+  amsys->suggestion_count=0;
   return;
   }
-sprintf(text,"%d suggestion%s deleted.\n",cnt,PLTEXT_S(cnt));
-write_user(user,text);
-suggestion_count-=cnt;
-sprintf(text,"%s wiped %d suggestion%s from the %s board\n",user->name,cnt,PLTEXT_S(cnt),SUGBOARD);
-write_syslog(text,1,SYSLOG);
+amsys->suggestion_count-=cnt;
+vwrite_user(user,"%d suggestion%s deleted.\n",cnt,PLTEXT_S(cnt));
+write_syslog(SYSLOG,1,"%s wiped %d suggestion%s from the %s board\n",user->name,cnt,PLTEXT_S(cnt),SUGBOARD);
 }
 
 
@@ -7052,19 +7277,17 @@ FILE *fp;
 int cnt;
 char id[ARR_SIZE],line[ARR_SIZE],filename[80],*str;
 
-if (!suggestion_count) {
+if (!amsys->suggestion_count) {
   write_user(user,"There are currently no suggestions.\n");
   return;
   }
 sprintf(filename,"%s/%s",MISCFILES,SUGBOARD);
 if (!(fp=fopen(filename,"r"))) {
   write_user(user,"There was an error trying to read the suggestion board.\n");
-  sprintf(text,"Unable to open suggestion board in suggestions_from().\n");
-  write_syslog(text,0,SYSLOG);
+  write_syslog(SYSLOG,0,"Unable to open suggestion board in suggestions_from().\n");
   return;
   }
-sprintf(text,"\n~BB*** Suggestions on the %s board from ***\n\n",SUGBOARD);
-write_user(user,text);
+vwrite_user(user,"\n~BB*** Suggestions on the %s board from ***\n\n",SUGBOARD);
 cnt=0;  line[0]='\0';
 fgets(line,ARR_SIZE-1,fp);
 while(!feof(fp)) {
@@ -7072,15 +7295,13 @@ while(!feof(fp)) {
   str=colour_com_strip(id);
   if (!strcmp(str,"From:")) {
     cnt++;
-    sprintf(text,"~FT%2d)~RS %s",cnt,remove_first(line));
-    write_user(user,text);
+    vwrite_user(user,"~FT%2d)~RS %s",cnt,remove_first(line));
     }
   line[0]='\0';
   fgets(line,ARR_SIZE-1,fp);
   }
 fclose(fp);
-sprintf(text,"\nTotal of ~OL%d~RS suggestions.\n\n",suggestion_count);
-write_user(user,text);
+vwrite_user(user,"\nTotal of ~OL%d~RS suggestions.\n\n",amsys->suggestion_count);
 }
 
 
@@ -7141,7 +7362,7 @@ if (!(fpi=fopen(filename,"r"))) {
   return 0; /* return on no messages to delete */
   }
 if (!(fpo=fopen("tempfile","w"))) {
-  write_syslog("ERROR: Couldn't open tempfile in wipe_message().\n",0,SYSLOG);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open tempfile in wipe_message().\n");
   fclose(fpo);
   return -1; /* return on error */
   }
@@ -7224,7 +7445,7 @@ if (!strcmp(word[1],"swears")) {
     ++i;
     }
   if (!i) write_user(user,"There are no banned swear words.\n");
-  if (ban_swearing) write_user(user,"\n");
+  if (amsys->ban_swearing) write_user(user,"\n");
   else write_user(user,"\n(Swearing ban is currently off)\n\n");
   return;
   }
@@ -7259,11 +7480,45 @@ write_user(user,usage);
 }
 
 
+/*** add a site without any comments to the site ban file and kick off
+     all those from the same site currently logging in
+***/
+void auto_ban_site(char *asite)
+{
+FILE *fp;
+char filename[80];
+UR_OBJECT u,next;
+
+sprintf(filename,"%s/%s",DATAFILES,SITEBAN);
+/* Write new ban to file */
+if (!(fp=fopen(filename,"a"))) {
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open file to append in auto_ban_site().\n");
+  return;
+  }
+fprintf(fp,"%s\n",asite);
+fclose(fp);
+/* disconnect the users from that same site */
+u=user_first;
+while(u!=NULL) {
+  next=u->next;
+  if (u->login && (!strcmp(asite,u->site) || !strcmp(asite,u->ipsite))) {
+    write_user(u,"\nYou have attempted to flood this talker's ports.  We view this as\n\r");
+    write_user(u,"a sign that you are trying to hack this system.  Therefor you have now\n\r");
+    write_user(u,"had logins from your site/domain banned.\n\n");
+    write_syslog(SYSLOG,1,"Line %d cleared due to port flood attempt.\n",u->socket);
+    disconnect_user(u);
+    }
+  u=next;
+  }
+write_syslog(SYSLOG,1,"BANNED site/domain '%s' due to attempted flood.\n",asite);
+}
+
+
 /*** Ban a site from logging onto the talker ***/
 void ban_site(UR_OBJECT user)
 {
 FILE *fp;
-char filename[80],host[81],bsite[80],*check;
+char filename[80],host[81],bsite[80],check[81];
 
 gethostname(host,80);
 /* check if full name matches the host's name */
@@ -7289,8 +7544,8 @@ if (strstr(word[2],"*?")) {
   return;
   }
 /* check if, with the wild cards, the name matches host's name */
-check=word[2];
-if (check[strlen(check)-1]!='*') strcat(check,"*");
+strcpy(check,word[2]);
+if (check[strlen(check)-1]!='*' && check[strlen(check)-2]!='?') strcat(check,"*");
 if (pattern_match(host,check)) {
   write_user(user,"You cannot ban the machine that that program is running on.\n");
   return;
@@ -7310,16 +7565,14 @@ if ((fp=fopen(filename,"r"))) {
   }
 /* Write new ban to file */
 if (!(fp=fopen(filename,"a"))) {
-  sprintf(text,"%s: Can't open file to append.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Couldn't open file to append in ban_site().\n",0,SYSLOG);
+  vwrite_user(user,"%s: Can't open file to append.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open file to append in ban_site().\n");
   return;
   }
 fprintf(fp,"%s\n",word[2]);
 fclose(fp);
-write_user(user,"Site/domain banned.\n");
-sprintf(text,"%s BANNED site/domain %s.\n",user->name,word[2]);
-write_syslog(text,1,SYSLOG);
+vwrite_user(user,"Site/domain '%s' now banned.\n",word[2]);
+write_syslog(SYSLOG,1,"%s BANNED site/domain %s.\n",user->name,word[2]);
 }
 
 
@@ -7369,16 +7622,14 @@ else {
   }
 /* Write new ban to file */
 if (!(fp=fopen(filename,"a"))) {
-  sprintf(text,"%s: Can't open file to append.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Couldn't open file to append in ban_user().\n",0,SYSLOG);
+  vwrite_user(user,"%s: Can't open file to append.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open file to append in ban_user().\n");
   return;
   }
 fprintf(fp,"%s\n",word[2]);
 fclose(fp);
 write_user(user,"User banned.\n");
-sprintf(text,"%s BANNED user %s.\n",user->name,word[2]);
-write_syslog(text,1,SYSLOG);
+write_syslog(SYSLOG,1,"%s BANNED user %s.\n",user->name,word[2]);
 sprintf(text,"User's name was ~FRbanned~RS by %s.\n",user->name);
 add_history(word[2],1,text); 
 if (u!=NULL) {
@@ -7439,16 +7690,14 @@ if ((fp=fopen(filename,"r"))) {
   }
 /* Write new ban to file */
 if (!(fp=fopen(filename,"a"))) {
-  sprintf(text,"%s: Can't open file to append.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Couldn't open file to append in ban_new().\n",0,SYSLOG);
+  vwrite_user(user,"%s: Can't open file to append.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open file to append in ban_new().\n");
   return;
   }
 fprintf(fp,"%s\n",word[2]);
 fclose(fp);
 write_user(user,"New users from site/domain banned.\n");
-sprintf(text,"%s BANNED new users from site/domain %s.\n",user->name,word[2]);
-write_syslog(text,1,SYSLOG);
+write_syslog(SYSLOG,1,"%s BANNED new users from site/domain %s.\n",user->name,word[2]);
 }
 
 
@@ -7481,9 +7730,8 @@ if (!(infp=fopen(filename,"r"))) {
   return;
   }
 if (!(outfp=fopen("tempfile","w"))) {
-  sprintf(text,"%s: Couldn't open tempfile.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Couldn't open tempfile to write in unban_site().\n",0,SYSLOG);
+  vwrite_user(user,"%s: Couldn't open tempfile.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open tempfile to write in unban_site().\n");
   fclose(infp);
   return;
   }
@@ -7508,8 +7756,7 @@ if (!cnt) {
   }
 else rename("tempfile",filename);
 write_user(user,"Site ban removed.\n");
-sprintf(text,"%s UNBANNED site %s.\n",user->name,word[2]);
-write_syslog(text,1,SYSLOG);
+write_syslog(SYSLOG,1,"%s UNBANNED site %s.\n",user->name,word[2]);
 }
 
 
@@ -7526,9 +7773,8 @@ if (!(infp=fopen(filename,"r"))) {
   return;
   }
 if (!(outfp=fopen("tempfile","w"))) {
-  sprintf(text,"%s: Couldn't open tempfile.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Couldn't open tempfile to write in unban_user().\n",0,SYSLOG);
+  vwrite_user(user,"%s: Couldn't open tempfile.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open tempfile to write in unban_user().\n");
   fclose(infp);
   return;
   }
@@ -7553,9 +7799,8 @@ if (!cnt) {
   unlink(filename);  unlink("tempfile");
   }
 else rename("tempfile",filename);
-write_user(user,"User ban removed.\n");
-sprintf(text,"%s UNBANNED user %s.\n",user->name,word[2]);
-write_syslog(text,1,SYSLOG);
+vwrite_user(user,"User '%s' ban removed.\n",word[2]);
+write_syslog(SYSLOG,1,"%s UNBANNED user %s.\n",user->name,word[2]);
 sprintf(text,"User's name was ~FGunbanned~RS by %s.\n",user->name);
 add_history(word[2],0,text);
 }
@@ -7574,9 +7819,8 @@ if (!(infp=fopen(filename,"r"))) {
   return;
   }
 if (!(outfp=fopen("tempfile","w"))) {
-  sprintf(text,"%s: Couldn't open tempfile.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Couldn't open tempfile to write in unban_new().\n",0,SYSLOG);
+  vwrite_user(user,"%s: Couldn't open tempfile.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open tempfile to write in unban_new().\n");
   fclose(infp);
   return;
   }
@@ -7601,8 +7845,7 @@ if (!cnt) {
   }
 else rename("tempfile",filename);
 write_user(user,"New users from site ban removed.\n");
-sprintf(text,"%s UNBANNED new users from site %s.\n",user->name,word[2]);
-write_syslog(text,1,SYSLOG);
+write_syslog(SYSLOG,1,"%s UNBANNED new users from site %s.\n",user->name,word[2]);
 }
 
 
@@ -7619,9 +7862,8 @@ char *uafk="~BR(AFK)";
 int i,exits,users;
 
 rm=user->room;
-if (rm->access & PRIVATE) sprintf(text,"\n~FTRoom: ~FR%s\n\n",rm->name);
-else sprintf(text,"\n~FTRoom: ~FG%s\n\n",rm->name);
-write_user(user,text);
+if (rm->access & PRIVATE) vwrite_user(user,"\n~FTRoom: ~FR%s\n\n",rm->name);
+else vwrite_user(user,"\n~FTRoom: ~FG%s\n\n",rm->name);
 if (user->show_rdesc) write_user(user,user->room->desc);
 exits=0;  null[0]='\0';
 strcpy(text,"\n~FTExits are:");
@@ -7648,9 +7890,8 @@ for(u=user_first;u!=NULL;u=u->next) {
   if (u->room!=rm || u==user || (!u->vis && u->level>user->level)) continue;
   if (!users++) write_user(user,"~FG~OLYou can see:\n");
   if (u->afk) ptr=uafk; else ptr=null;
-  if (!u->vis) sprintf(text,"     ~FR*~RS%s %s~RS  %s\n",u->recap,u->desc,ptr);
-  else sprintf(text,"      %s %s~RS  %s\n",u->recap,u->desc,ptr);
-  write_user(user,text);
+  if (!u->vis) vwrite_user(user,"     ~FR*~RS%s~RS %s~RS  %s\n",u->recap,u->desc,ptr);
+  else vwrite_user(user,"      %s~RS %s~RS  %s\n",u->recap,u->desc,ptr);
   }
 if (!users) write_user(user,"~FGYou are all alone here.\n");
 write_user(user,"\n");
@@ -7666,12 +7907,8 @@ switch(rm->access) {
 sprintf(temp," and there %s ~OL~FM%d~RS message%s on the board.\n",PLTEXT_IS(rm->mesg_cnt),rm->mesg_cnt,PLTEXT_S(rm->mesg_cnt));
 strcat(text,temp);
 write_user(user,text);
-if (rm->topic[0]) {
-  sprintf(text,"~FG~OLCurrent topic:~RS %s\n",rm->topic);
-  write_user(user,text);
-  return;
-  }
-write_user(user,"~FGNo topic has been set yet.\n");	
+if (rm->topic[0]) vwrite_user(user,"~FG~OLCurrent topic:~RS %s\n",rm->topic);
+else write_user(user,"~FGNo topic has been set yet.\n");	
 }
 
 
@@ -7692,25 +7929,18 @@ if ((type==2) && !strcmp(word[1],"key")) {
   write_user(user,"\n+----------------------------------------------------------------------------+\n");
   write_user(user,"| ~OL~FTUser login stages are as follows~RS                                           |\n");
   write_user(user,"+----------------------------------------------------------------------------+\n");
-  sprintf(text,"| ~FY~OLStage %d :~RS The user has logged onto the port and is entering their name     |\n",LOGIN_NAME);
-  write_user(user,text);
-  sprintf(text,"| ~FY~OLStage %d :~RS The user is entering their password for the first time           |\n",LOGIN_PASSWD);
-  write_user(user,text);
-  sprintf(text,"| ~FY~OLStage %d :~RS The user is new and has been asked to confirm their password     |\n",LOGIN_CONFIRM);
-  write_user(user,text);
-  sprintf(text,"| ~FY~OLStage %d :~RS The user has entered the pre-login information prompt            |\n",LOGIN_PROMPT);
-  write_user(user,text);
+  vwrite_user(user,"| ~FY~OLStage %d :~RS The user has logged onto the port and is entering their name     |\n",LOGIN_NAME);
+  vwrite_user(user,"| ~FY~OLStage %d :~RS The user is entering their password for the first time           |\n",LOGIN_PASSWD);
+  vwrite_user(user,"| ~FY~OLStage %d :~RS The user is new and has been asked to confirm their password     |\n",LOGIN_CONFIRM);
+  vwrite_user(user,"| ~FY~OLStage %d :~RS The user has entered the pre-login information prompt            |\n",LOGIN_PROMPT);
   write_user(user,"+----------------------------------------------------------------------------+\n\n");
   return;
   }
 write_user(user,"\n+----------------------------------------------------------------------------+\n");
-if (user->login) sprintf(text,"Current users %s\n",long_date(1));
-else sprintf(text,"~FGCurrent users %s\n",long_date(1));
-write_user(user,text);
+write_user(user,center_string(78,0,NULL,"%sCurrent users %s",(user->login)?"":"~FG",long_date(1)));
 switch(type) {
  case 0:
-   if (user->login) write_user(user,"Name                                             : Room            : Tm/Id\n");
-   else write_user(user,"~FTName                                             : Room            : Tm/Id\n");
+   vwrite_user(user,"%s  Name                                           : Room            : Tm/Id\n",(user->login)?"":"~FT");
    break;
  case 1:
    write_user(user,"~FTFriend                                           : Room            : Tm/Id\n");
@@ -7735,8 +7965,7 @@ for(u=user_first;u!=NULL;u=u->next) {
 #endif
   if (u->login) {
     if (type!=2) continue;
-    sprintf(text,"~FY[Login stage %d]~RS :  -      %2d   -    -  %4d    -  %s  %s:%d\n",u->login,u->socket,idle,portstr,u->site,u->site_port);
-    write_user(user,text);
+    vwrite_user(user,"~FY[Login stage %d]~RS :  -      %2d   -    -  %4d    -  %s  %s:%d\n",u->login,u->socket,idle,portstr,u->site,u->site_port);
     logins++;
     continue;
     }
@@ -7758,11 +7987,10 @@ for(u=user_first;u!=NULL;u=u->next) {
     else
 #endif
       sprintf(sockstr,"%2d",u->socket);
-    sprintf(text,"%-15s : %-5.5s   %s  %s  %s %s %4d  %s  %s\n",u->name,level_name[u->level],sockstr,noyes1[u->ignall],noyes1[u->vis],idlestr,mins,portstr,u->site);
-    write_user(user,text);
+    vwrite_user(user,"%-15s : %-5.5s   %s  %s  %s %s %4d  %s  %s\n",u->name,user_level[u->level].name,sockstr,noyes1[u->ignall],noyes1[u->vis],idlestr,mins,portstr,u->site);
     continue;
     }
-  sprintf(line,"  %s %s",u->recap,u->desc);
+  sprintf(line,"  %s~RS %s",u->recap,u->desc);
   if (!u->vis) line[0]='*';
 #ifdef NETLINKS
   if (u->type==REMOTE_TYPE) line[1]='@';
@@ -7774,39 +8002,127 @@ for(u=user_first;u!=NULL;u=u->next) {
   cnt=colour_com_count(line);
   if (u->afk) strcpy(idlestr,"~FRAFK~RS");
   else if (u->editing) strcpy(idlestr,"~FTEDIT~RS");
+  else if (idle>30) strcpy(idlestr,"~FYIDLE~RS");
   else sprintf(idlestr,"%d/%d",mins,idle);
-  sprintf(text,"%-*.*s~RS   %s : %-15.15s : %s\n",44+cnt*3,44+cnt*3,line,level_alias[u->level],rname,idlestr);
-  write_user(user,text);
+  vwrite_user(user,"%-*.*s~RS   %s : %-15.15s : %s\n",44+cnt*3,44+cnt*3,line,user_level[u->level].alias,rname,idlestr);
   }
+write_user(user,"\n+----------------------------------------------------------------------------+\n");
 switch(type) {
  case 0:
  case 2:
-   #ifdef NETLINKS
-     sprintf(text,"\nThere %s %d visible, %d invisible, %d remote users.\nTotal of %d user%s",
-	     PLTEXT_IS(num_of_users-invis),num_of_users-invis,invis,remote,total,PLTEXT_S(total));
-     if (type==2) sprintf(text,"%s and %d login%s.\n\n",text,logins,PLTEXT_S(logins));
-     else strcat(text,".\n\n");
-   #else
-     sprintf(text,"\nThere %s %d visible, %d invisible.\nTotal of %d user%s",
-	     PLTEXT_IS(num_of_users-invis),num_of_users-invis,invis,total,PLTEXT_S(total));
-     if (type==2) sprintf(text,"%s and %d login%s.\n\n",text,logins,PLTEXT_S(logins));
-     else strcat(text,".\n\n");
-   #endif
+#ifdef NETLINKS
+   if (type==2) sprintf(text,"and ~OL~FG%d~RS login%s ",logins,PLTEXT_S(logins));
+   write_user(user,center_string(78,0,NULL,"Total of ~OL~FG%d~RS user%s %s: ~OL~FT%d~RS visible, ~OL~FT%d~RS invisible, ~OL~FT%d~RS remote",
+				 total,PLTEXT_S(total),(type==2)?text:"",amsys->num_of_users-invis,invis,remote));
+#else
+   if (type==2) sprintf(text,"and ~OL~FG%d~RS login%s ",logins,PLTEXT_S(logins));
+   write_user(user,center_string(78,0,NULL,"Total of ~OL~FG%d~RS user%s %s: ~OL~FT%d~RS visible, ~OL~FT%d~RS invisible",
+				 total,PLTEXT_S(total),(type==2)?text:"",amsys->num_of_users-invis,invis));
+#endif
    break;
  case 1:
-   sprintf(text,"\nThere %s %d friend%s visible, %d invisible.\n",PLTEXT_IS(total-invis),total-invis,PLTEXT_S(total-invis),invis);
-   sprintf(text,"%sTotal of %d friend%s.\n\n",text,total,PLTEXT_S(total));
+   write_user(user,center_string(78,0,NULL,"Total of ~OL~FG%d~RS friend%s : ~OL~FT%d~RS visible, ~OL~FT%d~RS invisible",
+				 total,PLTEXT_S(total),total-invis,invis));
    break;
  }
-write_user(user,text);
+write_user(user,"+----------------------------------------------------------------------------+\n");
 }
 
 
-/*** Do the help ***/
+/*** Display a short, non-colour version for the .who for those looking at it from the
+     login prompt.  Thanks to Xan, Arny and Squirt for this idea (even though the code is mine ;)
+***/
+void login_who(UR_OBJECT user)
+{
+UR_OBJECT u;
+char line[USER_NAME_LEN+10], text2[ARR_SIZE], doing[6];
+int invis,on;
+
+write_user(user,"\n+----------------------------------------------------------------------------+\n");
+write_user(user,center_string(78,0,NULL,"Current users %s",long_date(1)));
+write_user(user,"+----------------------------------------------------------------------------+\n\n");
+
+invis=on=0;
+text[0]='\0';  text2[0]='\0';  line[0]='\0';  doing[0]='\0';
+
+for (u=user_first;u!=NULL;u=u->next) {
+  if (u->login) continue;
+  if (!u->vis) { invis++; continue; }
+  if (u->afk) strcpy(doing,"<AFK> ");
+  else if (u->editing) strcpy(doing,"<EDIT>");
+  else strcpy(doing,"      ");
+  sprintf(line,"%s %s",u->bw_recap,doing);
+  sprintf(text2,"%-*s",USER_NAME_LEN+7,line);
+  strcat(text,text2);
+  if (!(++on%4)) {
+    strcat(text,"\n");
+    write_user(user,text);
+    text[0]='\0';
+    }
+  }
+if (on%4) {
+  strcat(text,"\n");
+  write_user(user,text);
+  }
+if (!(on+invis)) write_user(user,center_string(78,0,NULL,"No users are currently logged on\n"));
+else {
+  write_user(user,"\n");
+  write_user(user,center_string(78,0,NULL,"%d user%s logged on, %d %s invis",on+invis,PLTEXT_S(on+invis),invis,PLTEXT_IS(invis)));
+  }
+write_user(user,"+----------------------------------------------------------------------------+\n");
+}
+
+
+/*** Display some files to the user.  This was once intergrated with the '.help' command,
+     but due to the new processing that goes through it was moved into its own command.
+     The files listed are now stored in MISCFILES rather than HELPFILES as they may not
+     necessarily be for any help commands.
+***/
+void display_files(UR_OBJECT user,int admins)
+{
+char filename[80],*c;
+int ret;
+
+if (word_count<2) {
+  if (!admins) sprintf(filename,"%s/%s",TEXTFILES,SHOWFILES);
+  else sprintf(filename,"%s/%s/%s",TEXTFILES,ADMINFILES,SHOWFILES);
+  if (!(ret=more(user,user->socket,filename))) {
+    if (!admins) write_user(user,"There is no list of files at the moment.\n");
+    else write_user(user,"There is no list of admin files at the moment.\n");
+    return;
+    }
+  if (ret==1) user->misc_op=2;
+  return;
+  }
+/* check for any illegal characters */
+c=word[1];
+while(*c) {
+  if (*c=='.' || *c++=='/') {
+    if (!admins) write_user(user,"Sorry, there are no files with that name.\n");
+    else write_user(user,"Sorry, there are no admin files with that name.\n");
+    return;
+    }
+  }
+/* show the file */
+if (!admins) sprintf(filename,"%s/%s",TEXTFILES,word[1]);
+else sprintf(filename,"%s/%s/%s",TEXTFILES,ADMINFILES,word[1]);
+if (!(ret=more(user,user->socket,filename))) {
+  if (!admins) write_user(user,"Sorry, there are no files with that name.\n");
+  else write_user(user,"Sorry, there are no admin files with that name.\n");
+  return;
+  }
+if (ret==1) user->misc_op=2;
+return;
+}
+
+
+
+/*** Show the list of commands, credits, and display the helpfiles for the
+     given command ***/
 void help(UR_OBJECT user)
 {
 int i,ret,comnum,found;
-char filename[80],text2[ARR_SIZE];
+char filename[80],text2[ARR_SIZE],cname[WORD_LEN];
 char *c;
 
 if (word_count<2 || !strcmp(word[1],"commands")) {
@@ -7816,22 +8132,7 @@ if (word_count<2 || !strcmp(word[1],"commands")) {
     }
   return;
   }
-/***
-    can't access these at the moment due to the new system of abreviating
-    and matching command names..  Don't think anyone used it anyway!
-***
-if (!strcmp(word[1],"files")) {
-  sprintf(filename,"%s/helpfiles",HELPFILES);
-  if (!(ret=more(user,user->socket,filename))) {
-    write_user(user,"There is no list of help files at the moment.\n");
-    return;
-    }
-  if (ret==1) user->misc_op=2;
-  return;
-  }
-***/
-if (!strcmp(word[1],"credits")) {  help_credits(user);  return;  }
-
+if (!strcasecmp(word[1],"credits")) {  help_credits(user);  return;  }
 /* Check for any illegal crap in searched for filename so they cannot list 
    out the /etc/passwd file for instance. */
 c=word[1];
@@ -7840,6 +8141,29 @@ while(*c) {
     write_user(user,"Sorry, there is no help on that topic.\n");
     return;
     }
+  }
+/* due to new helpfile system below, have to check for occurance of set_X seperately */
+if (strstr(word[1],"set_")) {
+  /* take off the bit we need for checking */
+  midcpy(word[1],cname,4,strlen(word[1]));
+  i=0;
+  strtolower(word[1]);
+  while(setstr[i].type[0]!='*') {
+    if (!strcmp(setstr[i].type,cname)) {
+      sprintf(filename,"%s/set_%s",HELPFILES,cname);
+      if (!(ret=more(user,user->socket,filename))) {
+	write_user(user,"Sorry, there is no help on that topic.\n");
+	return;
+        }
+      if (ret==1) user->misc_op=2;
+      if (ret==2) vwrite_user(user,"~OLFor Lev :~RS %s and above\n\n",user_level[command_table[SET].level].name);
+      return;  
+      }
+    ++i;
+    }
+  /* no match found in the table */
+  write_user(user,"Sorry, there is no help on that topic.\n");
+  return;
   }
 /* do full string match first */
 found=0;  i=0;  comnum=-1;
@@ -7869,7 +8193,7 @@ if (!found) {
   /* if more than one command matched */
   if (found>1) {
     text2[0]='\0';
-    sprintf(text2, "~FR~OLCommand name is not unique. '~FT%s~RS~OL~FR' also matches:\n\n",word[1]);
+    sprintf(text2,"~FR~OLCommand name is not unique. '~FT%s~RS~OL~FR' also matches:\n\n",word[1]);
     write_user(user,text2);
     write_user(user,text);
     return;
@@ -7881,13 +8205,9 @@ if (!found) {
     }
   } /* end if !found */
 sprintf(filename,"%s/%s",HELPFILES,command_table[comnum].name);
-if (!(ret=more(user,user->socket,filename)))
-  write_user(user,"Sorry, there is no help on that topic.\n");
+if (!(ret=more(user,user->socket,filename))) write_user(user,"Sorry, there is no help on that topic.\n");
 if (ret==1) user->misc_op=2;
-if (ret==2) {
-  sprintf(text,"~OLFor Lev :~RS %s and above\n\n",level_name[command_table[comnum].level]);
-  write_user(user,text);
-  }
+if (ret==2) vwrite_user(user,"~OLFor Lev :~RS %s and above\n\n",user_level[command_table[comnum].level].name);
 }
 
 
@@ -7904,7 +8224,7 @@ if (!is_wrap) {
   write_user(user,"| All commands start with a '.' (when in ~FYspeech~RS mode) and can be abbreviated |\n");
   write_user(user,"| Remember, a '.' by itself will repeat your last command or speech          |\n");
   write_user(user,"+----------------------------------------------------------------------------+\n");
-  sprintf(text,"~FT~OLCommands available for level ~RS~OL%s~RS",level_name[user->level]);
+  sprintf(text,"~FT~OLCommands available for level ~RS~OL%s~RS",user_level[user->level].name);
   sprintf(text2,"| %-89s |\n",text);
   write_user(user,text2);
   write_user(user,"+----------------------------------------------------------------------------+\n\n");
@@ -7928,10 +8248,10 @@ for(lev=user->hwrap_lev;lev<=user->level;++lev) {
   cnt=0;
   /* colourize lines if need be */
   if (!is_wrap) {
-    sprintf(text,"~FG~OL%c)~RS  ~FT",level_name[lev][0]);
+    sprintf(text,"~FG~OL%c)~RS  ~FT",user_level[lev].name[0]);
     }
   else if (is_wrap && !user->hwrap_same) {
-    sprintf(text,"~FG~OL%c)~RS  ~FT",level_name[lev][0]);
+    sprintf(text,"~FG~OL%c)~RS  ~FT",user_level[lev].name[0]);
     }
   else sprintf(text,"    ");
   user->hwrap_same=1;
@@ -7978,8 +8298,7 @@ while(cmd!=NULL) {
   if (cmd->min_lev>user->level) { cmd=cmd->next; continue; }
   cmd=cmd->next; ++total; 
   }
-sprintf(text,"\nThere is a total of ~OL%d~RS command%s that you can use.\n\n",total,PLTEXT_S(total));
-write_user(user,text);
+vwrite_user(user,"\nThere is a total of ~OL%d~RS command%s that you can use.\n\n",total,PLTEXT_S(total));
 /* reset variables */
 user->hwrap_same=0;  user->hwrap_lev=0;  user->hwrap_id=0;  user->misc_op=0;
 }
@@ -7998,7 +8317,7 @@ if (!is_wrap) {
   write_user(user,"| All commands start with a '.' (when in ~FYspeech~RS mode) and can be abbreviated |\n");
   write_user(user,"| Remember, a '.' by itself will repeat your last command or speech          |\n");
   write_user(user,"+----------------------------------------------------------------------------+\n");
-  sprintf(text,"~FT~OLCommands available for level ~RS~OL%s~RS",level_name[user->level]);
+  sprintf(text,"~FT~OLCommands available for level ~RS~OL%s~RS",user_level[user->level].name);
   sprintf(text2,"| %-89s |\n",text);
   write_user(user,text2);
   write_user(user,"+----------------------------------------------------------------------------+\n\n");
@@ -8085,8 +8404,7 @@ while(cmd!=NULL) {
   if (cmd->min_lev>user->level) { cmd=cmd->next; continue; }
   cmd=cmd->next; ++total; 
   }
-sprintf(text,"\nThere is a total of ~OL%d~RS command%s that you can use.\n\n",total,PLTEXT_S(total));
-write_user(user,text);
+vwrite_user(user,"\nThere is a total of ~OL%d~RS command%s that you can use.\n\n",total,PLTEXT_S(total));
 /* reset variables */
 user->hwrap_same=0;  user->hwrap_func=0;  user->hwrap_lev=0;  user->hwrap_id=0;  user->misc_op=0;
 }
@@ -8097,8 +8415,7 @@ user->hwrap_same=0;  user->hwrap_func=0;  user->hwrap_lev=0;  user->hwrap_id=0; 
      my credits intact. Thanks. */
 void help_credits(UR_OBJECT user)
 {
-sprintf(text,"\n~BB*** The Credits :) ***\n\n~BRNUTS version %s, Copyright (C) Neil Robertson 1996.\n\n",NUTSVER);
-write_user(user,text);
+vwrite_user(user,"\n~BB*** The Credits :) ***\n\n~BRNUTS version %s, Copyright (C) Neil Robertson 1996.\n\n",NUTSVER);
 write_user(user,"~BM             ~BB             ~BT             ~BG             ~BY             ~BR             ~RS\n");
 write_user(user,"NUTS stands for Neils Unix Talk Server, a program which started out as a\nuniversity project in autumn 1992 and has progressed from thereon. In no\nparticular order thanks go to the following people who helped me develop or\n");
 write_user(user,"debug this code in one way or another over the years:\n   ~FTDarren Seryck, Steve Guest, Dave Temple, Satish Bedi, Tim Bernhardt,\n   ~FTKien Tran, Jesse Walton, Pak Chan, Scott MacKenzie and Bryan McPhail.\n"); 
@@ -8106,23 +8423,21 @@ write_user(user,"Also thanks must go to anyone else who has emailed me with idea
 write_user(user,"I know I've said this before but this time I really mean it - this is the final\nversion of NUTS 3. In a few years NUTS 4 may spring forth but in the meantime\nthat, as they say, is that. :)\n\n");
 write_user(user,"If you wish to email me my address is '~FGneil@ogham.demon.co.uk~RS' and should\nremain so for the forseeable future.\n\nNeil Robertson - November 1996.\n");
 write_user(user,"~BM             ~BB             ~BT             ~BG             ~BY             ~BR             ~RS\n\n");
-sprintf(text,"~OL~FTAmnuts version %s~RS, Copyright (C) Andrew Collington, 1998\n\n",AMNUTSVER);
-write_user(user,text);
+vwrite_user(user,"~OL~FTAmnuts version %s~RS, Copyright (C) Andrew Collington, 1998\n\n",AMNUTSVER);
 write_user(user,"Amnuts stands for ~OLA~RSndy's ~OLM~RSodified ~OLNUTS~RS, a Unix talker server written in C.\n");
-write_user(user,"This code is based on Neil's NUTS (oo-er!) and started out as a little bit\n");
-write_user(user,"of code for some friends, but progressed into a fully fledged generic\n");
-write_user(user,"talker base for anyone who wanted it (do YOU want it?! ;)\n");
 write_user(user,"Thanks to Neil for the original NUTS code and Cygnus for his Ncohafmuta code.\n");
 write_user(user,"Many thanks to Simon for the live account to test Amnuts on, for testing\n");
 write_user(user,"code, and for pointing out errors (and for being my Best Man!).  Thanks as\n");
-write_user(user,"well to Squirt, Arny, Xan, Karri, Rudder and others for debugging, ideas, etc.\n");
-write_user(user,"Thanks also to everyone who has given me suggestions and comments on the\n");
-write_user(user,"Amnuts code, especially my fiancee, Lisa, for.. well.. everything :)\n\n");
+write_user(user,"well to Arny, Squirt, Canuck, Xan, Karri, Rudder and others for debugging,\n");
+write_user(user,"ideas, etc.  Thanks to everyone else as well, for ideas and using Amnuts.\n");
+write_user(user,"My fiancee, Lisa, and I are getting married on October 16th, 1999!  I'm\n");
+write_user(user,"moving to the States to live, so for a while this will be the last version\n");
+write_user(user,"of Amnuts.  But please keep visiting the website and supporting the code!\n");
+write_user(user,"And on a personal note:  I love you, Lisa!! :)\n");
 write_user(user,"If you have any comments or suggestions about this code, then please feel\n");
-write_user(user,"free to email me at: ~OL~FTamnuts@iname.com\n");
-write_user(user,"If you have a web broswer, then you can see the Amnuts website which is\n");
-write_user(user,"located at:  ~OL~FThttp://www.talker.com/amnuts/\n");
-write_user(user,"I hope you enjoy the talker!\n\nAndrew Collington, May 1999\n");
+write_user(user,"free to email me at ~OL~FTamnuts@iname.com~RS.  If you have a web broswer, then you\n");
+write_user(user,"can see the Amnuts website which is at ~OL~FThttp://www.talker.com/amnuts/~RS\n");
+write_user(user,"I hope you enjoy the talker!\n\nAndrew Collington, September 1999\n");
 write_user(user,"\n~BM             ~BB             ~BT             ~BG             ~BY             ~BR             ~RS\n\n");
 }
 
@@ -8135,36 +8450,34 @@ char type[10],*name;
 if (user->muzzled) {
   write_user(user,"You are muzzled, you cannot speak.\n");  return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
-              break;
-    case MAX: write_user(user,noswearing);
-              return;
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
+                break;
+    case SBMAX: write_user(user,noswearing);
+                return;
     default : break; /* do nothing as ban_swearing is off */
     }
   }
 #ifdef NETLINKS
-  if (user->room==NULL) {
-    sprintf(text,"ACT %s say %s\n",user->name,inpstr);
-    write_sock(user->netlink->socket,text);
-    no_prompt=1;
-    return;
-    }
+if (user->room==NULL) {
+  sprintf(text,"ACT %s say %s\n",user->name,inpstr);
+  write_sock(user->netlink->socket,text);
+  no_prompt=1;
+  return;
+  }
 #endif
 if (word_count<2 && user->command_mode) {
   write_user(user,"Say what?\n");  return;
   }
 smiley_type(inpstr,type);
 if (user->type==CLONE_TYPE) {
-  sprintf(text,"Clone of %s %ss: %s\n",user->recap,type,inpstr);
-  write_room(user->room,text);
+  vwrite_room(user->room,"Clone of %s~RS %ss: %s\n",user->recap,type,inpstr);
   record(user->room,text);
   return;
   }
-sprintf(text,"~FGYou %s:~RS %s\n",type,inpstr);
-write_user(user,text);
-if (user->vis) name=user->recap; else name=invisname;
+vwrite_user(user,"~FGYou %s:~RS %s\n",type,inpstr);
+if (user->vis) name=user->bw_recap; else name=invisname;
 if (!user->vis) write_monitor(user,user->room,0);
 sprintf(text,"~FG%s %ss:~RS %s\n",name,type,inpstr);
 write_room_except(user->room,text,user);
@@ -8181,11 +8494,11 @@ UR_OBJECT u;
 if (user->muzzled) {
   write_user(user,"You are muzzled, you cannot speak.\n");  return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
@@ -8217,10 +8530,9 @@ if (u==user) {
 #endif
 smiley_type(inpstr,type);
 inpstr=remove_first(inpstr);
-sprintf(text,"~FTYou %s to %s:~RS %s\n",type,u->recap,inpstr);
-write_user(user,text);
-if (user->vis) name1=user->recap; else name1=invisname;
-if (u->vis) name2=u->recap; else name2=invisname;
+vwrite_user(user,"~FTYou %s to %s:~RS %s\n",type,u->bw_recap,inpstr);
+if (user->vis) name1=user->bw_recap; else name1=invisname;
+if (u->vis) name2=u->bw_recap; else name2=invisname;
 if (!user->vis) write_monitor(user,user->room,0);
 sprintf(text,"~FT%s %ss (to %s):~RS %s\n",name1,type,name2,inpstr);
 write_room_except(user->room,text,user);
@@ -8236,21 +8548,20 @@ char *name;
 if (user->muzzled) {
   write_user(user,"You are muzzled, you cannot shout.\n");  return;
   }
-if (word_count<2 && inpstr[1]<33) {
+if (word_count<2) {
   write_user(user,"Shout what?\n");  return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
   }
-sprintf(text,"~OLYou shout:~RS %s\n",inpstr);
-write_user(user,text);
-if (user->vis) name=user->recap; else name=invisname;
+vwrite_user(user,"~OLYou shout:~RS %s\n",inpstr);
+if (user->vis) name=user->bw_recap; else name=invisname;
 if (!user->vis) write_monitor(user,NULL,0);
 sprintf(text,"~OL%s shouts:~RS %s\n",name,inpstr);
 write_room_except(NULL,text,user);
@@ -8269,96 +8580,79 @@ if (user->muzzled) {
   return;
   }
 /* determine whether this is a quick call */
-if (!strcmp(",",word[1])) { 
+if (inpstr[0]==',') { 
   if (word_count<2) { revtell(user);  return; }
   u=get_user_name(user,user->call);
   inpstr=remove_first(inpstr);
-  goto QSKIP;
   }
-if (inpstr[0]==',') {
-  ++inpstr;
-  u=get_user_name(user,user->call);
-  goto QSKIP;
+else {
+  /* if .t or > by itself, review tells */
+  if (word_count<2) {  revtell(user);  return;  }
+  /* if .t <u> with no message */
+  if (word_count<3) {  write_user(user,"Tell them what?\n");   return;  }
+  u=get_user_name(user,word[1]);
+  inpstr=remove_first(inpstr);
   }
-/* if .t <u> with no message */
-if (word_count<3 && inpstr[0]!='>') {
-  revtell(user);  return;
-  }
-/* if > <u> with no message */
-if (word_count<2 && inpstr[0]=='>') {
-  revtell(user);  return;
-  }
-u=get_user_name(user,word[1]);
-inpstr=remove_first(inpstr);
-QSKIP:
 if (!u) { write_user(user,notloggedon);  return; }
 if (u==user) {
   write_user(user,"Talking to yourself is the first sign of madness.\n");
   return;
   }
 if ((check_igusers(u,user))!=-1 && user->level<GOD) {
-  sprintf(text,"%s is ignoring tells from you.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is ignoring tells from you.\n",u->recap);
   return;
   }
 if (u->igntells && (user->level<WIZ || u->level>user->level)) {
-  sprintf(text,"%s is ignoring tells at the moment.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is ignoring tells at the moment.\n",u->recap);
   return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
   }
 if (u->afk) {
-  if (u->afk_mesg[0])
-    sprintf(text,"%s is ~FRAFK~RS, message is: %s\n",u->recap,u->afk_mesg);
-  else sprintf(text,"%s is ~FRAFK~RS at the moment.\n",u->recap);
-  write_user(user,text);
+  if (u->afk_mesg[0]) vwrite_user(user,"%s~RS is ~FRAFK~RS, message is: %s\n",u->recap,u->afk_mesg);
+  else vwrite_user(user,"%s~RS is ~FRAFK~RS at the moment.\n",u->recap);
   write_user(user,"Sending message to their afk review buffer.\n");
   if (inpstr[strlen(inpstr)-1]=='?') strcpy(type,"ask");
   else strcpy(type,"tell");
-  if (user->vis || u->level>=user->level) name=user->recap; else name=invisname;
+  if (user->vis || u->level>=user->level) name=user->bw_recap; else name=invisname;
   sprintf(text,"~FG~OL%s %ss you:~RS %s\n",name,type,inpstr);
   record_afk(u,text);
   return;
   }
 if (u->editing) {
-  sprintf(text,"%s is in ~FTEDIT~RS mode at the moment (using the line editor).\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is in ~FTEDIT~RS mode at the moment (using the line editor).\n",u->recap);
   write_user(user,"Sending message to their edit review buffer.\n");
   if (inpstr[strlen(inpstr)-1]=='?') strcpy(type,"ask");
   else strcpy(type,"tell");
-  if (user->vis || u->level>=user->level) name=user->recap; else name=invisname;
+  if (user->vis || u->level>=user->level) name=user->bw_recap; else name=invisname;
   sprintf(text,"~FG~OL%s %ss you:~RS %s\n",name,type,inpstr);
   record_edit(u,text);
   return;
   }
 if (u->ignall && (user->level<WIZ || u->level>user->level)) {
-  if (u->malloc_start!=NULL) 
-    sprintf(text,"%s is using the editor at the moment.\n",u->recap);
-  else sprintf(text,"%s is ignoring everyone at the moment.\n",u->recap);
-  write_user(user,text);  
+  if (u->malloc_start!=NULL) vwrite_user(user,"%s~RS is using the editor at the moment.\n",u->recap);
+  else vwrite_user(user,"%s~RS is ignoring everyone at the moment.\n",u->recap);
   return;
   }
 #ifdef NETLINKS
   if (u->room==NULL) {
-    sprintf(text,"%s is offsite and would not be able to reply to you.\n",u->recap);
-    write_user(user,text);
+    vwrite_user(user,"%s~RS is offsite and would not be able to reply to you.\n",u->recap);
     return;
     }
 #endif
 if (inpstr[strlen(inpstr)-1]=='?') strcpy(type,"ask");
 else strcpy(type,"tell");
-sprintf(text,"~OL~FTYou %s %s:~RS %s\n",type,u->recap,inpstr);
+sprintf(text,"~OL~FTYou %s %s:~RS %s\n",type,u->bw_recap,inpstr);
 write_user(user,text);
 record_tell(user,text);
-if (user->vis || u->level>=user->level) name=user->recap; else name=invisname;
+if (user->vis || u->level>=user->level) name=user->bw_recap; else name=invisname;
 sprintf(text,"~FT%s %ss you:~RS %s\n",name,type,inpstr);
 write_user(u,text);
 record_tell(u,text);
@@ -8374,29 +8668,28 @@ name="";
 if (user->muzzled) {
   write_user(user,"You are muzzled, you cannot emote.\n");  return;
   }
-if (word_count<2 && inpstr[1]<33) {
+if (word_count<2) {
   write_user(user,"Emote what?\n");  return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
   }
 if (user->type==CLONE_TYPE) {
-  if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) sprintf(text,"The clone of %s%s\n",name,inpstr);
-  else sprintf(text,"The clone of %s %s\n",user->recap,inpstr);
-  write_room(user->room,text);
+  if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) vwrite_room(user->room,"The clone of %s%s\n",name,inpstr);
+  else vwrite_room(user->room,"The clone of %s~RS %s\n",user->recap,inpstr);
   record(user->room,text);
   return;
   }
 if (user->vis) name=user->recap; else name=invisname;
 if (!user->vis) write_monitor(user,user->room,0);
-if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) sprintf(text,"%s%s\n",name,inpstr);
-else sprintf(text,"%s %s\n",name,inpstr);
+if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) sprintf(text,"%s~RS%s\n",name,inpstr);
+else sprintf(text,"%s~RS %s\n",name,inpstr);
 write_room(user->room,text);
 record(user->room,text);
 }
@@ -8410,22 +8703,22 @@ char *name;
 if (user->muzzled) {
   write_user(user,"You are muzzled, you cannot emote.\n");  return;
   }
-if (word_count<2 && inpstr[1]<33) {
+if (word_count<2) {
   write_user(user,"Shout emote what?\n");  return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
   }
 if (user->vis) name=user->recap; else name=invisname;
 if (!user->vis) write_monitor(user,NULL,0);
-if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) sprintf(text,"~OL!!!~RS %s%s\n",name,inpstr);
-else sprintf(text,"~OL!!~RS %s %s\n",name,inpstr);
+if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) sprintf(text,"~OL!!!~RS %s~RS%s\n",name,inpstr);
+else sprintf(text,"~OL!!~RS %s~RS %s\n",name,inpstr);
 write_room(NULL,text);
 record_shout(text);
 }
@@ -8441,10 +8734,10 @@ if (user->muzzled) {
   write_user(user,"You are muzzled, you cannot emote.\n");  return;
   }
 if (word_count<3 && !strchr("</",inpstr[0])) {
-  write_user(user,"Secret emote what?\n");  return;
+  write_user(user,"Private emote what?\n");  return;
   }
 if (word_count<2 && strchr("</",inpstr[0])) {
-  write_user(user,"Secret emote what?\n"); return;
+  write_user(user,"Private emote what?\n"); return;
   }
 if (!(u=get_user_name(user,word[1]))) {
   write_user(user,notloggedon);  return;
@@ -8454,67 +8747,60 @@ if (u==user) {
   return;
   }
 if ((check_igusers(u,user))!=-1 && user->level<GOD) {
-  sprintf(text,"%s is ignoring private emotes from you.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is ignoring private emotes from you.\n",u->recap);
   return;
   }
 if (u->igntells && (user->level<WIZ || u->level>user->level)) {
-  sprintf(text,"%s is ignoring private emotes at the moment.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is ignoring private emotes at the moment.\n",u->recap);
   return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
   }
 if (u->afk) {
-  if (u->afk_mesg[0])
-    sprintf(text,"%s is ~FRAFK~RS, message is: %s\n",u->recap,u->afk_mesg);
-  else sprintf(text,"%s is ~FRAFK~RS at the moment.\n",u->recap);
-  write_user(user,text);
+  if (u->afk_mesg[0]) vwrite_user(user,"%s~RS is ~FRAFK~RS, message is: %s\n",u->recap,u->afk_mesg);
+  else vwrite_user(user,"%s~RS is ~FRAFK~RS at the moment.\n",u->recap);
   write_user(user,"Sending message to their afk review buffer.\n");
   if (user->vis || u->level>=user->level) name=user->recap; else name=invisname;
   inpstr=remove_first(inpstr);
-  sprintf(text,"~FG~OL(=>)~RS %s %s\n",name,inpstr);
+  sprintf(text,"~FG~OL(=>)~RS %s~RS %s\n",name,inpstr);
   record_afk(u,text);
   return;
   }
 if (u->editing) {
-  sprintf(text,"%s is in ~FTEDIT~RS mode at the moment (using the line editor).\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is in ~FTEDIT~RS mode at the moment (using the line editor).\n",u->recap);
   write_user(user,"Sending message to their edit review buffer.\n");
   if (user->vis || u->level>=user->level) name=user->recap; else name=invisname;
   inpstr=remove_first(inpstr);
-  sprintf(text,"~FG~OL(=>)~RS %s %s\n",name,inpstr);
+  sprintf(text,"~FG~OL(=>)~RS %s~RS %s\n",name,inpstr);
   record_edit(u,text);
   return;
   }
 if (u->ignall && (user->level<WIZ || u->level>user->level)) {
-  if (u->malloc_start!=NULL) 
-    sprintf(text,"%s is using the editor at the moment.\n",u->recap);
-  else sprintf(text,"%s is ignoring everyone at the moment.\n",u->recap);
-  write_user(user,text);  return;
+  if (u->malloc_start!=NULL) vwrite_user(user,"%s~RS is using the editor at the moment.\n",u->recap);
+  else vwrite_user(user,"%s~RS is ignoring everyone at the moment.\n",u->recap);
+  return;
   }
 #ifdef NETLINKS
   if (u->room==NULL) {
-    sprintf(text,"%s is offsite and would not be able to reply to you.\n",u->recap);
-    write_user(user,text);
+    vwrite_user(user,"%s~RS is offsite and would not be able to reply to you.\n",u->recap);
     return;
     }
 #endif
 if (user->vis || u->level>=user->level) name=user->recap; else name=invisname;
 inpstr=remove_first(inpstr);
-if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) sprintf(text,"~FG~OL(%s =>)~RS %s%s\n",u->recap,name,inpstr);
-else sprintf(text,"~FG~OL(%s =>)~RS %s %s\n",u->recap,name,inpstr);
+if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) sprintf(text,"~FG~OL(%s =>)~RS %s~RS%s\n",u->bw_recap,name,inpstr);
+else sprintf(text,"~FG~OL(%s =>)~RS %s~RS %s\n",u->bw_recap,name,inpstr);
 write_user(user,text);
 record_tell(user,text);
-if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) sprintf(text,"~FG~OL(=>)~RS %s%s\n",name,inpstr);
-else sprintf(text,"~FG~OL(=>)~RS %s %s\n",name,inpstr);
+if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) sprintf(text,"~FG~OL(=>)~RS %s~RS%s\n",name,inpstr);
+else sprintf(text,"~FG~OL(=>)~RS %s~RS %s\n",name,inpstr);
 write_user(u,text);
 record_tell(u,text);
 }
@@ -8526,14 +8812,14 @@ void echo(UR_OBJECT user, char *inpstr)
 if (user->muzzled) {
   write_user(user,"You are muzzled, you cannot echo.\n");  return;
   }
-if (word_count<2 && inpstr[1]<33) {
+if (word_count<2) {
   write_user(user,"Echo what?\n");  return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
@@ -8559,30 +8845,29 @@ if (!(user2=get_user_name(user,word[1]))) {
   write_user(user,notloggedon); return;
   }
 inpstr=remove_first(inpstr);
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
 	      return;
     default : break; /* do nothing as ban_swearing is off */
     }
   }
 if (user->room!=user2->room) {
-  sprintf(text,"%s is not in the same room, so speak freely of them.\n",user2->recap);
-  write_user(user,text); return;
+  vwrite_user(user,"%s~RS is not in the same room, so speak freely of them.\n",user2->recap);
+  return;
   }
 if (user2==user) {
   write_user(user,"Talking about yourself is a sign of madness!\n");
   return;
   }
-if (user->vis) name=user->recap;
+if (user->vis) name=user->bw_recap;
 else {
   name=invisname;
   write_monitor(user,user->room,0);
   }
-sprintf(text,"~FT%s mutters:~RS %s ~FY~OL(to all but %s)\n",name,inpstr,user2->recap);
-write_room_except(user->room,text,user2);
+vwrite_room_except(user->room,user2,"~FT%s mutters:~RS %s ~FY~OL(to all but %s)\n",name,inpstr,user2->bw_recap);
 }
 
 
@@ -8605,7 +8890,7 @@ for (u=user_first;u!=NULL;u=u->next)  if (u->level>=WIZ) found=1;
 if (!found) {
   write_user(user,err); return;
   }
-sprintf(text,"~OL[ SOS from %s ]~RS %s\n",user->recap,inpstr);
+sprintf(text,"~OL[ SOS from %s ]~RS %s\n",user->bw_recap,inpstr);
 write_level(WIZ,1,text,NULL);
 sprintf(text,"~OLYou sos to the wizzes:~RS %s\n",inpstr);
 write_user(user,text);
@@ -8627,11 +8912,11 @@ if (word_count<2) {
   return;
   }
 /* Even wizzes cannot escapde the swear ban!  MWHAHahaha.... ahem.  */
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
@@ -8648,17 +8933,17 @@ else {
     return;
     }
   inpstr=remove_first(inpstr);
-  sprintf(text,"~FY<WIZ: ~OL[%s]~RS~FY>~RS %s\n",level_name[lev],inpstr);
+  sprintf(text,"~FY<WIZ: ~OL[%s]~RS~FY>~RS %s\n",user_level[lev].name,inpstr);
   write_user(user,text);
   record_tell(user,text);
-  sprintf(text,"~FY<WIZ: %s ~OL[%s]~RS~FY>~RS %s\n",user->recap,level_name[lev],inpstr);
+  sprintf(text,"~FY<WIZ: %s ~OL[%s]~RS~FY>~RS %s\n",user->bw_recap,user_level[lev].name,inpstr);
   write_level(lev,1,text,user);
   return;
   }
 sprintf(text,"~FY<WIZ>~RS %s\n",inpstr);
 write_user(user,text);
 record_tell(user,text);
-sprintf(text,"~FY<WIZ: %s>~RS %s\n",user->recap,inpstr);
+sprintf(text,"~FY<WIZ: %s>~RS %s\n",user->bw_recap,inpstr);
 write_level(WIZ,1,text,user);
 }
 
@@ -8676,11 +8961,11 @@ if (word_count<2) {
   write_user(user,"Usage: ewiz [<Wiz level>] <message>\n"); 
   return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
@@ -8697,14 +8982,14 @@ else {
     return;
     }
   inpstr=remove_first(inpstr);
-  sprintf(text,"~FY<WIZ: ~OL[%s]~RS~FY=>~RS %s %s\n",level_name[lev],user->recap,inpstr);
+  sprintf(text,"~FY<WIZ: ~OL[%s]~RS~FY=>~RS %s~RS %s\n",user_level[lev].name,user->recap,inpstr);
   write_level(lev,1,text,NULL);
   return;
   }
-sprintf(text,"~FY<WIZ: =>~RS %s %s\n",user->recap,inpstr);
+sprintf(text,"~FY<WIZ: =>~RS %s~RS %s\n",user->recap,inpstr);
 write_user(user,text);
 record_tell(user,text);
-sprintf(text,"~FY<WIZ: =>~RS %s %s\n",user->recap,inpstr);
+sprintf(text,"~FY<WIZ: =>~RS %s~RS %s\n",user->recap,inpstr);
 write_level(WIZ,1,text,user);
 }
 
@@ -8732,27 +9017,22 @@ if (u==user) {
   return;
   }
 if ((check_igusers(u,user))!=-1 && user->level<GOD) {
-  sprintf(text,"%s is ignoring pictures from you.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is ignoring pictures from you.\n",u->recap);
   return;
   }
 if (u->ignall && (user->level<WIZ || u->level>user->level)) {
-  if (u->malloc_start!=NULL)
-    sprintf(text,"%s is writing a message at the moment.\n",u->recap);
-  else sprintf(text,"%s is not listening at the moment.\n",u->recap);
-  write_user(user,text);
+  if (u->malloc_start!=NULL) vwrite_user(user,"%s~RS is writing a message at the moment.\n",u->recap);
+  else vwrite_user(user,"%s~RS is not listening at the moment.\n",u->recap);
   return;
   }
 #ifdef NETLINKS
   if (u->room==NULL) {
-    sprintf(text,"%s is offsite and would not be able to reply to you.\n",u->recap);
-    write_user(user,text);
+    vwrite_user(user,"%s~RS is offsite and would not be able to reply to you.\n",u->recap);
     return;
     }
 #endif
 if (u->ignpics) {
-  sprintf(text,"%s is ignoring pictures at the moment.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is ignoring pictures at the moment.\n",u->recap);
   return;
   }
 c=word[2];
@@ -8768,15 +9048,13 @@ if (!(fp=fopen(filename,"r"))) {
   return;
   }
 fclose(fp);
-if (!user->vis && u->level<user->level) name=invisname; else name=user->recap;
-sprintf(text,"~FG~OL%s shows you the following picture...\n\n",name);
-write_user(u,text);
+if (!user->vis && u->level<user->level) name=invisname; else name=user->bw_recap;
+vwrite_user(u,"~FG~OL%s shows you the following picture...\n\n",name);
 switch(more(u,u->socket,filename)) {
   case 0: break;
   case 1: u->misc_op=2;
   }
-sprintf(text,"~FG~OLYou show the following picture to %s\n\n",u->recap);
-write_user(user,text);
+vwrite_user(user,"~FG~OLYou show the following picture to %s\n\n",u->bw_recap);
 switch(more(user,user->socket,filename)) {
   case 0: break;
   case 1: user->misc_op=2;
@@ -8858,23 +9136,21 @@ for (u=user_first;u!=NULL;u=u->next) {
       || u->ignpics
       || u==user) continue;
   if ((check_igusers(u,user))!=-1 && user->level<GOD) continue;
-  if (!user->vis && u->level<=user->level) name=invisname;  else  name=user->recap;
+  if (!user->vis && u->level<=user->level) name=invisname;  else  name=user->bw_recap;
   if (u->type==CLONE_TYPE) {
     if (u->clone_hear==CLONE_HEAR_NOTHING || u->owner->ignall
 	|| u->clone_hear==CLONE_HEAR_SWEARS) continue;
     /* Ignore anything not in clones room, eg shouts, system messages
        and shemotes since the clones owner will hear them anyway. */
     if (user->room!=u->room) continue;
-    sprintf(text,"~BG~FK[ %s ]:~RS~FG~OL %s shows the following picture...\n\n",u->room->name,name);
-    write_user(u->owner,text);
+    vwrite_user(u->owner,"~BG~FK[ %s ]:~RS~FG~OL %s shows the following picture...\n\n",u->room->name,name);
     switch(more(u,u->socket,filename)) {
       case 0: break;
       case 1: u->misc_op=2;
       }
     }
   else {
-    sprintf(text,"~FG~OL%s shows the following picture...\n\n",name);
-    write_user(u,text);
+    vwrite_user(u,"~FG~OL%s shows the following picture...\n\n",name);
     switch(more(u,u->socket,filename)) {
       case 0: break;
       case 1: u->misc_op=2;
@@ -8902,11 +9178,11 @@ if (user->muzzled) {
 if (word_count<2) {
   write_user(user,"Usage: greet <message>\n"); return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
@@ -8952,8 +9228,7 @@ for (i=0; i<5; ++i) {
         }
       }
     }
-  sprintf(text,"%s\n",pbuff);
-  write_room(user->room,text);
+  vwrite_room(user->room,"%s\n",pbuff);
   }
 }
 
@@ -8961,20 +9236,24 @@ for (i=0; i<5; ++i) {
 /** put speech in a think bubbles **/
 void think_it(UR_OBJECT user, char *inpstr)
 {
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
+char *name;
+
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
   }
-if (!user->vis) write_monitor(user,user->room,0);
-if (word_count<2 && !user->vis) sprintf(text,"%s thinks nothing - now that's just typical!\n",invisname);
-else if (word_count<2 && user->vis) sprintf(text,"%s thinks nothing - now that's just typical!\n",user->recap);
-else if (!user->vis) sprintf(text,"%s thinks . o O ( %s )\n",invisname,inpstr);
-else sprintf(text,"%s thinks . o O ( %s )\n",user->recap,inpstr);
+if (user->vis) name=user->recap;
+else {
+  name=invisname;
+  write_monitor(user,user->room,0);
+  }
+if (word_count<2) sprintf(text,"%s~RS thinks nothing - now that's just typical!\n",name);
+else sprintf(text,"%s~RS thinks . o O ( %s~RS )\n",name,inpstr);
 write_room(user->room,text);
 record(user->room,text);
 }
@@ -8983,20 +9262,24 @@ record(user->room,text);
 /** put speech in a music notes **/
 void sing_it(UR_OBJECT user, char *inpstr)
 {
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
+char *name;
+
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: if (!(in_private_room(user))) inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
   }
-if (!user->vis) write_monitor(user,user->room,0);
-if (word_count<2 && !user->vis) sprintf(text,"%s sings a tune... BADLY!\n",invisname);
-else if (word_count<2 && user->vis) sprintf(text,"%s sings a tune... BADLY!\n",user->recap);
-else if (!user->vis) sprintf(text,"%s sings o/~ %s o/~\n",invisname,inpstr);
-else sprintf(text,"%s sings o/~ %s o/~\n",user->recap,inpstr);
+if (user->vis) name=user->recap;
+else {
+  name=invisname;
+  write_monitor(user,user->room,0);
+  }
+if (word_count<2) sprintf(text,"%s~RS sings a tune... BADLY!\n",name);
+else sprintf(text,"%s~RS sings o/~ %s~RS o/~\n",name,inpstr);
 write_room(user->room,text);
 record(user->room,text);
 }
@@ -9014,11 +9297,11 @@ if (word_count<2) {
     }
   }
 /* wizzes should be trusted... But they ain't! */
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
@@ -9027,8 +9310,7 @@ force_listen=1;
 null[0]='\0';
 if (!beeps) bp=null; else bp=b;
 write_monitor(user,NULL,0);
-sprintf(text,"%s~FR~OL--==<~RS %s ~RS~FR~OL>==--\n",bp,inpstr);
-write_room(NULL,text);
+vwrite_room(NULL,"%s~FR~OL--==<~RS %s ~RS~FR~OL>==--\n",bp,inpstr);
 }
 
 
@@ -9052,16 +9334,15 @@ if (u==user) {
   return;
   }
 if ((check_igusers(u,user))!=-1 && user->level<GOD) {
-  sprintf(text,"%s is ignoring wakes from you.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is ignoring wakes from you.\n",u->recap);
   return;
   }
 if (u->afk) {
-  write_user(user,"You cannot wake someone who is AFK.\n");  return;
+  write_user(user,"You cannot wake someone who is AFK.\n");
+  return;
   }
-if (user->vis) name=user->recap; else name=invisname;
-sprintf(text,"\n%s~BR*** %s says: ~OL~LIWAKE UP!!!~RS~BR ***\n\n",(u->ignbeeps)?"":"\07",name);
-write_user(u,text);
+if (user->vis) name=user->bw_recap; else name=invisname;
+vwrite_user(u,"\n%c~BR*** %s says: ~OL~LIWAKE UP!!!~RS~BR ***\n\n",(u->ignbeeps)?"":"\007",name);
 write_user(user,"Wake up call sent.\n");
 }
 
@@ -9077,25 +9358,24 @@ if (word_count<2) {
   write_user(user,"Usage: beep <user> [message]\n");  return;
   }
 if (!(u=get_user_name(user,word[1]))) {
-  write_user(user,notloggedon);  return;
+  write_user(user,notloggedon);
+  return;
   }
 if (u==user) {
   write_user(user,"Beeping yourself is yet another sign of madness!\n");
   return;
   }
 if (u->ignbeeps && user->level<GOD) {
-  sprintf(text,"%s is ignoring beeps at the moment.\n",u->recap);
-  write_user(user,text);  return;
+  vwrite_user(user,"%s~RS is ignoring beeps at the moment.\n",u->recap);
+  return;
   }
 if ((check_igusers(u,user))!=-1 && user->level<GOD) {
-  sprintf(text,"%s is ignoring tells from you.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is ignoring tells from you.\n",u->recap);
   return;
   }
 if (u->ignall && (user->level<GOD || u->level>user->level)) {
-  if (u->malloc_start!=NULL) sprintf(text,"%s is writing a message at the moment.\n",u->recap);
-  else sprintf(text,"%s is not listening at the moment.\n",u->recap);
-  write_user(user,text);
+  if (u->malloc_start!=NULL) vwrite_user(user,"%s~RS is writing a message at the moment.\n",u->recap);
+  else vwrite_user(user,"%s~RS is not listening at the moment.\n",u->recap);
   return;
   }
 inpstr=remove_first(inpstr);
@@ -9105,18 +9385,13 @@ if (!u->vis && user->level<u->level) {
   }
 if (word_count<3) {
   if (!user->vis && u->level<user->level) write_user(u,"\007~FR~OLSomeone beeps to you:~RS~FR -=[*] BEEP [*]=-\n");
-  else {
-    sprintf(text,"\007~FR~OL%s beeps to you:~RS~FR -=[*] BEEP [*]=-\n",user->recap);
-    write_user(u,text);
-    }
-  sprintf(text,"\007~FR~OLYou beep to %s:~RS~FR -=[*] BEEP [*]=-\n",u->recap);
-  write_user(user,text);  return;
+  else vwrite_user(u,"\007~FR~OL%s beeps to you:~RS~FR -=[*] BEEP [*]=-\n",user->bw_recap);
+  vwrite_user(user,"\007~FR~OLYou beep to %s:~RS~FR -=[*] BEEP [*]=-\n",u->bw_recap);
+  return;
   }
-if (!user->vis && u->level<user->level) sprintf(text,"\007~FR~OLSomeone beeps to you:~RS %s\n",inpstr);
-else sprintf(text,"\007~FR~OL%s beeps to you:~RS %s\n",user->recap,inpstr);
-write_user(u,text);
-sprintf(text,"\007~FR~OLYou beep to %s:~RS %s\n",u->recap,inpstr);
-write_user(user,text);
+if (!user->vis && u->level<user->level) vwrite_user(u,"\007~FR~OLSomeone beeps to you:~RS %s\n",inpstr);
+else vwrite_user(u,"\007~FR~OL%s beeps to you:~RS %s\n",user->bw_recap,inpstr);
+vwrite_user(user,"\007~FR~OLYou beep to %s:~RS %s\n",u->bw_recap,inpstr);
 }
 
 
@@ -9130,8 +9405,7 @@ if (word_count<2) {
     write_user(user,"Quick call not set.\n");
     return;
     }
-  sprintf(text,"Quick call to: %s.\n",user->call);
-  write_user(user,text);
+  vwrite_user(user,"Quick call to: %s.\n",user->call);
   return;
   }
 if (strlen(word[1])>USER_NAME_LEN) {
@@ -9148,8 +9422,7 @@ if (u==user) {
   }
 strcpy(user->call,u->name);
 user->call[0]=toupper(user->call[0]);
-sprintf(text,"You have set a quick call to: %s.\n",user->call);
-write_user(user,text);
+vwrite_user(user,"You have set a quick call to: %s.\n",user->call);
 }
 
 
@@ -9197,8 +9470,7 @@ char *name;
 clear_revbuff(user->room); 
 write_user(user,"Review buffer cleared.\n");
 if (user->vis) name=user->name; else name=invisname;
-sprintf(text,"%s has cleared the review buffer.\n",name);
-write_room_except(user->room,text,user);
+vwrite_room_except(user->room,user,"%s has cleared the review buffer.\n",name);
 }
 
 
@@ -9209,11 +9481,11 @@ int i,line,cnt;
 
 cnt=0;
 for(i=0;i<REVIEW_LINES;++i) {
-  line=(sbuffline+i)%REVIEW_LINES;
-  if (shoutbuff[line][0]) {
+  line=(amsys->sbuffline+i)%REVIEW_LINES;
+  if (amsys->shoutbuff[line][0]) {
     cnt++;    
     if (cnt==1) write_user(user,"~BB~FG*** Shout review buffer ***\n\n");
-    write_user(user,shoutbuff[line]); 
+    write_user(user,amsys->shoutbuff[line]); 
     }
   }
 if (!cnt) write_user(user,"Shout review buffer is empty.\n");
@@ -9255,8 +9527,7 @@ else {
     write_user(user,"That room is currently private, you cannot review the conversation.\n");
     return;
     }
-  sprintf(text,"~FT(Review of %s room)\n",rm->name);
-  write_user(user,text);
+  vwrite_user(user,"~FT(Review of %s room)\n",rm->name);
   }
 cnt=0;
 for(i=0;i<REVIEW_LINES;++i) {
@@ -9288,7 +9559,7 @@ else {
     if ((u=create_user())==NULL) {
       sprintf(text,"%s: unable to create temporary user session.\n",syserror);
       write_user(user,text);
-      write_syslog("ERROR: Unable to create temporary user session in status().\n",0,SYSLOG);
+      write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user session in status().\n");
       return;
       }
     strcpy(u->name,word[1]);
@@ -9304,10 +9575,9 @@ else {
 write_user(user,"\n\n");
 if (!on) write_user(user,"+----- ~FTUser Info~RS -- ~FB(not currently logged on)~RS -------------------------------+\n");
 else write_user(user,"+----- ~FTUser Info~RS -- ~OL~FY(currently logged on)~RS -----------------------------------+\n");
-sprintf(text2,"%s %s",u->recap,u->desc);
+sprintf(text2,"%s~RS %s",u->recap,u->desc);
 cnt=colour_com_count(text2);
-sprintf(text,"Name   : %-*.*s~RS Level : %s\n",45+cnt*3,45+cnt*3,text2,level_name[u->level]);
-write_user(user,text);
+vwrite_user(user,"Name   : %-*.*s~RS Level : %s\n",45+cnt*3,45+cnt*3,text2,user_level[u->level].name);
 mins=(int)(time(0) - u->last_login)/60;
 days=u->total_login/86400;
 hours=(u->total_login%86400)/3600;
@@ -9317,8 +9587,7 @@ if (!u->age) sprintf(text2,"Unknown");
 else sprintf(text2,"%d",u->age);
 if (!on || u->login) sprintf(text3," ");
 else sprintf(text3,"            Online for : %d min%s",mins,PLTEXT_S(mins));
-sprintf(text,"Gender : %-8s      Age : %-8s %s\n",sex[u->gender],text2,text3);
-write_user(user,text);
+vwrite_user(user,"Gender : %-8s      Age : %-8s %s\n",sex[u->gender],text2,text3);
 if (!strcmp(u->homepage,"#UNSET")) sprintf(homepg,"Currently unset");
 else strcpy(homepg,u->homepage);
 if (!strcmp(u->email,"#UNSET")) sprintf(email,"Currently unset");
@@ -9329,79 +9598,58 @@ else {
     }
 if (!strcmp(u->icq,"#UNSET")) sprintf(icq,"Currently unset");
 else strcpy(icq,u->icq);
-sprintf(text,"Email Address : %s\n",email);
-write_user(user,text);
-sprintf(text,"Homepage URL  : %s\n",homepg);
-write_user(user,text);
-sprintf(text,"ICQ Number    : %s\n",icq);
-write_user(user,text);
+vwrite_user(user,"Email Address : %s\n",email);
+vwrite_user(user,"Homepage URL  : %s\n",homepg);
+vwrite_user(user,"ICQ Number    : %s\n",icq);
 mins=(u->total_login%3600)/60;
-sprintf(text,"Total Logins  : %-9d  Total login : %d day%s, %d hour%s, %d minute%s\n",u->logons,days,PLTEXT_S(days),hours,PLTEXT_S(hours),mins,PLTEXT_S(mins));
-write_user(user,text);
+vwrite_user(user,"Total Logins  : %-9d  Total login : %d day%s, %d hour%s, %d minute%s\n",u->logons,days,PLTEXT_S(days),hours,PLTEXT_S(hours),mins,PLTEXT_S(mins));
 write_user(user,"+----- ~FTGeneral Info~RS ---------------------------------------------------------+\n");
-sprintf(text,"Enter Msg     : %s %s\n",u->recap,u->in_phrase);
-write_user(user,text);
-sprintf(text,"Exit Msg      : %s %s~RS to the...\n",u->recap,u->out_phrase);
-write_user(user,text);
+vwrite_user(user,"Enter Msg     : %s~RS %s\n",u->recap,u->in_phrase);
+vwrite_user(user,"Exit Msg      : %s~RS %s~RS to the...\n",u->recap,u->out_phrase);
 newmail=mail_sizes(u->name,1);
 if (!newmail) sprintf(nm,"NO");
 else sprintf(nm,"%d",newmail);
-if (!on || u->login) {
-  sprintf(text,"New Mail      : %-13.13s  Muzzled : %-13.13s\n",nm,noyes2[(u->muzzled>0)]);
-  write_user(user,text);
-  }
+if (!on || u->login) vwrite_user(user,"New Mail      : %-13.13s  Muzzled : %-13.13s\n",nm,noyes2[(u->muzzled>0)]);
 else {
-  sprintf(text,"Invited to    : %-13.13s  Muzzled : %-13.13s  Ignoring : %-13.13s\n",ir,noyes2[(u->muzzled>0)],noyes2[u->ignall]);
-  write_user(user,text);
-  #ifdef NETLINKS
-    if (u->type==REMOTE_TYPE || u->room==NULL) {
-      hs=0;  sprintf(ir,"<off site>");
-      }
-    else {
-  #endif
-      hs=1;  sprintf(ir,"%s",u->room->name);
-  #ifdef NETLINKS
-      }
-  #endif
-  sprintf(text,"In Area       : %-13.13s  At home : %-13.13s  New Mail : %-13.13s\n",ir,noyes2[hs],nm);
-  write_user(user,text);
+  vwrite_user(user,"Invited to    : %-13.13s  Muzzled : %-13.13s  Ignoring : %-13.13s\n",ir,noyes2[(u->muzzled>0)],noyes2[u->ignall]);
+#ifdef NETLINKS
+  if (u->type==REMOTE_TYPE || u->room==NULL) {
+    hs=0;  sprintf(ir,"<off site>");
+    }
+  else {
+#endif
+    hs=1;  sprintf(ir,"%s",u->room->name);
+#ifdef NETLINKS
+    }
+#endif
+  vwrite_user(user,"In Area       : %-13.13s  At home : %-13.13s  New Mail : %-13.13s\n",ir,noyes2[hs],nm);
   }
-sprintf(text,"Killed %d people, and died %d times.  Energy : %d, Bullets : %d\n",u->kills,u->deaths,u->hps,u->bullets);
-write_user(user,text);
+vwrite_user(user,"Killed %d people, and died %d times.  Energy : %d, Bullets : %d\n",u->kills,u->deaths,u->hps,u->bullets);
 if (u==user || user->level>=WIZ) {
   write_user(user,"+----- ~FTUser Only Info~RS -------------------------------------------------------+\n");
-  sprintf(text,"Char echo     : %-13.13s  Wrap    : %-13.13s  Monitor  : %-13.13s\n",noyes2[u->charmode_echo],noyes2[u->wrap],noyes2[u->monitor]);
-  write_user(user,text);
+  vwrite_user(user,"Char echo     : %-13.13s  Wrap    : %-13.13s  Monitor  : %-13.13s\n",noyes2[u->charmode_echo],noyes2[u->wrap],noyes2[u->monitor]);
   if (u->lroom==2) strcpy(rm,"YES");  else strcpy(rm,noyes2[u->lroom]);
-  sprintf(text,"Colours       : %-13.13s  Pager   : %-13d  Logon rm : %-13.13s\n",noyes2[u->colour],u->pager,rm);
-  write_user(user,text);
+  vwrite_user(user,"Colours       : %-13.13s  Pager   : %-13d  Logon rm : %-13.13s\n",noyes2[u->colour],u->pager,rm);
   if (!u->call[0]) strcpy(qcall,"<no one>");  else strcpy(qcall,u->call);
-  sprintf(text,"Quick call to : %-13.13s  Autofwd : %-13.13s  Verified : %-13.13s\n",qcall,noyes2[u->autofwd],noyes2[u->mail_verified]);
-  write_user(user,text);
+  vwrite_user(user,"Quick call to : %-13.13s  Autofwd : %-13.13s  Verified : %-13.13s\n",qcall,noyes2[u->autofwd],noyes2[u->mail_verified]);
   if (on && !u->login) {
-    if (u==user && user->level<WIZ) sprintf(text,"On from site  : %s\n",u->site);
-    else sprintf(text,"On from site  : %-42.42s  Port : %d\n",u->site,u->site_port);
-    write_user(user,text);
+    if (u==user && user->level<WIZ) vwrite_user(user,"On from site  : %s\n",u->site);
+    else vwrite_user(user,"On from site  : %-42.42s  Port : %d\n",u->site,u->site_port);
     }
   }
 if (user->level>=WIZ) {
   write_user(user,"+----- ~OL~FTWiz Only Info~RS --------------------------------------------------------+\n");
   if (!u->muzzled) strcpy(muzlev,"Unmuzzled");
-  else strcpy(muzlev,level_name[u->muzzled]);
+  else strcpy(muzlev,user_level[u->muzzled].name);
   if (!u->arrestby) strcpy(arrlev,"Unarrested");
-  else strcpy(arrlev,level_name[u->arrestby]);
-  sprintf(text,"Unarrest Lev  : %-13.13s  Arr lev : %-13.13s  Muz Lev  : %-13.13s\n",level_name[u->unarrest],arrlev,muzlev);
-  write_user(user,text);
+  else strcpy(arrlev,user_level[u->arrestby].name);
+  vwrite_user(user,"Unarrest Lev  : %-13.13s  Arr lev : %-13.13s  Muz Lev  : %-13.13s\n",user_level[u->unarrest].name,arrlev,muzlev);
   if (u->lroom==2) sprintf(rm,"YES");  else sprintf(rm,"NO");
-  sprintf(text,"Logon room    : %-38.38s  Shackled : %s\n",u->logout_room,rm);
-  write_user(user,text);
-  sprintf(text,"Last site     : %s\n",u->last_site);
-  write_user(user,text);
-  sprintf(text,"User Expires  : %-13.13s  On date : %s",noyes2[u->expire],ctime((time_t *)&u->t_expire));
-  write_user(user,text);
+  vwrite_user(user,"Logon room    : %-38.38s  Shackled : %s\n",u->logout_room,rm);
+  vwrite_user(user,"Last site     : %s\n",u->last_site);
+  vwrite_user(user,"User Expires  : %-13.13s  On date : %s",noyes2[u->expire],ctime((time_t *)&u->t_expire));
   }
 write_user(user,"+----------------------------------------------------------------------------+\n\n");
-
 if (!on) {
   destruct_user(u); destructed=0;
   }
@@ -9422,9 +9670,8 @@ if (word_count<2) {
 else {
   if (!(u=get_user(word[1]))) {
     if ((u=create_user())==NULL) {
-      sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-      write_user(user,text);
-      write_syslog("ERROR: Unable to create temporary user object in examine().\n",0,SYSLOG);
+      vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+      write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in examine().\n");
       return;
       }
     strcpy(u->name,word[1]);
@@ -9448,29 +9695,17 @@ hours2=(timelen%86400)/3600;
 mins2=(timelen%3600)/60;
 
 write_user(user,"+----------------------------------------------------------------------------+\n");
-sprintf(text2,"%s %s",u->recap,u->desc);
+sprintf(text2,"%s~RS %s",u->recap,u->desc);
 cnt=colour_com_count(text2);
-sprintf(text,"Name   : %-*.*s~RS Level : %s\n",45+cnt*3,45+cnt*3,text2,level_name[u->level]);
-write_user(user,text);
-
+vwrite_user(user,"Name   : %-*.*s~RS Level : %s\n",45+cnt*3,45+cnt*3,text2,user_level[u->level].name);
 if (!on) {
-  sprintf(text,"Last login : %s",ctime((time_t *)&(u->last_login)));
-  write_user(user,text);
-  sprintf(text,"Which was  : %d day%s, %d hour%s, %d minute%s ago\n",days2,PLTEXT_S(days2),hours2,PLTEXT_S(hours2),mins2,PLTEXT_S(mins2));
-  write_user(user,text);
-  sprintf(text,"Was on for : %d hours, %d minutes\nTotal login: %d day%s, %d hour%s, %d minute%s\n",
+  vwrite_user(user,"Last login : %s",ctime((time_t *)&(u->last_login)));
+  vwrite_user(user,"Which was  : %d day%s, %d hour%s, %d minute%s ago\n",days2,PLTEXT_S(days2),hours2,PLTEXT_S(hours2),mins2,PLTEXT_S(mins2));
+  vwrite_user(user,"Was on for : %d hours, %d minutes\nTotal login: %d day%s, %d hour%s, %d minute%s\n",
 	        u->last_login_len/3600,(u->last_login_len%3600)/60,days,PLTEXT_S(days),hours,PLTEXT_S(hours),mins,PLTEXT_S(mins));
-  write_user(user,text);
-  if (user->level>=WIZ) {
-    sprintf(text,"Last site  : %s\n",u->last_site);
-    write_user(user,text);
-    }
-  if ((newmail=mail_sizes(u->name,1))) {
-    sprintf(text,"%s has unread mail (%d).\n",u->recap,newmail);
-    write_user(user,text);
-    }
-  sprintf(text,"+----- Profile --------------------------------------------------------------+\n\n");
-  write_user(user,text);
+  if (user->level>=WIZ) vwrite_user(user,"Last site  : %s\n",u->last_site);
+  if ((newmail=mail_sizes(u->name,1))) vwrite_user(user,"%s~RS has unread mail (%d).\n",u->recap,newmail);
+  write_user(user,"+----- ~OL~FTProfile~RS --------------------------------------------------------------+\n\n");
   sprintf(filename,"%s/%s/%s.P",USERFILES,USERPROFILES,u->name);
   if (!(fp=fopen(filename,"r"))) write_user(user,"User has not yet witten a profile.\n\n");
   else {
@@ -9483,43 +9718,22 @@ if (!on) {
   return;
   }
 idle=(int)(time(0) - u->last_input)/60;
-if (u->editing) sprintf(text,"Ignoring all: ~FTUsing Line Editor~RS\n");
-else sprintf(text,"Ignoring all: %s\n",noyes2[u->ignall]);
-write_user(user,text);
-sprintf(text,"On since    : %sOn for      : %d hour%s, %d minute%s\n",ctime((time_t *)&u->last_login),hours2,PLTEXT_S(hours2),mins2,PLTEXT_S(mins2));
-write_user(user,text);
+if (u->editing) vwrite_user(user,"Ignoring all: ~FTUsing Line Editor~RS\n");
+else vwrite_user(user,"Ignoring all: %s\n",noyes2[u->ignall]);
+vwrite_user(user,"On since    : %sOn for      : %d hour%s, %d minute%s\n",ctime((time_t *)&u->last_login),hours2,PLTEXT_S(hours2),mins2,PLTEXT_S(mins2));
 if (u->afk) {
-  sprintf(text,"Idle for    : %d minute%s ~BR(AFK)\n",idle,PLTEXT_S(idle));
-  write_user(user,text);
-  if (u->afk_mesg[0]) {
-    sprintf(text,"AFK message : %s\n",u->afk_mesg);
-    write_user(user,text);
-    }
+  vwrite_user(user,"Idle for    : %d minute%s ~BR(AFK)\n",idle,PLTEXT_S(idle));
+  if (u->afk_mesg[0]) vwrite_user(user,"AFK message : %s\n",u->afk_mesg);
   }
-else {
-  sprintf(text,"Idle for    : %d minute%s\n",idle,PLTEXT_S(idle));
-  write_user(user,text);
-  }
-sprintf(text,"Total login : %d day%s, %d hour%s, %d minute%s\n",days,PLTEXT_S(days),hours,PLTEXT_S(hours),mins,PLTEXT_S(mins));
-write_user(user,text);
-if (u->socket>=1) {
-  if (user->level>=WIZ) {
-    sprintf(text,"Site        : %-40.40s  Port : %d\n",u->site,u->site_port);
-    write_user(user,text);
-    }
-  }
+else vwrite_user(user,"Idle for    : %d minute%s\n",idle,PLTEXT_S(idle));
+vwrite_user(user,"Total login : %d day%s, %d hour%s, %d minute%s\n",days,PLTEXT_S(days),hours,PLTEXT_S(hours),mins,PLTEXT_S(mins));
+if (u->socket>=1)
+  if (user->level>=WIZ) vwrite_user(user,"Site        : %-40.40s  Port : %d\n",u->site,u->site_port);
 #ifdef NETLINKS
-  else {
-    sprintf(text,"Home service: %s\n",u->netlink->service);
-    write_user(user,text);
-    }
+  else vwrite_user(user,"Home service: %s\n",u->netlink->service);
 #endif
-if ((newmail=mail_sizes(u->name,1))) {
-  sprintf(text,"%s has unread mail (%d).\n",u->recap,newmail);
-  write_user(user,text);
-  }
-sprintf(text,"+----- Profile --------------------------------------------------------------+\n\n");
-write_user(user,text);
+if ((newmail=mail_sizes(u->name,1))) vwrite_user(user,"%s~RS has unread mail (%d).\n",u->recap,newmail);
+write_user(user,"+----- ~OL~FTProfile~RS --------------------------------------------------------------+\n\n");
 sprintf(filename,"%s/%s/%s.P",USERFILES,USERPROFILES,u->name);
 if (!(fp=fopen(filename,"r"))) write_user(user,"User has not yet written a profile.\n\n");
 else {
@@ -9533,33 +9747,31 @@ write_user(user,"+--------------------------------------------------------------
 /* Set the user attributes */
 void set_attributes(UR_OBJECT user, char *inpstr)
 {
-int i=0,tmp=0;
+int i=0,tmp=0,setattrval=-1;
 char name[USER_NAME_LEN+1],*recname;
 
-set_val=-1;
 if (word_count<2) goto ATT_JUMP;
 i=0;
 strtolower(word[1]);
 while(setstr[i].type[0]!='*') {
   if (!strcmp(setstr[i].type,word[1])) {
-    set_val=i;  break;
+    setattrval=i;  break;
     }
   ++i;
   }
 ATT_JUMP:
-if (set_val==-1) {
+if (setattrval==-1) {
   i=0;
   write_user(user,"Attributes you can set are:\n\n");
   while (setstr[i].type[0]!='*') {
     text[0]='\0';
-    sprintf(text,"~FT%s~RS : %s\n",setstr[i].type,setstr[i].desc);
-    write_user(user,text);
+    vwrite_user(user,"~FT%s~RS : %s\n",setstr[i].type,setstr[i].desc);
     i++;
     }
   i=0;
   }
 write_user(user,"\n");
-switch(set_val) {
+switch(setattrval) {
   case SETSHOW: show_attributes(user); return;
   case SETGEND:
     inpstr=remove_first(inpstr);
@@ -9580,7 +9792,7 @@ switch(set_val) {
 	  write_user(user,"Gender set to Unset\n");
 	  break;
         } /* end switch */
-      if (auto_promote) check_autopromote(user,SET);
+      if (amsys->auto_promote) check_autopromote(user,1);
       return;
       }
     write_user(user,"Usage: set gender m/f/n\n");
@@ -9596,8 +9808,7 @@ switch(set_val) {
       return;
       }
     user->age=tmp;
-    sprintf(text,"Age now set to: %d\n",user->age);
-    write_user(user,text);
+    vwrite_user(user,"Age now set to: %d\n",user->age);
     return;
   case SETWRAP:
     switch(user->wrap) {
@@ -9624,9 +9835,8 @@ switch(set_val) {
         }
       strcpy(user->email,inpstr);
       } /* end else */
-    if (!strcmp(user->email,"#UNSET")) sprintf(text,"Email set to : ~FRunset\n");
-    else sprintf(text,"Email set to : ~FT%s\n",user->email);
-    write_user(user,text);
+    if (!strcmp(user->email,"#UNSET")) write_user(user,"Email set to : ~FRunset\n");
+    else vwrite_user(user,"Email set to : ~FT%s\n",user->email);
     set_forward_email(user);
     return;
   case SETHOMEP:
@@ -9638,9 +9848,8 @@ switch(set_val) {
       return;
       }
     else strcpy(user->homepage,inpstr);
-    if (!strcmp(user->homepage,"#UNSET")) sprintf(text,"Homepage set to : ~FRunset\n");
-    else sprintf(text,"Homepage set to : ~FT%s\n",user->homepage);
-    write_user(user,text);
+    if (!strcmp(user->homepage,"#UNSET")) write_user(user,"Homepage set to : ~FRunset\n");
+    else vwrite_user(user,"Homepage set to : ~FT%s\n",user->homepage);
     return;
   case SETHIDEEMAIL:
     switch(user->hideemail) {
@@ -9669,12 +9878,10 @@ switch(set_val) {
       }
     user->pager=atoi(word[2]);
     if (user->pager<MAX_LINES || user->pager>99) {
-      sprintf(text,"Pager can only be set between %d and 99 - setting to default\n",MAX_LINES);
-      write_user(user,text);
+      vwrite_user(user,"Pager can only be set between %d and 99 - setting to default\n",MAX_LINES);
       user->pager=23;
       }
-    sprintf(text,"Pager length now set to: %d\n",user->pager);
-    write_user(user,text);
+    vwrite_user(user,"Pager length now set to: %d\n",user->pager);
     return;
   case SETROOM:
     switch(user->lroom) {
@@ -9735,7 +9942,7 @@ switch(set_val) {
       }
     return;
   case SETRECAP:
-    if (!allow_recaps) {
+    if (!amsys->allow_recaps) {
       write_user(user,"Sorry, names cannot be recapped at this present time.\n");
       return;
       }
@@ -9751,22 +9958,20 @@ switch(set_val) {
       write_user(user,"The recapped name still has to match your proper name.\n");
       return;
       }
-    strcpy(user->recap,recname);
-    sprintf(text,"Your name will now appear as ~OL%s~RS on the 'who', 'examine', tells, etc.\n",user->recap);
-    write_user(user,text);
+    strcpy(user->recap,word[2]);
+    strcpy(user->bw_recap,recname);
+    vwrite_user(user,"Your name will now appear as \"%s~RS\" on the 'who', 'examine', tells, etc.\n",user->recap);
     return;
   case SETICQ:
-    inpstr=colour_com_strip(remove_first(inpstr));
-    if (!inpstr[0]) strcpy(user->icq,"#UNSET");
-    else if (strlen(inpstr)>ICQ_LEN) {
-      sprintf(text,"The maximum ICQ UIN length you can have is %d characters.\n",ICQ_LEN);
-      write_user(user,text);
+    strcpy(word[1],colour_com_strip(remove_first(word[1])));
+    if (!word[1][0]) strcpy(user->icq,"#UNSET");
+    else if (strlen(word[1])>ICQ_LEN) {
+      vwrite_user(user,"The maximum ICQ UIN length you can have is %d characters.\n",ICQ_LEN);
       return;
       }
-    else strcpy(user->icq,inpstr);
-    if (!strcmp(user->icq,"#UNSET")) sprintf(text,"ICQ number set to : ~FRunset\n");
-    else sprintf(text,"ICQ number set to : ~FT%s\n",user->icq);
-    write_user(user,text);
+    else strcpy(user->icq,word[1]);
+    if (!strcmp(user->icq,"#UNSET")) write_user(user,"ICQ number set to : ~FRunset\n");
+    else vwrite_user(user,"ICQ number set to : ~FT%s\n",user->icq);
     return;
   case SETALERT:
     switch(user->alert) {
@@ -9868,7 +10073,7 @@ while (setstr[i].type[0]!='*') {
       write_user(user,text);
       break;
     case SETRECAP:
-      sprintf(text2,"~OL%s~RS)\n",user->recap);
+      sprintf(text2,"%s~RS)\n",user->recap);
       strcat(text,text2);
       write_user(user,text);
       break;
@@ -9913,15 +10118,13 @@ if (user->ignwiz) ++ign;
 if (user->igngreets) ++ign;
 if (user->ignbeeps) ++ign;
 if (user->command_mode && !user->misc_op) {
-  sprintf(text,"~FTCOM%s%s> ",!user->vis?"+":"",ign>0?"!":"");
-  write_user(user,text);  
+  vwrite_user(user,"~FTCOM%s%s> ",!user->vis?"+":"",ign>0?"!":"");
   return;  
   }
 if (!user->prompt || user->misc_op) return;
 hr=(int)(time(0)-user->last_login)/3600;
 min=((int)(time(0)-user->last_login)%3600)/60;
-sprintf(text,"~FT<%02d:%02d, %02d:%02d, %s%s%s>\n",thour,tmin,hr,min,user->recap,!user->vis?"+":"",ign>0?"!":"");
-write_user(user,text);
+vwrite_user(user,"~FT<%02d:%02d, %02d:%02d, %s%s%s>\n",thour,tmin,hr,min,user->bw_recap,!user->vis?"+":"",ign>0?"!":"");
 }
 
 
@@ -9973,8 +10176,7 @@ if (user->room==NULL) prompt(user);
 void set_desc(UR_OBJECT user, char *inpstr)
 {
 if (word_count<2) {
-  sprintf(text,"Your current description is: %s\n",user->desc);
-  write_user(user,text);
+  vwrite_user(user,"Your current description is: %s\n",user->desc);
   return;
   }
 if (strstr(word[1],"(CLONE)")) {
@@ -9988,7 +10190,7 @@ if (strlen(inpstr)>USER_DESC_LEN) {
 strcpy(user->desc,inpstr);
 write_user(user,"Description set.\n");
 /* check to see if user should be promoted */
-if (auto_promote) check_autopromote(user,DESC);
+if (amsys->auto_promote) check_autopromote(user,2);
 }
 
 
@@ -10000,8 +10202,7 @@ if (strlen(inpstr)>PHRASE_LEN) {
   }
 if (com_num==INPHRASE) {
   if (word_count<2) {
-    sprintf(text,"Your current in phrase is: %s\n",user->in_phrase);
-    write_user(user,text);
+    vwrite_user(user,"Your current in phrase is: %s\n",user->in_phrase);
     return;
     }
   strcpy(user->in_phrase,inpstr);
@@ -10009,8 +10210,7 @@ if (com_num==INPHRASE) {
   return;
   }
 if (word_count<2) {
-  sprintf(text,"Your current out phrase is: %s\n",user->out_phrase);
-  write_user(user,text);
+  vwrite_user(user,"Your current out phrase is: %s\n",user->out_phrase);
   return;
   }
 strcpy(user->out_phrase,inpstr);
@@ -10032,10 +10232,8 @@ if (!done_editing) {
   }
 sprintf(filename,"%s/%s/%s.P",USERFILES,USERPROFILES,user->name);
 if (!(fp=fopen(filename,"w"))) {
-  sprintf(text,"%s: couldn't save your profile.\n",syserror);
-  write_user(user,text);
-  sprintf("ERROR: Couldn't open file %s to write in enter_profile().\n",filename);
-  write_syslog(text,0,SYSLOG);
+  vwrite_user(user,"%s: couldn't save your profile.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't open file %s to write in enter_profile().\n",filename);
   return;
   }
 c=user->malloc_start;
@@ -10054,8 +10252,8 @@ if (user->level>NEW) {
   write_user(user,"This command is for new users only, you already have a full account.\n");
   return;
   }
-/* This is so some pillock doesnt keep doing it just to fill up the syslog */
-if (user->accreq==ACCREQ || user->accreq==1) {
+/* stop them from requesting an account twice */
+if (BIT_TEST(user->accreq,1)) {
   write_user(user,"You have already requested an account.\n");
   return;
   }
@@ -10067,15 +10265,14 @@ if (!validate_email(inpstr)) {
   write_user(user,"That email address format is incorrect.  Correct format: user@network.net\n");
   return;
   }
-sprintf(text,"%-*s : %s\n",USER_NAME_LEN,user->name,inpstr);
-write_syslog(text,1,REQLOG);
+write_syslog(REQLOG,1,"%-*s : %s\n",USER_NAME_LEN,user->name,inpstr);
 sprintf(text,"~OLSYSTEM:~RS %s has made a request for an account.\n",user->name);
 write_level(WIZ,1,text,NULL);
 write_user(user,"Account request logged.\n");
 add_history(user->name,1,"Made a request for an account.\n");
 /* check to see if user should be promoted yet */
-if (auto_promote) check_autopromote(user,ACCREQ);
-else user->accreq=1;
+if (amsys->auto_promote) check_autopromote(user,3);
+else user->accreq=-1;
 }
 
 
@@ -10084,14 +10281,14 @@ void afk(UR_OBJECT user, char *inpstr)
 {
 if (word_count>1) {
   if (!strcmp(word[1],"lock")) {
-  #ifdef NETLINKS
+#ifdef NETLINKS
     if (user->type==REMOTE_TYPE) {
       /* This is because they might not have a local account and hence
 	 they have no password to use. */
       write_user(user,"Sorry, due to software limitations remote users cannot use the lock option.\n");
       return;
       }
-  #endif
+#endif
     inpstr=remove_first(inpstr);
     if (strlen(inpstr)>AFK_MESG_LEN) {
       write_user(user,"AFK message too long.\n");  return;
@@ -10120,10 +10317,8 @@ else {
   user->afk=1;
   }
 if (user->vis) {
-  if (user->afk_mesg[0]) 
-    sprintf(text,"%s goes AFK: %s\n",user->recap,user->afk_mesg);
-  else sprintf(text,"%s goes AFK...\n",user->recap);
-  write_room_except(user->room,text,user);
+  if (user->afk_mesg[0]) vwrite_room_except(user->room,user,"%s~RS goes AFK: %s\n",user->recap,user->afk_mesg);
+  else vwrite_room_except(user->room,user,"%s~RS goes AFK...\n",user->recap);
   }
 clear_afk(user);
 }
@@ -10150,6 +10345,7 @@ for (i=0;i<10;++i) {
 fclose(fp);
 }
 
+
 /*** Display user macros ***/
 void macros(UR_OBJECT user)
 {
@@ -10162,10 +10358,7 @@ int i;
     }
 #endif
 write_user(user,"Your current macros:\n");
-for (i=0;i<10;++i) {
-   sprintf(text,"  ~OL%d)~RS %s\n",i,user->macros[i]);
-   write_user(user,text);
-   }
+for (i=0;i<10;++i) vwrite_user(user,"  ~OL%d)~RS %s\n",i,user->macros[i]);
 }
 
 
@@ -10177,12 +10370,12 @@ char filename[80],line[ARR_SIZE];
 FILE *fp;
 
 if (inpstr[0]=='.' && inpstr[1]>='0' && inpstr[1]<='9') {
-  #ifdef NETLINKS
-    if (user->type==REMOTE_TYPE) {
-      write_user(user,"Remote users cannot use macros at this time.\n");
-      return;
-      }
-  #endif
+#ifdef NETLINKS
+  if (user->type==REMOTE_TYPE) {
+    write_user(user,"Remote users cannot use macros at this time.\n");
+    return;
+    }
+#endif
   midcpy(inpstr,line,3,ARR_SIZE);
   macnum=inpstr[1]-'0';
   if (inpstr[2]=='=') {
@@ -10196,8 +10389,7 @@ if (inpstr[0]=='.' && inpstr[1]>='0' && inpstr[1]<='9') {
     sprintf(filename,"%s/%s/%s.MAC",USERFILES,USERMACROS,user->name);
     if (!(fp=fopen(filename,"w"))) {
       write_user(user,"Your macro file could not be accessed.\n");
-      sprintf(text,"%s could not access macros file.\n",user->name);
-      write_syslog(text,1,SYSLOG);
+      write_syslog(SYSLOG,1,"%s could not access macros file.\n",user->name);
       return;
       }
     for (i=0;i<10;++i) {
@@ -10205,7 +10397,7 @@ if (inpstr[0]=='.' && inpstr[1]>='0' && inpstr[1]<='9') {
       fputs(text,fp);
       }
     fclose(fp);
-    write_user(user,"Ok, macro set.\n");
+    write_user(user,"You have now set your macro.\n");
     return;
     }
   else {
@@ -10228,8 +10420,7 @@ if (vis) {
     write_user(user,"You are already visible.\n");  return;
     }
   write_user(user,"~FB~OLYou recite a melodic incantation and reappear.\n");
-  sprintf(text,"~FB~OLYou hear a melodic incantation chanted and %s materialises!\n",user->recap);
-  write_room_except(user->room,text,user);
+  vwrite_room_except(user->room,user,"~FB~OLYou hear a melodic incantation chanted and %s materialises!\n",user->bw_recap);
   user->vis=1;
   return;
   }
@@ -10237,8 +10428,7 @@ if (!user->vis) {
   write_user(user,"You are already invisible.\n");  return;
   }
 write_user(user,"~FB~OLYou recite a melodic incantation and fade out.\n");
-sprintf(text,"~FB~OL%s recites a melodic incantation and disappears!\n",user->recap);
-write_room_except(user->room,text,user);
+vwrite_room_except(user->room,user,"~FB~OL%s recites a melodic incantation and disappears!\n",user->bw_recap);
 user->vis=0;
 }
 
@@ -10259,19 +10449,17 @@ if (user==user2) {
   return;
   }
 if (!user2->vis) {
-  sprintf(text,"%s is already invisible.\n",user2->recap);
-  write_user(user,text);  return;
+  vwrite_user(user,"%s~RS is already invisible.\n",user2->recap);
+  return;
   }
 if (user2->level>user->level) {
-  sprintf(text,"%s cannot be forced invisible.\n",user2->recap);
-  write_user(user,text);  return;
+  vwrite_user(user,"%s~RS cannot be forced invisible.\n",user2->recap);
+  return;
   }
 user2->vis=0;
-sprintf(text,"You force %s to become invisible.\n",user2->recap);
-write_user(user,text);
+vwrite_user(user,"You force %s~RS to become invisible.\n",user2->recap);
 write_user(user2,"You have been forced to become invisible.\n");
-sprintf(text,"You see %s mysteriously disappear into the shadows!\n",user2->recap);
-write_room_except(user2->room,text,user2);
+vwrite_room_except(user2->room,user2,"You see %s~RS mysteriously disappear into the shadows!\n",user2->recap);
 }
 
 
@@ -10291,19 +10479,17 @@ if (user==user2) {
   return;
   }
 if (user2->vis) {
-  sprintf(text,"%s is already visible.\n",user2->recap);
-  write_user(user,text);  return;
+  vwrite_user(user,"%s~RS is already visible.\n",user2->recap);
+  return;
   }
 if (user2->level>user->level) {
-  sprintf(text,"%s cannot be forced visible.\n",user2->recap);
-  write_user(user,text);  return;
+  vwrite_user(user,"%s~RS cannot be forced visible.\n",user2->recap);
+  return;
   }
 user2->vis=1;
-sprintf(text,"You force %s to become visible.\n",user2->recap);
-write_user(user,text);
+vwrite_user(user,"You force %s~RS to become visible.\n",user2->recap);
 write_user(user2,"You have been forced to become visible.\n");
-sprintf(text,"You see %s mysteriously emerge from the shadows!\n",user2->recap);
-write_room_except(user2->room,text,user2);
+vwrite_room_except(user2->room,user2,"You see %s~RS mysteriously emerge from the shadows!\n",user2->recap);
 }
 
 
@@ -10316,8 +10502,7 @@ cnt=0;
 write_user(user,"Currently ignoring the following users...\n\n");
 for (i=0; i<MAX_IGNORES; ++i) {
   if (user->ignoreuser[i][0]) {
-    sprintf(text,"   %2d) %s\n",cnt+1,user->ignoreuser[i]);
-    write_user(user,text);
+    vwrite_user(user,"   ~OL%2d~RS) %s\n",cnt+1,user->ignoreuser[i]);
     cnt++;
     }
   }
@@ -10356,15 +10541,13 @@ if (user==u) {
   }
 for (i=0; i<MAX_IGNORES; ++i) {
   if (!strcmp(user->ignoreuser[i],u->name)) {
-    sprintf(text,"You once again listen to %s\n",user->ignoreuser[i]);
-    write_user(user,text);
+    vwrite_user(user,"You once again listen to %s\n",user->ignoreuser[i]);
     user->ignoreuser[i][0]='\0';
     return;
     }
   if (!user->ignoreuser[i][0]) {
     strcpy(user->ignoreuser[i],u->name);
-    sprintf(text,"You will now ignore tells from %s\n",user->ignoreuser[i]);
-    write_user(user,text);
+    vwrite_user(user,"You will now ignore tells from %s\n",user->ignoreuser[i]);
     return;
     }
   }
@@ -10454,30 +10637,22 @@ switch(com_num) {
 /* displays what the user is currently listening to/ignoring */
 void show_ignlist(UR_OBJECT user)
 {
-char *lstn[]={"~FGNot ignoring~RS","~FR~OLIgnoring~RS"};
-
-write_user(user,"Your ignore states are as follows.\n\n");
+write_user(user,"+----------------------------------------------------------------------------+\n");
+write_user(user,"| ~OL~FTYour ignore states are as follows~RS                                          |\n");
+write_user(user,"+----------------------------------------------------------------------------+\n");
 if (user->ignall) {
-  write_user(user,"You are currently ignoring ~OL~FReverything~RS.\n\n");
+  write_user(user,"| You are currently ignoring ~OL~FReverything~RS                                      |\n");
+  write_user(user,"+----------------------------------------------------------------------------+\n");
   return;
   }
-sprintf(text,"~FTShouts~RS   : %s\n",lstn[user->ignshouts]);
-write_user(user,text);
-sprintf(text,"~FTTells~RS    : %s\n",lstn[user->igntells]);
-write_user(user,text);
-sprintf(text,"~FTLogons~RS   : %s\n",lstn[user->ignlogons]);
-write_user(user,text);
-sprintf(text,"~FTPictures~RS : %s\n",lstn[user->ignpics]);
-write_user(user,text);
-sprintf(text,"~FTGreets~RS   : %s\n",lstn[user->igngreets]);
-write_user(user,text);
-sprintf(text,"~FTBeeps~RS    : %s\n",lstn[user->ignbeeps]);
-write_user(user,text);
+vwrite_user(user,"| Ignoring shouts   : ~OL%-3s~RS    Ignoring tells  : ~OL%-3s~RS    Ignoring logons : ~OL%-3s~RS  |\n",
+	noyes2[user->ignshouts],noyes2[user->igntells],noyes2[user->ignlogons]);
+vwrite_user(user,"| Ignoring pictures : ~OL%-3s~RS    Ignoring greets : ~OL%-3s~RS    Ignoring beeps  : ~OL%-3s~RS  |\n",
+	noyes2[user->ignpics],noyes2[user->igngreets],noyes2[user->ignbeeps]);
 if (user->level>=command_table[IGNWIZ].level) {
-  sprintf(text,"~FTWiztells~RS : %s\n\n",lstn[user->ignwiz]);
-  write_user(user,text);
+  vwrite_user(user,"| Ignoring wiztells : ~OL%-3s~RS                                                    |\n",noyes2[user->ignwiz]);
   }
-else write_user(user,"\n");
+write_user(user,"+----------------------------------------------------------------------------+\n\n");
 }
 
 
@@ -10486,16 +10661,14 @@ void toggle_ignall(UR_OBJECT user)
 {
 if (!user->ignall) {
   write_user(user,"You are now ignoring everyone.\n");
-  if (user->vis) sprintf(text,"%s is now ignoring everyone.\n",user->recap);
-  else sprintf(text,"%s is now ignoring everyone.\n",invisname);
-  write_room_except(user->room,text,user);
+  if (user->vis) vwrite_room_except(user->room,user,"%s~RS is now ignoring everyone.\n",user->recap);
+  else vwrite_room_except(user->room,user,"%s~RS is now ignoring everyone.\n",invisname);
   user->ignall=1;
   return;
   }
 write_user(user,"You will now hear everyone again.\n");
-if (user->vis) sprintf(text,"%s is listening again.\n",user->recap);
-else sprintf(text,"%s is listening again.\n",invisname);
-write_room_except(user->room,text,user);
+if (user->vis) vwrite_room_except(user->room,user,"%s~RS is listening again.\n",user->recap);
+else vwrite_room_except(user->room,user,"%s~RS is listening again.\n",invisname);
 user->ignall=0;
 }
 
@@ -10517,8 +10690,7 @@ if (user->ignbeeps) { user->ignbeeps=0;  yes=1; }
 if (yes) {
   write_user(user,"You listen to everything again.\n");
   if (user->vis) {
-    sprintf(text,"%s is now listening to you all again.\n",user->name);
-    write_room_except(user->room,text,user);
+    vwrite_room_except(user->room,user,"%s is now listening to you all again.\n",user->name);
     }
   return;
   }
@@ -10552,11 +10724,10 @@ cnt=0;
 for(u=user_first;u!=NULL;u=u->next) {
   if (u->type==CLONE_TYPE && u->owner==user) {
     if (u->room==rm) {
-      sprintf(text,"You already have a clone in the %s.\n",rm->name);
-      write_user(user,text);
+      vwrite_user(user,"You already have a clone in the %s.\n",rm->name);
       return;
       }	
-    if (++cnt==max_clones) {
+    if (++cnt==amsys->max_clones) {
       write_user(user,"You already have the maximum number of clones allowed.\n");
       return;
       }
@@ -10564,9 +10735,8 @@ for(u=user_first;u!=NULL;u=u->next) {
   }
 /* Create clone */
 if ((u=create_user())==NULL) {		
-  sprintf(text,"%s: Unable to create copy.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create user copy in clone().\n",0,SYSLOG);
+  vwrite_user(user,"%s: Unable to create copy.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create user copy in clone().\n");
   return;
   }
 u->type=CLONE_TYPE;
@@ -10576,18 +10746,13 @@ u->owner=user;
 u->vis=1;
 strcpy(u->name,user->name);
 strcpy(u->recap,user->recap);
+strcpy(u->bw_recap,colour_com_strip(u->recap));
 strcpy(u->desc,"~BR~OL(CLONE)");
-if (rm==user->room)
-  write_user(user,"~FB~OLYou wave your hands, mix some chemicals and a clone is created here.\n");
-else {
-  sprintf(text,"~FB~OLYou wave your hands, mix some chemicals, and a clone is created in the %s.\n",rm->name);
-  write_user(user,text);
-  }
-if (user->vis) name=user->recap; else name=invisname;
-sprintf(text,"~FB~OL%s waves their hands...\n",name);
-write_room_except(user->room,text,user);
-sprintf(text,"~FB~OLA clone of %s appears in a swirling magical mist!\n",user->recap);
-write_room_except(rm,text,user);
+if (rm==user->room) write_user(user,"~FB~OLYou wave your hands, mix some chemicals and a clone is created here.\n");
+else vwrite_user(user,"~FB~OLYou wave your hands, mix some chemicals, and a clone is created in the %s.\n",rm->name);
+if (user->vis) name=user->bw_recap; else name=invisname;
+vwrite_room_except(user->room,user,"~FB~OL%s waves their hands...\n",name);
+vwrite_room_except(rm,user,"~FB~OLA clone of %s appears in a swirling magical mist!\n",user->bw_recap);
 }
 
 
@@ -10600,8 +10765,7 @@ u=user_first;
 while (u!=NULL) {
   next=u->next;
   if (u->type==CLONE_TYPE && u->owner==user) {
-    sprintf(text,"The clone of %s is engulfed in magical blue flames and vanishes.\n",u->recap);
-    write_room(u->room,text);
+    vwrite_room(u->room,"The clone of %s~RS is engulfed in magical blue flames and vanishes.\n",u->recap);
     destruct_user(u);
     }
   u=next;
@@ -10638,22 +10802,16 @@ for(u=user_first;u!=NULL;u=u->next) {
     destruct_user(u);
     reset_access(rm);
     write_user(user,"~FM~OLYou whisper a sharp spell and the clone is destroyed.\n");
-    if (user->vis) name=user->recap; else name=invisname;
-    sprintf(text,"~FM~OL%s whispers a sharp spell...\n",name);
-    write_room_except(user->room,text,user);
-    sprintf(text,"~FM~OLThe clone of %s shimmers and vanishes.\n",u2->recap);
-    write_room(rm,text);
-    if (u2!=user) {
-      sprintf(text,"~OLSYSTEM: ~FR%s has destroyed your clone in the %s.\n",user->recap,rm->name);
-      write_user(u2,text);
-      }
+    if (user->vis) name=user->bw_recap; else name=invisname;
+    vwrite_room_except(user->room,user,"~FM~OL%s whispers a sharp spell...\n",name);
+    vwrite_room(rm,"~FM~OLThe clone of %s shimmers and vanishes.\n",u2->bw_recap);
+    if (u2!=user) vwrite_user(u2,"~OLSYSTEM: ~FR%s has destroyed your clone in the %s.\n",user->bw_recap,rm->name);
     destructed=0;
     return;
     }
   }
-if (u2==user) sprintf(text,"You do not have a clone in the %s.\n",rm->name);
-else sprintf(text,"%s does not have a clone the %s.\n",u2->recap,rm->name);
-write_user(user,text);
+if (u2==user) vwrite_user(user,"You do not have a clone in the %s.\n",rm->name);
+else vwrite_user(user,"%s~RS does not have a clone the %s.\n",u2->recap,rm->name);
 }
 
 
@@ -10666,16 +10824,11 @@ int cnt;
 cnt=0;
 for(u=user_first;u!=NULL;u=u->next) {
   if (u->type!=CLONE_TYPE || u->owner!=user) continue;
-  if (++cnt==1) 
-    write_user(user,"\n~BB*** Rooms you have clones in ***\n\n");
-  sprintf(text,"  %s\n",u->room->name);
-  write_user(user,text);
+  if (++cnt==1) write_user(user,"\n~BB*** Rooms you have clones in ***\n\n");
+  vwrite_user(user,"  %s\n",u->room->name);
   }
 if (!cnt) write_user(user,"You have no clones.\n");
-else {
-  sprintf(text,"\nTotal of ~OL%d~RS clone%s.\n\n",cnt,PLTEXT_S(cnt));
-  write_user(user,text);
-  }
+else vwrite_user(user,"\nTotal of ~OL%d~RS clone%s.\n\n",cnt,PLTEXT_S(cnt));
 }
 
 
@@ -10688,18 +10841,11 @@ int cnt;
 cnt=0;
 for(u=user_first;u!=NULL;u=u->next) {
   if (u->type!=CLONE_TYPE) continue;
-  if (++cnt==1) {
-    sprintf(text,"\n~BB*** Current clones %s ***\n\n",long_date(1));
-    write_user(user,text);
-    }
-  sprintf(text,"%-15s : %s\n",u->name,u->room->name);
-  write_user(user,text);
+  if (++cnt==1) vwrite_user(user,"\n~BB*** Current clones %s ***\n\n",long_date(1));
+  vwrite_user(user,"%-15s : %s\n",u->name,u->room->name);
   }
 if (!cnt) write_user(user,"There are no clones on the system.\n");
-else {
-  sprintf(text,"\nTotal of ~OL%d~RS clone%s.\n\n",cnt,PLTEXT_S(cnt));
-  write_user(user,text);
-  }
+else vwrite_user(user,"\nTotal of ~OL%d~RS clone%s.\n\n",cnt,PLTEXT_S(cnt));
 }
 
 
@@ -10734,10 +10880,8 @@ if (word_count<2) {
   write_user(user,"\n~FB~OLYou experience a strange sensation...\n");
   tu->room=user->room;
   user->room=rm;
-  sprintf(text,"The clone of %s comes alive!\n",user->recap);
-  write_room_except(user->room,text,user);
-  sprintf(text,"%s turns into a clone!\n",tu->recap);
-  write_room_except(tu->room,text,tu);
+  vwrite_room_except(user->room,user,"The clone of %s~RS comes alive!\n",user->recap);
+  vwrite_room_except(tu->room,tu,"%s~RS turns into a clone!\n",tu->recap);
   look(user);
   return;
   }
@@ -10752,10 +10896,8 @@ for(u=user_first;u!=NULL;u=u->next) {
     write_user(user,"\n~FB~OLYou experience a strange sensation...\n");
     u->room=user->room;
     user->room=rm;
-    sprintf(text,"The clone of %s comes alive!\n",u->name);
-    write_room_except(user->room,text,user);
-    sprintf(text,"%s turns into a clone!\n",u->recap);
-    write_room_except(u->room,text,u);
+    vwrite_room_except(user->room,user,"The clone of %s comes alive!\n",u->name);
+    vwrite_room_except(u->room,u,"%s~RS turns into a clone!\n",u->recap);
     look(user);
     return;
     }
@@ -10840,6 +10982,7 @@ if (u==NULL) {
   write_user(user,"You do not have a clone in that room.\n");
   return;
   }
+strtolower(word[2]);
 if (!strcmp(word[2],"all")) {
   u->clone_hear=CLONE_HEAR_ALL;
   write_user(user,"Clone will now hear everything.\n");
@@ -10874,8 +11017,7 @@ if (word_count<2) {
     return;
     }
   if (user->room==rm) {
-    sprintf(text,"You are already in the %s!\n",default_warp);
-    write_user(user,text);
+    vwrite_user(user,"You are already in the %s!\n",default_warp);
     return;
     }
   move_user(user,rm,1);
@@ -10905,16 +11047,15 @@ if (word_count<2) {
       sprintf(text,"REMVD %s\n",user->name);
       write_sock(nl->socket,text);
       if (user->vis) {
-	sprintf(text,"%s goes to the %s\n",user->recap,nl->service);
+	sprintf(text,"%s~RS goes to the %s\n",user->recap,nl->service);
 	write_room_except(rm,text,user);
         }
       else write_room_except(rm,invisleave,user);
-      sprintf(text,"NETLINK: Remote user %s removed.\n",user->name);
-      write_syslog(text,1,NETLOG);
+      write_syslog(NETLOG,1,"NETLINK: Remote user %s removed.\n",user->name);
       destroy_user_clones(user);
       destruct_user(user);
       reset_access(rm);
-      num_of_users--;
+      amsys->num_of_users--;
       no_prompt=1;
       return;
       }
@@ -10956,11 +11097,9 @@ if ((rm=get_room(word[1]))==NULL) {
   write_user(user,nosuchroom);  return;
   }
 if (rm==user->room) {
-  sprintf(text,"You are already in the %s!\n",rm->name);
-  write_user(user,text);
+  vwrite_user(user,"You are already in the %s!\n",rm->name);
   return;
   }
-
 /* See if link from current room */
 for(i=0;i<MAX_LINKS;++i) {
   if (user->room->link[i]==rm) {
@@ -10968,8 +11107,7 @@ for(i=0;i<MAX_LINKS;++i) {
     }
   }
 if (user->level<WIZ) {
-  sprintf(text,"The %s is not adjoined to here.\n",rm->name);
-  write_user(user,text);  
+  vwrite_user(user,"The %s is not adjoined to here.\n",rm->name);
   return;
   }
 if (rm->access==PERSONAL_UNLOCKED || rm->access==PERSONAL_LOCKED) {
@@ -10998,35 +11136,26 @@ if (!user->vis) {
   goto SKIP;
   }
 if (teleport==1) {
-  sprintf(text,"~FT~OL%s appears in an explosion of blue magic!\n",user->recap);
-  write_room(rm,text);
-  sprintf(text,"~FT~OL%s chants a spell and vanishes into a magical blue vortex!\n",user->recap);
-  write_room_except(old_room,text,user);
+  vwrite_room(rm,"~FT~OL%s appears in an explosion of blue magic!\n",user->bw_recap);
+  vwrite_room_except(old_room,user,"~FT~OL%s chants a spell and vanishes into a magical blue vortex!\n",user->bw_recap);
   goto SKIP;
   }
 if (teleport==2) {
   write_user(user,"\n~FT~OLA giant hand grabs you and pulls you into a magical blue vortex!\n");
-  sprintf(text,"~FT~OL%s falls out of a magical blue vortex!\n",user->recap);
-  write_room(rm,text);
-  #ifdef NETLINKS
-    if (old_room==NULL) {
-      sprintf(text,"REL %s\n",user->name);
-      write_sock(user->netlink->socket,text);
-      user->netlink=NULL;
-      }
-    else {
-  #endif
-      sprintf(text,"~FT~OLA giant hand grabs %s who is pulled into a magical blue vortex!\n",user->recap);
-      write_room_except(old_room,text,user);
-  #ifdef NETLINKS
-      }
-  #endif
+  vwrite_room(rm,"~FT~OL%s falls out of a magical blue vortex!\n",user->bw_recap);
+#ifdef NETLINKS
+  if (old_room==NULL) {
+    sprintf(text,"REL %s\n",user->name);
+    write_sock(user->netlink->socket,text);
+    user->netlink=NULL;
+    }
+  else
+#endif
+    vwrite_room_except(old_room,user,"~FT~OLA giant hand grabs %s who is pulled into a magical blue vortex!\n",user->bw_recap);
   goto SKIP;
   }
-sprintf(text,"%s %s.\n",user->recap,user->in_phrase);
-write_room(rm,text);
-sprintf(text,"%s %s to the %s.\n",user->recap,user->out_phrase,rm->name);
-write_room_except(user->room,text,user);
+vwrite_room(rm,"%s~RS %s.\n",user->recap,user->in_phrase);
+vwrite_room_except(user->room,user,"%s~RS %s to the %s.\n",user->recap,user->out_phrase,rm->name);
 
 SKIP:
 user->room=rm;
@@ -11062,19 +11191,16 @@ if (u->level>=user->level) {
   return;
   }
 if (rm==u->room) {
-  sprintf(text,"%s is already in the %s.\n",u->recap,rm->name);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is already in the %s.\n",u->recap,rm->name);
   return;
   };
 if (!has_room_access(user,rm)) {
-  sprintf(text,"The %s is currently private, %s cannot be moved there.\n",rm->name,u->recap);
-  write_user(user,text);  
+  vwrite_user(user,"The %s is currently private, %s~RS cannot be moved there.\n",rm->name,u->recap);
   return;
   }
 write_user(user,"~FT~OLYou chant an ancient spell...\n");
-if (user->vis) name=user->recap; else name=invisname;
-sprintf(text,"~FT~OL%s chants an ancient spell...\n",name);
-write_room_except(user->room,text,user);
+if (user->vis) name=user->bw_recap; else name=invisname;
+vwrite_room_except(user->room,user,"~FT~OL%s chants an ancient spell...\n",name);
 move_user(u,rm,2);
 prompt(u);
 }
@@ -11091,7 +11217,7 @@ int cnt;
 rm=user->room;
 if (word_count<2) rm=user->room;
 else {
-  if (user->level<gatecrash_level) {
+  if (user->level<amsys->gatecrash_level) {
     write_user(user,"You are not a high enough level to use the room option.\n");  
     return;
     }
@@ -11099,51 +11225,39 @@ else {
     write_user(user,nosuchroom);  return;
     }
   }
-if (user->vis) name=user->recap; else name=invisname;
 if (rm->access>PRIVATE) {
-  if (rm==user->room) 
-    write_user(user,"This room's access is fixed.\n"); 
+  if (rm==user->room) write_user(user,"This room's access is fixed.\n"); 
   else write_user(user,"That room's access is fixed.\n");
   return;
   }
 if (com_num==PUBCOM && rm->access==PUBLIC) {
-  if (rm==user->room) 
-    write_user(user,"This room is already public.\n");  
+  if (rm==user->room) write_user(user,"This room is already public.\n");  
   else write_user(user,"That room is already public.\n"); 
   return;
   }
 if (user->vis) name=user->recap; else name=invisname;
 if (com_num==PRIVCOM) {
   if (rm->access==PRIVATE) {
-    if (rm==user->room) 
-      write_user(user,"This room is already private.\n");  
+    if (rm==user->room) write_user(user,"This room is already private.\n");  
     else write_user(user,"That room is already private.\n"); 
     return;
     }
   cnt=0;
   for(u=user_first;u!=NULL;u=u->next) if (u->room==rm) ++cnt;
-  if (cnt<min_private_users && user->level<ignore_mp_level) {
-    sprintf(text,"You need at least %d users/clones in a room before it can be made private.\n",min_private_users);
-    write_user(user,text);
+  if (cnt<amsys->min_private_users && user->level<amsys->ignore_mp_level) {
+    vwrite_user(user,"You need at least %d users/clones in a room before it can be made private.\n",amsys->min_private_users);
     return;
     }
   write_user(user,"Room set to ~FRPRIVATE.\n");
-  if (rm==user->room) {
-    sprintf(text,"%s has set the room to ~FRPRIVATE.\n",name);
-    write_room_except(rm,text,user);
-    }
+  if (rm==user->room) vwrite_room_except(rm,user,"%s~RS has set the room to ~FRPRIVATE.\n",name);
   else write_room(rm,"This room has been set to ~FRPRIVATE.\n");
   rm->access=PRIVATE;
   return;
   }
 write_user(user,"Room set to ~FGPUBLIC.\n");
-if (rm==user->room) {
-  sprintf(text,"%s has set the room to ~FGPUBLIC.\n",name);
-  write_room_except(rm,text,user);
-  }
+if (rm==user->room) vwrite_room_except(rm,user,"%s~RS has set the room to ~FGPUBLIC.\n",name);
 else write_room(rm,"This room has been set to ~FGPUBLIC.\n");
 rm->access=PUBLIC;
-
 /* Reset any invites into the room & clear review buffer */
 for(u=user_first;u!=NULL;u=u->next) {
   if (u->invite_room==rm) u->invite_room=NULL;
@@ -11167,44 +11281,27 @@ else {
 if (user->vis) name=user->recap; else name=invisname;
 if (fix) {	
   if (rm->access & FIXED) {
-    if (rm==user->room) 
-      write_user(user,"This room's access is already fixed.\n");
+    if (rm==user->room) write_user(user,"This room's access is already fixed.\n");
     else write_user(user,"That room's access is already fixed.\n");
     return;
     }
   sprintf(text,"Access for room %s is now ~FRFIXED.\n",rm->name);
   write_user(user,text);
-  if (user->room==rm) {
-    sprintf(text,"%s has ~FRFIXED~RS access for this room.\n",name);
-    write_room_except(rm,text,user);
-    }
-  else {
-    sprintf(text,"This room's access has been ~FRFIXED.\n");
-    write_room(rm,text);
-    }
-  sprintf(text,"%s FIXED access to room %s.\n",user->name,rm->name);
-  write_syslog(text,1,SYSLOG);
+  if (user->room==rm) vwrite_room_except(rm,user,"%s~RS has ~FRFIXED~RS access for this room.\n",name);
+  else write_room(rm,"This room's access has been ~FRFIXED.\n");
+  write_syslog(SYSLOG,1,"%s FIXED access to room %s.\n",user->name,rm->name);
   rm->access+=2;
   return;
   }
 if (!(rm->access & FIXED)) {
-  if (rm==user->room) 
-    write_user(user,"This room's access is already unfixed.\n");
+  if (rm==user->room) write_user(user,"This room's access is already unfixed.\n");
   else write_user(user,"That room's access is already unfixed.\n");
   return;
   }
-sprintf(text,"Access for room %s is now ~FGUNFIXED.\n",rm->name);
-write_user(user,text);
-if (user->room==rm) {
-  sprintf(text,"%s has ~FGUNFIXED~RS access for this room.\n",name);
-  write_room_except(rm,text,user);
-  }
-else {
-  sprintf(text,"This room's access has been ~FGUNFIXED.\n");
-  write_room(rm,text);
-  }
-sprintf(text,"%s UNFIXED access to room %s.\n",user->name,rm->name);
-write_syslog(text,1,SYSLOG);
+vwrite_user(user,"Access for room %s is now ~FGUNFIXED.\n",rm->name);
+if (user->room==rm) vwrite_room_except(rm,user,"%s~RS has ~FGUNFIXED~RS access for this room.\n",name);
+else write_room(rm,"This room's access has been ~FGUNFIXED.\n");
+write_syslog(SYSLOG,1,"%s UNFIXED access to room %s.\n",user->name,rm->name);
 rm->access-=2;
 reset_access(rm);
 }
@@ -11233,20 +11330,16 @@ if (u==user) {
   return;
   }
 if (u->room==rm) {
-  sprintf(text,"%s is already here!\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is already here!\n",u->recap);
   return;
   }
 if (u->invite_room==rm) {
-  sprintf(text,"%s has already been invited into here.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS has already been invited into here.\n",u->recap);
   return;
   }
-sprintf(text,"You invite %s in.\n",u->recap);
-write_user(user,text);
+vwrite_user(user,"You invite %s~RS in.\n",u->recap);
 if (user->vis || u->level>=user->level) name=user->recap; else name=invisname;
-sprintf(text,"%s has invited you into the %s.\n",name,rm->name);
-write_user(u,text);
+vwrite_user(u,"%s~RS has invited you into the %s.\n",name,rm->name);
 u->invite_room=rm;
 strcpy(u->invite_by,user->name);
 }
@@ -11269,20 +11362,16 @@ if (u==user) {
   return;
   }
 if (u->invite_room==NULL) {
-  sprintf(text,"%s has not been invited anywhere.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS has not been invited anywhere.\n",u->recap);
   return;
   }
 if (strcmp(u->invite_by,user->name)) {
-  sprintf(text,"%s has not been invited anywhere by you!\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS has not been invited anywhere by you!\n",u->recap);
   return;
   }
-sprintf(text,"You cancel your invitation to %s.\n",u->name);
-write_user(user,text);
+vwrite_user(user,"You cancel your invitation to %s~RS.\n",u->recap);
 if (user->vis || u->level>=user->level) name=user->recap; else name=invisname;
-sprintf(text,"%s cancels your invitation.\n",name);
-write_user(u,text);
+vwrite_user(u,"%s~RS cancels your invitation.\n",name);
 u->invite_room=NULL;
 u->invite_by[0]='\0';
 }
@@ -11292,7 +11381,7 @@ u->invite_by[0]='\0';
 void letmein(UR_OBJECT user)
 {
 RM_OBJECT rm;
-int i;
+int i,got;
 
 if (word_count<2) {
   write_user(user,"Knock on what door?\n");  return;
@@ -11301,28 +11390,22 @@ if ((rm=get_room(word[1]))==NULL) {
   write_user(user,nosuchroom);  return;
   }
 if (rm==user->room) {
-  sprintf(text,"You are already in the %s!\n",rm->name);
-  write_user(user,text);
+  vwrite_user(user,"You are already in the %s!\n",rm->name);
   return;
   }
-for(i=0;i<MAX_LINKS;++i) 
-  if (user->room->link[i]==rm) goto GOT_IT;
-sprintf(text,"The %s is not adjoined to here.\n",rm->name);
-write_user(user,text);  
-return;
-
-GOT_IT:
+got=0;
+for(i=0;i<MAX_LINKS;++i) if (user->room->link[i]==rm) { got=1;  break; }
+if (!got) {
+  vwrite_user(user,"The %s is not adjoined to here.\n",rm->name);
+  return;
+  }
 if (!(rm->access & PRIVATE)) {
-  sprintf(text,"The %s is currently public.\n",rm->name);
-  write_user(user,text);
+  vwrite_user(user,"The %s is currently public.\n",rm->name);
   return;
   }
-sprintf(text,"You knock asking to be let into the %s.\n",rm->name);
-write_user(user,text);
-sprintf(text,"%s knocks asking to be let into the %s.\n",user->recap,rm->name);
-write_room_except(user->room,text,user);
-sprintf(text,"%s knocks asking to be let in.\n",user->recap);
-write_room(rm,text);
+vwrite_user(user,"You knock asking to be let into the %s.\n",rm->name);
+vwrite_room_except(user->room,user,"%s~RS knocks asking to be let into the %s.\n",user->recap,rm->name);
+vwrite_room(rm,"%s~RS knocks asking to be let in.\n",user->recap);
 }
 
 
@@ -11333,15 +11416,14 @@ RM_OBJECT rm;
 UR_OBJECT u;
 #ifdef NETLINKS
   NL_OBJECT nl;
-  char serv[SERV_NAME_LEN+1],stat[9];
+  char serv[SERV_NAME_LEN+1],nstat[9];
 #endif
 char rmaccess[9];
 int cnt,rm_cnt,rm_pub,rm_priv;
 
 if (word_count<2) {
   if (!wrap) user->wrap_room=room_first;
-  if (show_topics) 
-    write_user(user,"\n~FTRoom name            : Access  Users  Mesgs  Topic\n\n");
+  if (show_topics) write_user(user,"\n~FTRoom name            : Access  Users  Mesgs  Topic\n\n");
   else write_user(user,"\n~FTRoom name            : Access  Users  Mesgs  Inlink  LStat  Service\n\n");
   rm_cnt=0;
   for(rm=user->wrap_room;rm!=NULL;rm=rm->next) {
@@ -11362,22 +11444,22 @@ if (word_count<2) {
       if (u->type!=CLONE_TYPE && u->room==rm) ++cnt;
     if (show_topics)
       sprintf(text,"%-20s : %9s~RS    %3d    %3d  %s\n",rm->name,rmaccess,cnt,rm->mesg_cnt,rm->topic);
-  #ifdef NETLINKS
+#ifdef NETLINKS
     else {
       nl=rm->netlink;  serv[0]='\0';
       if (nl==NULL) {
-	if (rm->inlink) strcpy(stat,"~FRDOWN");
-	else strcpy(stat,"   -");
+	if (rm->inlink) strcpy(nstat,"~FRDOWN");
+	else strcpy(nstat,"   -");
         }
       else {
-	if (nl->type==UNCONNECTED) strcpy(stat,"~FRDOWN");
-	else if (nl->stage==UP) strcpy(stat,"  ~FGUP");
-	else strcpy(stat," ~FYVER");
+	if (nl->type==UNCONNECTED) strcpy(nstat,"~FRDOWN");
+	else if (nl->stage==UP) strcpy(nstat,"  ~FGUP");
+	else strcpy(nstat," ~FYVER");
         }
       if (nl!=NULL) strcpy(serv,nl->service);
-      sprintf(text,"%-20s : %9s~RS    %3d    %3d     %s   %s~RS  %s\n",rm->name,rmaccess,cnt,rm->mesg_cnt,noyes1[rm->inlink],stat,serv);
+      sprintf(text,"%-20s : %9s~RS    %3d    %3d     %s   %s~RS  %s\n",rm->name,rmaccess,cnt,rm->mesg_cnt,noyes1[rm->inlink],nstat,serv);
       }
-  #endif
+#endif
     write_user(user,text);
     ++rm_cnt;  user->wrap_room=rm->next;
     }
@@ -11388,30 +11470,21 @@ if (word_count<2) {
     if (rm->access & PRIVATE) ++rm_priv;
     else ++rm_pub;
     }
-  sprintf(text,"\nThere is a total of %d rooms.  %d %s public, and %d %s private.\n\n",rm_priv+rm_pub,rm_pub,PLTEXT_IS(rm_pub),rm_priv,PLTEXT_IS(rm_priv));
-  write_user(user,text);
+  vwrite_user(user,"\nThere is a total of %d rooms.  %d %s public, and %d %s private.\n\n",rm_priv+rm_pub,rm_pub,PLTEXT_IS(rm_pub),rm_priv,PLTEXT_IS(rm_priv));
   return;
   }
-strtoupper(word[1]);
 rm_cnt=0;  cnt=0;
-if (!strcmp(word[1],"LEVEL")) {
+if (!strcasecmp(word[1],"level")) {
   write_user(user,"The following rooms are default...\n\n");
-  sprintf(text,"Default main room : ~OL%s~RS\n",room_first->name);
-  write_user(user,text);
-  sprintf(text,"Default warp room : ~OL%s~RS\n",default_warp);
-  write_user(user,text);
-  sprintf(text,"Default jail room : ~OL%s~RS\n",default_jail);
-  write_user(user,text);
+  vwrite_user(user,"Default main room : ~OL%s~RS\n",room_first->name);
+  vwrite_user(user,"Default warp room : ~OL%s~RS\n",default_warp);
+  vwrite_user(user,"Default jail room : ~OL%s~RS\n",default_jail);
   while(priv_room[rm_cnt].name[0]!='*') {
     if (++cnt==1) write_user(user,"\nThe following rooms are level specific...\n\n");
-    sprintf(text,"~FT%s~RS is for users of level ~OL%s~RS and above.\n",priv_room[rm_cnt].name,level_name[priv_room[rm_cnt].level]);
-    write_user(user,text);
+    vwrite_user(user,"~FT%s~RS is for users of level ~OL%s~RS and above.\n",priv_room[rm_cnt].name,user_level[priv_room[rm_cnt].level].name);
     ++rm_cnt;
     }
-  if (cnt) {
-    sprintf(text,"\nThere is a total of ~OL%d~RS level specific rooms.\n\n",rm_cnt);
-    write_user(user,text);
-    }
+  if (cnt) vwrite_user(user,"\nThere is a total of ~OL%d~RS level specific rooms.\n\n",rm_cnt);
   else write_user(user,"\nThere are no level specific rooms currently availiable.\n\n");
   return;
   }
@@ -11431,8 +11504,7 @@ if (word_count<2) {
   rm->topic[0]='\0';
   write_user(user,"Topic has been cleared\n");
   if (user->vis) name=user->name; else name=invisname;
-  sprintf(text,"~FY~OL%s has cleared the topic.\n",name);
-  write_room_except(rm,text,user);
+  vwrite_room_except(rm,user,"~FY~OL%s has cleared the topic.\n",name);
   return;
   }
 if (!strcmp(word[1],"all")) {
@@ -11471,35 +11543,29 @@ if (!(u=get_user_name(user,word[1]))) {
   return;
   }
 if (user==u) {
-  write_user(user,"You really want join yourself!  What would the neighbours think?\n");
+  write_user(user,"You really want join yourself?  What would the neighbours think?\n");
   return;
   }
 rm=u->room;
 #ifdef NETLINKS
   if (rm==NULL) {
-    sprintf(text,"%s is currently off site so you cannot join them.\n",u->name);
-    write_user(user,text);
+    vwrite_user(user,"%s is currently off site so you cannot join them.\n",u->name);
     return;
     }
 #endif
 if (rm==user->room) {
-  sprintf(text,"You are already with %s in the %s.\n",u->recap,rm->name);
-  write_user(user,text);
+  vwrite_user(user,"You are already with %s~RS in the %s.\n",u->recap,rm->name);
   return;
   };
 if (!has_room_access(user,rm)) {
-  sprintf(text,"That room is currently private, you cannot join %s there.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"That room is currently private, you cannot join %s~RS there.\n",u->recap);
   return;
   }
 if (user->vis) name=user->recap; else name=invisname;
-sprintf(text,"~FT~OLYou join %s in the %s.~RS\n",u->name,u->room->name);
-write_user(user,text);
+vwrite_user(user,"~FT~OLYou join %s in the %s.~RS\n",u->bw_recap,u->room->name);
 if (user->level<GOD || user->vis) {
-  sprintf(text,"%s %s\n",name,user->out_phrase);
-  write_room_except(user->room,text,user);
-  sprintf(text,"%s %s\n",name,user->in_phrase);
-  write_room_except(rm,text,user);
+  vwrite_room_except(user->room,user,"%s~RS %s\n",name,user->out_phrase);
+  vwrite_room_except(rm,user,"%s~RS %s\n",name,user->in_phrase);
   }
 user->room=rm;
 look(user);
@@ -11525,8 +11591,7 @@ if (user==u) {
   }
 #ifdef NETLINKS
   if (u->room==NULL) {
-    sprintf(text,"%s is currently off site and cannot be shackled there.\n",u->name);
-    write_user(user,text);
+    vwrite_user(user,"%s is currently off site and cannot be shackled there.\n",u->name);
     return;
     }
 #endif
@@ -11535,19 +11600,15 @@ if (u->level>=user->level) {
   return;
   }
 if (u->lroom==2) {
-  sprintf(text,"%s has already been shackled.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS has already been shackled.\n",u->recap);
   return;
   }
 u->lroom=2;
-sprintf(text,"\n~FR~OLYou have been shackled to the %s room.\n",u->room->name);
-write_user(u,text);
-sprintf(text,"~FR~OLYou shackled %s to the %s room.\n",u->recap,u->room->name);
-write_user(user,text);
+vwrite_user(u,"\n~FR~OLYou have been shackled to the %s room.\n",u->room->name);
+vwrite_user(user,"~FR~OLYou shackled %s to the %s room.\n",u->bw_recap,u->room->name);
 sprintf(text,"~FRShackled~RS to the ~FB%s~RS room by ~FB~OL%s~RS.\n",u->room->name,user->name);
 add_history(u->name,1,text);
-sprintf(text,"%s SHACKLED %s to the room: %s\n",user->name,u->name,u->room->name);
-write_syslog(text,1,SYSLOG);
+write_syslog(SYSLOG,1,"%s SHACKLED %s to the room: %s\n",user->name,u->name,u->room->name);
 }
 
 
@@ -11569,19 +11630,16 @@ if (user==u) {
   return;
   }
 if (u->lroom!=2) {
-  sprintf(text,"%s in not currently shackled.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS in not currently shackled.\n",u->recap);
   return;
   }
 u->lroom=0;
 write_user(u,"\n~FG~OLYou have been unshackled.\n");
 write_user(u,"You can now use the ~FTset~RS command to alter the ~FBroom~RS attribute.\n");
-sprintf(text,"~FG~OLYou unshackled %s from the %s room.\n",u->recap,u->room->name);
-write_user(user,text);
+vwrite_user(user,"~FG~OLYou unshackled %s from the %s room.\n",u->bw_recap,u->room->name);
 sprintf(text,"~FGUnshackled~RS from the ~FB%s~RS room by ~FB~OL%s~RS.\n",u->room->name,user->name);
 add_history(u->name,1,text);
-sprintf(text,"%s UNSHACKLED %s from the room: %s\n",user->name,u->name,u->room->name);
-write_syslog(text,1,SYSLOG);
+write_syslog(SYSLOG,1,"%s UNSHACKLED %s from the room: %s\n",user->name,u->name,u->room->name);
 }
 
 
@@ -11596,18 +11654,15 @@ if (word_count<2) {
   if (!strlen(rm->topic)) {
     write_user(user,"No topic has been set yet.\n");  return;
     }
-  sprintf(text,"The current topic is: %s\n",rm->topic);
-  write_user(user,text);
+  vwrite_user(user,"The current topic is: %s\n",rm->topic);
   return;
   }
 if (strlen(inpstr)>TOPIC_LEN) {
   write_user(user,"Topic too long.\n");  return;
   }
-sprintf(text,"Topic set to: %s\n",inpstr);
-write_user(user,text);
+vwrite_user(user,"Topic set to: %s\n",inpstr);
 if (user->vis) name=user->recap; else name=invisname;
-sprintf(text,"%s has set the topic to: %s\n",name,inpstr);
-write_room_except(rm,text,user);
+vwrite_room_except(rm,user,"%s~RS has set the topic to: %s\n",name,inpstr);
 strcpy(rm->topic,inpstr);
 }
 
@@ -11615,41 +11670,90 @@ strcpy(rm->topic,inpstr);
 /*** Auto promote a user if they need to be and auto_promote is turned on ***/
 void check_autopromote(UR_OBJECT user, int attrib)
 {
-int num=0;
+int cnt=0,i;
 
 if (user->level!=NEW) return; /* if user isn't NEW then don't promote */
-if (user->accreq==1) return;  /* if already been promoted then accreq should be set */
+if (user->accreq==-1) return;  /* if already been promoted then accreq should be set */
 
-num=user->accreq+attrib;
 /* stop them from using same command twice */
-if ((num==(ACCREQ*2)) || (num==(DESC*2)) || (num==(SET*2))) return;
-if ((num==ACCREQ) || (num==DESC) || (num==SET)) {
-  user->accreq=num;
-  write_user(user,"\n~OL~FY*** You have completed step 1 of 3 for auto-promotion ***\n\n");
-  return;
+if (BIT_TEST(user->accreq,attrib)) return;
+/* check it out for stage
+   1=accreq, 2=desc, 3=gender */
+user->accreq=BIT_SET(user->accreq,attrib);
+for (i=1;i<4;i++) if (BIT_TEST(user->accreq,i)) cnt++;
+switch (cnt) {
+  case 1 :
+  case 2 : vwrite_user(user,"\n~OL~FY*** You have completed step %d of 3 for auto-promotion ***\n\n",cnt);
+           return;
+  case 3 : user->accreq=-1;
+           --amsys->level_count[user->level];
+	   user->level++;   user->real_level=user->level;   user->unarrest=user->level;
+	   user_list_level(user->name,user->level);
+	   strcpy(user->date,(long_date(1)));
+	   ++amsys->level_count[user->level];
+	   vwrite_user(user,"\n\07~OL~FY*** You have been auto-promoted to level %s ***\n\n",user_level[user->level].name);
+	   sprintf(text,"Was auto-promoted to level %s.\n",user_level[user->level].name);
+	   add_history(user->name,1,text);
+	   write_syslog(SYSLOG,1,"%s was AUTO-PROMOTED to level %s.\n",user->name,user_level[user->level].name);
+	   sprintf(text,"~OL[ AUTO-PROMOTE ]~RS %s to level %s.\n",user->name,user_level[user->level].name);
+	   write_level(WIZ,1,text,NULL);
+	   return;
   }
-else if ((num==(ACCREQ+DESC)) || (num==(ACCREQ+SET)) || (num==(DESC+SET))) {
-  user->accreq=num;
-  write_user(user,"\n~OL~FY*** You have completed step 2 of 3 for auto-promotion ***\n\n");
-  return;
-  }
-else if (num==(ACCREQ+DESC+SET)) {
-  user->accreq=1;
-  --level_count[user->level];
-  user->level++;  user->unarrest=user->level;
-  user_list_level(user->name,user->level);
-  strcpy(user->date,(long_date(1)));
-  ++level_count[user->level];
-  sprintf(text,"\n\07~OL~FY*** You have been auto-promoted to level %s ***\n\n",level_name[user->level]);
-  write_user(user,text);
-  sprintf(text,"Was auto-promoted to level %s.\n",level_name[user->level]);
-  add_history(user->name,1,text);
-  sprintf(text,"%s was AUTO-PROMOTED to level %s.\n",user->name,level_name[user->level]);
-  write_syslog(text,1,SYSLOG);
-  sprintf(text,"~OL[ AUTO-PROMOTE ]~RS %s to level %s.\n",user->name,level_name[user->level]);
-  write_level(WIZ,1,text,NULL);
-  return;
-  }
+}
+
+
+/*** do a promotion of a user that lasts only for the current session ***/
+void temporary_promote(UR_OBJECT user)
+{
+UR_OBJECT u;
+int lev;
+
+ if (word_count<2) {
+   write_user(user,"Usage: tpromote <user> [<level>]\n");
+   return;
+   }
+ if (!(u=get_user_name(user,word[1]))) {
+   write_user(user,notloggedon);
+   return;
+   }
+ if (u==user) {
+   write_user(user,"You can't promote yourself, temporarily or otherwise.\n");
+   return;
+   }
+ /* determine what level to promote them to */
+ if (u->level>=user->level) {
+   write_user(user,"You can't temporarily promote anyone of the same or greater level than you.\n");
+   return;
+   }
+ if (word_count==3) {
+   if ((lev=get_level(word[2]))==-1) {
+     write_user(user,"Usage: tpromote <user> [<level>]\n");
+     return;
+     }
+   if (lev<=u->level) {
+     vwrite_user(user,"You must specify a level higher than %s currently is.\n",u->name);
+     return;
+     }
+   }
+ else lev=u->level+1;
+ if (lev==GOD) {
+   vwrite_user(user,"You can't temporarily promote anoyone to level %s.\n",user_level[lev].name);
+   return;
+   }
+ if (lev==GOD) {
+   write_user(user,"You can't temporarily promote anoyone to a higher level than your own.\n");
+   return;
+   }
+ /* if they have already been temp promoted this session then restore normal level first */
+ if (u->level>u->real_level) u->level=u->real_level;
+ u->real_level=u->level;
+ u->level=lev;
+ vwrite_user(user,"You temporarily promote %s to %s.\n",u->name,user_level[u->level].name);
+ vwrite_room_except(u->room,u,"~OL~FG%s~RS~OL~FG starts to glow as their power increases...\n",u->bw_recap);
+ vwrite_user(u,"~OL~FGYou have been promoted (temporarily) to level %s.\n",user_level[u->level].name);
+ write_syslog(SYSLOG,1,"%s TEMPORARILY promote %s to %s.\n",user->name,u->name,user_level[u->level].name);
+ sprintf(text,"Was temporarily to level %s.\n",user_level[u->level].name);
+ add_history(u->name,1,text);
 }
 
 
@@ -11670,13 +11774,15 @@ if (word_count>3) {
 if (word_count==3) {
   strtoupper(word[2]);
   if ((level=get_level(word[2]))==-1) {
-    write_user(user,"You must select a level between USER and GOD.\n");
+    vwrite_user(user,"You must select a level between %s and %s.\n",user_level[USER].name,user_level[GOD].name);
     return;
     }
   }
 /* See if user is on atm */
 if ((u=get_user(word[1]))!=NULL) {
-  /* first runs checks if level option was used */
+  /* first, gotta reset the user's level if they've been temp promoted */
+  if (u->real_level<u->level) u->level=u->real_level;
+  /* now runs checks if level option was used */
   if (word_count==3 && level<=u->level) {
     write_user(user,"You cannot promote a user to a level less than or equal to what they are now.\n");
     return;
@@ -11691,41 +11797,39 @@ if ((u=get_user(word[1]))!=NULL) {
     return;
     }
   if (u->level==JAILED) {
-    write_user(user,"You cannot promote a user of level JAILED.\n");
+    vwrite_user(user,"You cannot promote a user of level %s.\n",user_level[JAILED].name);
     return;
     }
-  if (user->vis) name=user->recap; else name=invisname;
+  if (user->vis) name=user->bw_recap; else name=invisname;
   if (u->level>=WIZ) rem_wiz_node(u->name);
-  --level_count[u->level];
+  --amsys->level_count[u->level];
   (word_count==3)?u->level=level:u->level++; 
   u->unarrest=u->level;
   user_list_level(u->name,u->level);
   strcpy(u->date,(long_date(1)));
-  ++level_count[u->level];
+  ++amsys->level_count[u->level];
   if (u->level>=WIZ) add_wiz_node(u->name,u->level);
-  sprintf(text,"~FG~OL%s is promoted to level: ~RS~OL%s.\n",u->recap,level_name[u->level]);
+  sprintf(text,"~FG~OL%s is promoted to level: ~RS~OL%s.\n",u->bw_recap,user_level[u->level].name);
   write_level(u->level,1,text,u);
-  sprintf(text,"~FG~OL%s has promoted you to level: ~RS~OL%s!\n",name,level_name[u->level]);
-  write_user(u,text);
-  sprintf(text,"%s PROMOTED %s to level %s.\n",user->name,u->name,level_name[u->level]);
-  write_syslog(text,1,SYSLOG);
-  sprintf(text,"Was ~FGpromoted~RS by %s to level %s.\n",user->name,level_name[u->level]);
+  vwrite_user(u,"~FG~OL%s has promoted you to level: ~RS~OL%s!\n",name,user_level[u->level].name);
+  write_syslog(SYSLOG,1,"%s PROMOTED %s to level %s.\n",user->name,u->name,user_level[u->level].name);
+  sprintf(text,"Was ~FGpromoted~RS by %s to level %s.\n",user->name,user_level[u->level].name);
   add_history(u->name,1,text);
   u->accreq=1;
+  u->real_level=u->level;
   add_user_date_node(u->name,(long_date(1)));
   return;
   }
 /* Create a temp session, load details, alter , then save. This is inefficient
    but its simpler than the alternative */
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user object in promote().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in promote().\n");
   return;
   }
 strcpy(u->name,word[1]);
 if (!load_user_details(u)) {
-  write_user(user,nosuchuser);  
+  write_user(user,nosuchuser);
   destruct_user(u);
   destructed=0;
   return;
@@ -11750,17 +11854,18 @@ if (u->level>=user->level) {
   return;
   }
 if (u->level==JAILED) {
-  write_user(user,"You cannot promote a user of level JAILED.\n");
+  vwrite_user(user,"You cannot promote a user of level %s.\n",user_level[JAILED].name);
   destruct_user(u);
   destructed=0;
   return;
   }
 if (u->level>=WIZ) rem_wiz_node(u->name);
---level_count[u->level];
+--amsys->level_count[u->level];
 (word_count==3)?u->level=level:u->level++;
 u->unarrest=u->level;
+u->real_level=u->level;
 user_list_level(u->name,u->level);
-++level_count[u->level];
+++amsys->level_count[u->level];
 if (u->level>=WIZ) add_wiz_node(u->name,u->level);
 u->socket=-2;
 u->accreq=1;
@@ -11768,13 +11873,11 @@ sprintf(text,"%s",long_date(1));
 strcpy(u->date,text);
 strcpy(u->site,u->last_site);
 save_user_details(u,0);
-sprintf(text,"You promote %s to level: ~OL%s.\n",u->name,level_name[u->level]);
-write_user(user,text);
-sprintf(text2,"~FG~OLYou have been promoted to level: ~RS~OL%s.\n",level_name[u->level]);
+vwrite_user(user,"You promote %s to level: ~OL%s.\n",u->name,user_level[u->level].name);
+sprintf(text2,"~FG~OLYou have been promoted to level: ~RS~OL%s.\n",user_level[u->level].name);
 send_mail(user,word[1],text2,0);
-sprintf(text,"%s PROMOTED %s to level %s.\n",user->name,word[1],level_name[u->level]);
-write_syslog(text,1,SYSLOG);
-sprintf(text,"Was ~FGpromoted~RS by %s to level %s.\n",user->name,level_name[u->level]);
+write_syslog(SYSLOG,1,"%s PROMOTED %s to level %s.\n",user->name,word[1],user_level[u->level].name);
+sprintf(text,"Was ~FGpromoted~RS by %s to level %s.\n",user->name,user_level[u->level].name);
 add_history(u->name,1,text);
 add_user_date_node(u->name,(long_date(1)));
 destruct_user(u);
@@ -11799,59 +11902,59 @@ if (word_count>3) {
 if (word_count==3) {
   strtoupper(word[2]);
   if ((level=get_level(word[2]))==-1) {
-    write_user(user,"You must select a level between NEW and ARCH.\n");
+    vwrite_user(user,"You must select a level between %s and %s.\n",user_level[NEW].name,user_level[ARCH].name);
     return;
     }
   }
 /* See if user is on atm */
 if ((u=get_user(word[1]))!=NULL) {
-  /* first runs checks if level option was used */
+  /* first, gotta reset the user's level if they've been temp promoted */
+  if (u->real_level<u->level) u->level=u->real_level;
+  /* now runs checks if level option was used */
   if (word_count==3 && level>=u->level) {
     write_user(user,"You cannot demote a user to a level higher than or equal to what they are now.\n");
     return;
     }
   if (word_count==3 && level==JAILED) {
-    write_user(user,"You cannot demote a user to the level JAILED.\n");
+    vwrite_user(user,"You cannot demote a user to the level %s.\n",user_level[JAILED].name);
     return;
     }
   /* now normal checks */
   if (u->level<=NEW) {
-    write_user(user,"You cannot demote a user of level NEW or JAILED.\n");
+    vwrite_user(user,"You cannot demote a user of level %s or %s.\n",user_level[NEW].name,user_level[JAILED].name);
     return;
     }
   if (u->level>=user->level) {
     write_user(user,"You cannot demote a user of an equal or higher level than yourself.\n");
     return;
     }
-  if (user->vis) name=user->recap; else name=invisname;
+  if (user->vis) name=user->bw_recap; else name=invisname;
   if (u->level>=WIZ) rem_wiz_node(u->name);
-  --level_count[u->level];
+  --amsys->level_count[u->level];
   /* if a user was a wiz then remove from retire list */
   if (u->level==WIZ) clean_retire_list(u->name);
   /* was a level given? */
   (word_count==3)?u->level=level:u->level--;
   u->unarrest=u->level;
   user_list_level(u->name,u->level);
-  ++level_count[u->level];
+  ++amsys->level_count[u->level];
   if (u->level>=WIZ) add_wiz_node(u->name,u->level);
   strcpy(u->date,(long_date(1)));
-  sprintf(text,"~FR~OL%s is demoted to level: ~RS~OL%s.\n",u->recap,level_name[u->level]);
+  sprintf(text,"~FR~OL%s is demoted to level: ~RS~OL%s.\n",u->bw_recap,user_level[u->level].name);
   write_level(u->level,1,text,u);
-  sprintf(text,"~FR~OL%s has demoted you to level: ~RS~OL%s!\n",name,level_name[u->level]);
-  write_user(u,text);
-  sprintf(text,"%s DEMOTED %s to level %s.\n",user->name,u->name,level_name[u->level]);
-  write_syslog(text,1,SYSLOG);
-  sprintf(text,"Was ~FRdemoted~RS by %s to level %s.\n",user->name,level_name[u->level]);
+  vwrite_user(u,"~FR~OL%s has demoted you to level: ~RS~OL%s!\n",name,user_level[u->level].name);
+  write_syslog(SYSLOG,1,"%s DEMOTED %s to level %s.\n",user->name,u->name,user_level[u->level].name);
+  sprintf(text,"Was ~FRdemoted~RS by %s to level %s.\n",user->name,user_level[u->level].name);
   add_history(u->name,1,text);
   add_user_date_node(u->name,(long_date(1)));
   u->vis=1;
+  u->real_level=u->level;
   return;
   }
 /* User not logged on */
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user object in demote().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in demote().\n");
   return;
   }
 strcpy(u->name,word[1]);
@@ -11869,14 +11972,14 @@ if (word_count==3 && level>=u->level) {
   return;
   }
 if (word_count==3 && level==JAILED) {
-  write_user(user,"You cannot demote a user to the level JAILED.\n");
+  vwrite_user(user,"You cannot demote a user to the level %s.\n",user_level[JAILED].name);
   destruct_user(u);
   destructed=0;
   return;
   }
   /* now normal checks */
 if (u->level<=NEW) {
-  write_user(user,"You cannot demote a user of level NEW or JAILED.\n");
+  vwrite_user(user,"You cannot demote a user of level %s or %s.\n",user_level[NEW].name,user_level[JAILED].name);
   destruct_user(u);
   destructed=0;
   return;
@@ -11888,27 +11991,26 @@ if (u->level>=user->level) {
   return;
   }
 if (u->level>=WIZ) rem_wiz_node(u->name);
---level_count[u->level];
+--amsys->level_count[u->level];
 /* if a user was a wiz then remove from retire list */
 if (u->level==WIZ) clean_retire_list(u->name);
 /* was a level given? */
 (word_count==3)?u->level=level:u->level--;
 u->unarrest=u->level;
+u->real_level=u->level;
 user_list_level(u->name,u->level);
-++level_count[u->level];
+++amsys->level_count[u->level];
 if (u->level>=WIZ) add_wiz_node(u->name,u->level);
 u->socket=-2;
 u->vis=1;
 strcpy(u->site,u->last_site);
 strcpy(u->date,(long_date(1)));
 save_user_details(u,0);
-sprintf(text,"You demote %s to level: ~OL%s.\n",u->recap,level_name[u->level]);
-write_user(user,text);
-sprintf(text2,"~FR~OLYou have been demoted to level: ~RS~OL%s.\n",level_name[u->level]);
+vwrite_user(user,"You demote %s~RS to level: ~OL%s.\n",u->recap,user_level[u->level].name);
+sprintf(text2,"~FR~OLYou have been demoted to level: ~RS~OL%s.\n",user_level[u->level].name);
 send_mail(user,word[1],text2,0);
-sprintf(text,"%s DEMOTED %s to level %s.\n",user->name,word[1],level_name[u->level]);
-write_syslog(text,1,SYSLOG);
-sprintf(text,"Was ~FRdemoted~RS by %s to level %s.\n",user->name,level_name[u->level]);
+write_syslog(SYSLOG,1,"%s DEMOTED %s to level %s.\n",user->name,word[1],user_level[u->level].name);
+sprintf(text,"Was ~FRdemoted~RS by %s to level %s.\n",user->name,user_level[u->level].name);
 add_history(u->name,1,text);
 add_user_date_node(u->name,(long_date(1)));
 destruct_user(u);
@@ -11936,24 +12038,21 @@ if ((u=get_user(word[1]))!=NULL) {
     return;
     }
   if (u->muzzled>=user->level) {
-    sprintf(text,"%s is already muzzled.\n",u->recap);
-    write_user(user,text);  return;
+    vwrite_user(user,"%s~RS is already muzzled.\n",u->recap);
+    return;
     }
-  sprintf(text,"~FR~OL%s now has a muzzle of level: ~RS~OL%s.\n",u->recap,level_name[user->level]);
-  write_user(user,text);
+  vwrite_user(user,"~FR~OL%s now has a muzzle of level: ~RS~OL%s.\n",u->bw_recap,user_level[user->level].name);
   write_user(u,"~FR~OLYou have been muzzled!\n");
-  sprintf(text,"%s muzzled %s (level %d).\n",user->name,u->name,user->level);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s muzzled %s (level %d).\n",user->name,u->name,user->level);
   u->muzzled=user->level;
-  sprintf(text,"Level %d (%s) ~FRmuzzle~RS put on by %s.\n",user->level,level_name[user->level],user->name);
+  sprintf(text,"Level %d (%s) ~FRmuzzle~RS put on by %s.\n",user->level,user_level[user->level].name,user->name);
   add_history(u->name,1,text);
   return;
   }
 /* User not logged on */
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user object in muzzle().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in muzzle().\n");
   return;
   }
 strcpy(u->name,word[1]);
@@ -11970,8 +12069,7 @@ if (u->level>=user->level) {
   return;
   }
 if (u->muzzled>=user->level) {
-  sprintf(text,"%s is already muzzled.\n",u->name);
-  write_user(user,text); 
+  vwrite_user(user,"%s is already muzzled.\n",u->name);
   destruct_user(u);
   destructed=0;
   return;
@@ -11980,12 +12078,10 @@ u->socket=-2;
 u->muzzled=user->level;
 strcpy(u->site,u->last_site);
 save_user_details(u,0);
-sprintf(text,"~FR~OL%s given a muzzle of level: ~RS~OL%s.\n",u->recap,level_name[user->level]);
-write_user(user,text);
+vwrite_user(user,"~FR~OL%s given a muzzle of level: ~RS~OL%s.\n",u->bw_recap,user_level[user->level].name);
 send_mail(user,word[1],"~FR~OLYou have been muzzled!\n",0);
-sprintf(text,"%s muzzled %s (level %d).\n",user->name,u->name,user->level);
-write_syslog(text,1,SYSLOG);
-sprintf(text,"Level %d (%s) ~FRmuzzle~RS put on by %s.\n",user->level,level_name[user->level],user->name);
+write_syslog(SYSLOG,1,"%s muzzled %s (level %d).\n",user->name,u->name,user->level);
+sprintf(text,"Level %d (%s) ~FRmuzzle~RS put on by %s.\n",user->level,user_level[user->level].name,user->name);
 add_history(u->name,1,text);
 destruct_user(u);
 destructed=0;
@@ -12006,27 +12102,25 @@ if ((u=get_user(word[1]))!=NULL) {
     return;
     }
   if (!u->muzzled) {
-    sprintf(text,"%s is not muzzled.\n",u->recap);  return;
+    vwrite_user(user,"%s~RS is not muzzled.\n",u->recap);
+    return;
     }
   if (u->muzzled>user->level) {
-    sprintf(text,"%s's muzzle is set to level %s, you do not have the power to remove it.\n",u->name,level_name[u->muzzled]);
-    write_user(user,text);  return;
+    vwrite_user(user,"%s's muzzle is set to level %s, you do not have the power to remove it.\n",u->name,user_level[u->muzzled].name);
+    return;
     }
-  sprintf(text,"~FG~OLYou remove %s's muzzle.\n",u->name);
-  write_user(user,text);
+  vwrite_user(user,"~FG~OLYou remove %s's muzzle.\n",u->name);
   write_user(u,"~FG~OLYou have been unmuzzled!\n");
-  sprintf(text,"%s unmuzzled %s.\n",user->name,u->name);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s unmuzzled %s.\n",user->name,u->name);
   u->muzzled=0;
-  sprintf(text,"~FGUnmuzzled~RS by %s, level %d (%s).\n",user->name,user->level,level_name[user->level]);
+  sprintf(text,"~FGUnmuzzled~RS by %s, level %d (%s).\n",user->name,user->level,user_level[user->level].name);
   add_history(u->name,0,text);
   return;
   }
 /* User not logged on */
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user object in unmuzzle().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in unmuzzle().\n");
   return;
   }
 strcpy(u->name,word[1]);
@@ -12037,8 +12131,7 @@ if (!load_user_details(u)) {
   return;
   }
 if (u->muzzled>user->level) {
-  sprintf(text,"%s's muzzle is set to level %s, you do not have the power to remove it.\n",u->name,level_name[u->muzzled]);
-  write_user(user,text);  
+  vwrite_user(user,"%s's muzzle is set to level %s, you do not have the power to remove it.\n",u->name,user_level[u->muzzled].name);
   destruct_user(u);
   destructed=0;
   return;
@@ -12047,12 +12140,10 @@ u->socket=-2;
 u->muzzled=0;
 strcpy(u->site,u->last_site);
 save_user_details(u,0);
-sprintf(text,"~FG~OLYou remove %s's muzzle.\n",u->recap);
-write_user(user,text);
+vwrite_user(user,"~FG~OLYou remove %s's muzzle.\n",u->bw_recap);
 send_mail(user,word[1],"~FG~OLYou have been unmuzzled.\n",0);
-sprintf(text,"%s unmuzzled %s.\n",user->name,u->name);
-write_syslog(text,1,SYSLOG);
-sprintf(text,"~FGUnmuzzled~RS by %s, level %d (%s).\n",user->name,user->level,level_name[user->level]);
+write_syslog(SYSLOG,1,"%s unmuzzled %s.\n",user->name,u->name);
+sprintf(text,"~FGUnmuzzled~RS by %s, level %d (%s).\n",user->name,user->level,user_level[user->level].name);
 add_history(u->name,0,text);
 destruct_user(u);
 destructed=0;
@@ -12079,39 +12170,33 @@ if ((u=get_user(word[1]))) {
     return;
     }
   if (u->level==JAILED) {
-    sprintf(text,"%s has already been arrested.\n",u->recap);
-    write_user(user,text);  return;
+    vwrite_user(user,"%s~RS has already been arrested.\n",u->recap);
+    return;
     }
   u->vis=1;
   u->unarrest=u->level;
   u->arrestby=user->level;
-  --level_count[u->level];
+  --amsys->level_count[u->level];
   u->level=JAILED;
   user_list_level(u->name,u->level);
   strcpy(u->date,(long_date(1)));
-  ++level_count[u->level];
+  ++amsys->level_count[u->level];
   rm=get_room(default_jail);
   write_room(NULL,"The Hand of Justice reaches through the air...\n");
   write_user(u,"You have been placed in jail.\n");
-  if (rm==NULL) {
-    sprintf(text,"Cannot find the jail, so %s is arrested but still in the %s.\n",u->recap,u->room->name);
-    write_user(user,text);
-    }
+  if (rm==NULL) vwrite_user(user,"Cannot find the jail, so %s~RS is arrested but still in the %s.\n",u->recap,u->room->name);
   else move_user(u,rm,2);
-  sprintf(text,"%s has been placed under arrest...\n",u->recap);
-  write_room_except(NULL,text,u);
-  sprintf(text,"%s ARRESTED %s (at level %s)\n",user->name,u->name,level_name[u->arrestby]);
-  write_syslog(text,1,SYSLOG);
-  sprintf(text,"Was ~FRarrested~RS by %s (at level ~OL%s~RS).\n",user->name,level_name[u->arrestby]);
+  vwrite_room_except(NULL,u,"%s~RS has been placed under arrest...\n",u->recap);
+  write_syslog(SYSLOG,1,"%s ARRESTED %s (at level %s)\n",user->name,u->name,user_level[u->arrestby].name);
+  sprintf(text,"Was ~FRarrested~RS by %s (at level ~OL%s~RS).\n",user->name,user_level[u->arrestby].name);
   add_history(u->name,1,text);
   return;
   }
 /* Create a temp session, load details, alter , then save. This is inefficient
    but its simpler than the alternative */
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user object in arrest().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in arrest().\n");
   return;
   }
 strcpy(u->name,word[1]);
@@ -12128,8 +12213,7 @@ if (u->level>=user->level) {
   return;
   }
 if (u->level==JAILED) {
-  sprintf(text,"%s has already been arrested.\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS has already been arrested.\n",u->recap);
   destruct_user(u);
   destructed=0;
   return;
@@ -12137,21 +12221,18 @@ if (u->level==JAILED) {
 u->vis=1;
 u->unarrest=u->level;
 u->arrestby=user->level;
---level_count[u->level];
+--amsys->level_count[u->level];
 u->level=JAILED;
 user_list_level(u->name,u->level);
 strcpy(u->date,(long_date(1)));
-++level_count[u->level];
+++amsys->level_count[u->level];
 u->socket=-2;
 strcpy(u->site,u->last_site);
 save_user_details(u,0);
-sprintf(text,"You place %s under arrest.\n",u->recap);
-write_user(user,text);
-sprintf(text,"~OLYou have been placed under ~FRarrest~RS~OL.\n");
-send_mail(user,word[1],text,0);
-sprintf(text,"%s ARRESTED %s (at level %s).\n",user->name,u->name,level_name[u->arrestby]);
-write_syslog(text,1,SYSLOG);
-sprintf(text,"Was ~FRarrested~RS by %s (at level ~OL%s~RS).\n",user->name,level_name[u->arrestby]);
+vwrite_user(user,"You place %s~RS under arrest.\n",u->recap);
+send_mail(user,word[1],"~OLYou have been placed under ~FRarrest~RS~OL.\n",0);
+write_syslog(SYSLOG,1,"%s ARRESTED %s (at level %s).\n",user->name,u->name,user_level[u->arrestby].name);
+sprintf(text,"Was ~FRarrested~RS by %s (at level ~OL%s~RS).\n",user->name,user_level[u->arrestby].name);
 add_history(u->name,1,text);
 destruct_user(u);
 destructed=0;
@@ -12174,30 +12255,25 @@ if ((u=get_user(word[1]))) {
     return;
     }
   if (u->level!=JAILED) {
-    sprintf(text,"%s is not under arrest!\n",u->recap);
-    write_user(user,text);  return;
-    }
-  if (user->level<u->arrestby) {
-    sprintf(text,"%s can only be unarrested by a %s or higher.\n",u->name,level_name[u->arrestby]);
-    write_user(user,text);
+    vwrite_user(user,"%s~RS is not under arrest!\n",u->recap);
     return;
     }
-  --level_count[u->level];
+  if (user->level<u->arrestby) {
+    vwrite_user(user,"%s~RS can only be unarrested by a %s or higher.\n",u->recap,user_level[u->arrestby].name);
+    return;
+    }
+  --amsys->level_count[u->level];
   u->level=u->unarrest;
   u->arrestby=0;
   user_list_level(u->name,u->level);
   strcpy(u->date,(long_date(1)));
-  ++level_count[u->level];
+  ++amsys->level_count[u->level];
   rm=get_room(default_warp);
   write_room(NULL,"The Hand of Justice reaches through the air...\n");
   write_user(u,"You have been unarrested...  Now try to behave!\n");
-  if (rm==NULL) {
-    sprintf(text,"Cannot find a room for ex-cons, so %s is still in the %s!\n",u->recap,u->room->name);
-    write_user(user,text);
-    }
+  if (rm==NULL) vwrite_user(user,"Cannot find a room for ex-cons, so %s~RS is still in the %s!\n",u->recap,u->room->name);
   else move_user(u,rm,2);
-  sprintf(text,"%s UNARRESTED %s\n",user->name,u->name);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s UNARRESTED %s\n",user->name,u->name);
   sprintf(text,"Was ~FGunarrested~RS by %s.\n",user->name);
   add_history(u->name,1,text);
   return;
@@ -12205,9 +12281,8 @@ if ((u=get_user(word[1]))) {
 /* Create a temp session, load details, alter , then save. This is inefficient
    but its simpler than the alternative */
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user object in unarrest().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in unarrest().\n");
   return;
   }
 strcpy(u->name,word[1]);
@@ -12218,34 +12293,29 @@ if (!load_user_details(u)) {
   return;
   }
 if (u->level!=JAILED) {
-  sprintf(text,"%s is not under arrest!\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is not under arrest!\n",u->recap);
   destruct_user(u);
   destructed=0;
   return;
   }
 if (user->level<u->arrestby) {
-  sprintf(text,"%s can only be unarrested by a %s or higher.\n",u->name,level_name[u->arrestby]);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS can only be unarrested by a %s or higher.\n",u->recap,user_level[u->arrestby].name);
   destruct_user(u);
   destructed=0;
   return;
   }
---level_count[u->level];
+--amsys->level_count[u->level];
 u->level=u->unarrest;
 u->arrestby=0;
 user_list_level(u->name,u->level);
 strcpy(u->date,(long_date(1)));
-++level_count[u->level];
+++amsys->level_count[u->level];
 u->socket=-2;
 strcpy(u->site,u->last_site);
 save_user_details(u,0);
-sprintf(text,"You unarrest %s.\n",u->recap);
-write_user(user,text);
-sprintf(text,"~OLYou have been ~FGunarrested~RS~OL.  Please read the rules again and try to behave!\n");
-send_mail(user,word[1],text,0);
-sprintf(text,"%s UNARRESTED %s.\n",user->name,u->name);
-write_syslog(text,1,SYSLOG);
+vwrite_user(user,"You unarrest %s~RS.\n",u->recap);
+send_mail(user,word[1],"~OLYou have been ~FGunarrested~RS~OL.  Please read the rules again and try to behave!\n",0);
+write_syslog(SYSLOG,1,"%s UNARRESTED %s.\n",user->name,u->name);
 sprintf(text,"Was ~FGunarrested~RS by %s.\n",user->name);
 add_history(u->name,1,text);
 destruct_user(u);
@@ -12263,8 +12333,7 @@ UR_OBJECT u;
 char *name;
 
 if (word_count<3) {
-  if (user->level<GOD)
-    write_user(user,"Usage: passwd <old password> <new password>\n");
+  if (user->level<GOD) write_user(user,"Usage: passwd <old password> <new password>\n");
   else write_user(user,"Usage: passwd <old password> <new password> [<user>]\n");
   return;
   }
@@ -12314,21 +12383,17 @@ if ((u=get_user(word[3]))) {
     }
   strcpy(u->pass,(char *)crypt(word[2],crypt_salt));
   cls(user);
-  sprintf(text,"%s's password has been changed.\n",u->name);
-  write_user(user,text);
+  vwrite_user(user,"%s's password has been changed.\n",u->name);
   if (user->vis) name=user->name; else name=invisname;
-  sprintf(text,"~FR~OLYour password has been changed by %s!\n",name);
-  write_user(u,text);
-  sprintf(text,"%s changed %s's password.\n",user->name,u->name);
-  write_syslog(text,1,SYSLOG);
+  vwrite_user(u,"~FR~OLYour password has been changed by %s!\n",name);
+  write_syslog(SYSLOG,1,"%s changed %s's password.\n",user->name,u->name);
   sprintf(text,"Forced password change by %s.\n",user->name);
   add_history(u->name,0,text);
   return;
   }
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user object in change_pass().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in change_pass().\n");
   return;
   }
 strcpy(u->name,word[3]);
@@ -12349,12 +12414,10 @@ save_user_details(u,0);
 destruct_user(u);
 destructed=0;
 cls(user);
-sprintf(text,"%s's password changed to \"%s\".\n",word[3],word[2]);
-write_user(user,text);
+vwrite_user(user,"%s's password changed to \"%s\".\n",word[3],word[2]);
 sprintf(text,"Forced password change by %s.\n",user->name);
 add_history(u->name,0,text);
-sprintf(text,"%s changed %s's password.\n",user->name,u->name);
-write_syslog(text,1,SYSLOG);
+write_syslog(SYSLOG,1,"%s changed %s's password.\n",user->name,u->name);
 }
 
 
@@ -12362,7 +12425,6 @@ write_syslog(text,1,SYSLOG);
 void kill_user(UR_OBJECT user)
 {
 UR_OBJECT victim;
-RM_OBJECT rm;
 char *name;
 int msg;
 
@@ -12378,24 +12440,19 @@ if (user==victim) {
   }
 if (victim->level>=user->level) {
   write_user(user,"You cannot kill a user of equal or higher level than yourself.\n");
-  sprintf(text,"%s tried to kill you!\n",user->recap);
-  write_user(victim,text);
+  vwrite_user(victim,"%s~RS tried to kill you!\n",user->recap);
   return;
   }
-sprintf(text,"%s KILLED %s.\n",user->name,victim->name);
-write_syslog(text,1,SYSLOG);
+write_syslog(SYSLOG,1,"%s KILLED %s.\n",user->name,victim->name);
 write_user(user,"~FM~OLYou chant an evil incantation...\n");
-if (user->vis) name=user->recap; else name=invisname;
-sprintf(text,"~FM~OL%s chants an evil incantation...\n",name);
-write_room_except(user->room,text,user);
+if (user->vis) name=user->bw_recap; else name=invisname;
+vwrite_room_except(user->room,user,"~FM~OL%s chants an evil incantation...\n",name);
 /* display random kill message.  if you only want one message to be displayed
    then only have one message listed in kill_mesgs[].
    */
 msg=rand()%MAX_KILL_MESGS;
 write_user(victim,kill_mesgs[msg].victim_msg);
-sprintf(text,kill_mesgs[msg].room_msg,victim->recap);
-rm=victim->room;
-write_room_except(rm,text,victim);
+vwrite_room_except(victim->room,victim,kill_mesgs[msg].room_msg,victim->bw_recap);
 sprintf(text,"~FRKilled~RS by %s.\n",user->name);
 add_history(victim->name,1,text);
 disconnect_user(victim);
@@ -12432,16 +12489,14 @@ if (this_user) {
   strcpy(name,user->name);
   level=user->level;
   write_user(user,"\n~FR~LI~OLACCOUNT DELETED!\n");
-  sprintf(text,"~OL~LI%s commits suicide!\n",user->name);
-  write_room_except(user->room,text,user);
-  sprintf(text,"%s SUICIDED.\n",name);
-  write_syslog(text,1,SYSLOG);
+  vwrite_room_except(user->room,user,"~OL~LI%s commits suicide!\n",user->name);
+  write_syslog(SYSLOG,1,"%s SUICIDED.\n",name);
   if (user->level>=WIZ) rem_wiz_node(user->name);
   disconnect_user(user);
   clean_retire_list(name);
   clean_files(name);
   rem_user_node(name,-1);
-  level_count[level]--;
+  amsys->level_count[level]--;
   return;
   }
 if (word_count<2) {
@@ -12458,9 +12513,8 @@ if (get_user(word[1])!=NULL) {
   return;
   }
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user object in delete_user().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in delete_user().\n");
   return;
   }
 strcpy(u->name,word[1]);
@@ -12480,11 +12534,9 @@ clean_files(u->name);
 clean_retire_list(u->name);
 rem_user_node(u->name,-1);
 if (u->level>=WIZ) rem_wiz_node(u->name);
-level_count[u->level]--;
-sprintf(text,"\07~FR~OL~LIUser %s deleted!\n",u->name);
-write_user(user,text);
-sprintf(text,"%s DELETED %s.\n",user->name,u->name);
-write_syslog(text,1,SYSLOG);
+amsys->level_count[u->level]--;
+vwrite_user(user,"\07~FR~OL~LIUser %s deleted!\n",u->name);
+write_syslog(SYSLOG,1,"%s DELETED %s.\n",user->name,u->name);
 destruct_user(u);
 destructed=0;
 }
@@ -12497,41 +12549,39 @@ UR_OBJECT u;
 struct user_dir_struct *entry;
 
 /* don't do anything if not initiated by user and auto_purge isn't on */
-if (!type && !auto_purge) {
-  write_syslog("PURGE: Auto-purge is turned off.\n",0,SYSLOG);
-  purge_date=time(0)+(USER_EXPIRES*86400);
+if (!type && !amsys->auto_purge) {
+  write_syslog(SYSLOG,0,"PURGE: Auto-purge is turned off.\n");
+  amsys->purge_date=time(0)+(USER_EXPIRES*86400);
   return 0; 
   }
 /* write to syslog and update purge time where needed */
 switch(type) {
-  case 0: write_syslog("PURGE: Executed automatically on default.\n",1,SYSLOG);
-          purge_date=time(0)+(USER_EXPIRES*86400);
+  case 0: write_syslog(SYSLOG,1,"PURGE: Executed automatically on default.\n");
+          amsys->purge_date=time(0)+(USER_EXPIRES*86400);
           break;
-  case 1: write_syslog("PURGE: Executed manually on default.\n",1,SYSLOG);
-          purge_date=time(0)+(USER_EXPIRES*86400);
+  case 1: write_syslog(SYSLOG,1,"PURGE: Executed manually on default.\n");
+          amsys->purge_date=time(0)+(USER_EXPIRES*86400);
           break;
-  case 2: write_syslog("PURGE: Executed manually on site matching.\n",1,SYSLOG);
-          sprintf(text,"PURGE: Site given was '%s'.\n",purge_site);
-	  purge_date=time(0)+(USER_EXPIRES*86400);
-          write_syslog(text,0,SYSLOG);
+  case 2: write_syslog(SYSLOG,1,"PURGE: Executed manually on site matching.\n");
+          write_syslog(SYSLOG,0,"PURGE: Site given was '%s'.\n",purge_site);
+	  amsys->purge_date=time(0)+(USER_EXPIRES*86400);
           break;
-  case 3: write_syslog("PURGE: Executed manually on days given.\n",1,SYSLOG);
-          sprintf(text,"PURGE: Days given were '%d'.\n",purge_days);
-	  purge_date=time(0)+(USER_EXPIRES*86400);
-          write_syslog(text,0,SYSLOG);
+  case 3: write_syslog(SYSLOG,1,"PURGE: Executed manually on days given.\n");
+          write_syslog(SYSLOG,0,"PURGE: Days given were '%d'.\n",purge_days);
+	  amsys->purge_date=time(0)+(USER_EXPIRES*86400);
           break;
   } /* end switch */
-purge_count=purge_skip=users_purged=0;
+amsys->purge_count=amsys->purge_skip=amsys->users_purged=0;
 entry=first_dir_entry;
 while (entry!=NULL) {
   /* don't purge any logged on users */
   if (user_logged_on(entry->name)) {
-    purge_skip++;
+    amsys->purge_skip++;
     goto PURGE_SKIP;
     }
   /* if user is not on, then free to check for purging */
   if ((u=create_user())==NULL) {
-    write_syslog("ERROR: Unable to create temporary user object in purge().\n",0,SYSLOG);
+    write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in purge().\n");
     goto PURGE_SKIP;
     }
   strcpy(u->name,entry->name);
@@ -12539,12 +12589,12 @@ while (entry!=NULL) {
     rem_user_node(u->name,-1); /* get rid of name from userlist */
     clean_files(u->name); /* just incase there are any odd files around */
     clean_retire_list(u->name); /* just incase the user is retired */
-    level_count[u->level]--;
+    amsys->level_count[u->level]--;
     destruct_user(u);
     destructed=0;
     goto PURGE_SKIP;
     }
-  purge_count++;
+  amsys->purge_count++;
   switch(type) {
     case 0: /* automatic */
     case 1: /* manual default */
@@ -12553,10 +12603,9 @@ while (entry!=NULL) {
 	if (u->level>=WIZ) rem_wiz_node(u->name);
         clean_files(u->name);
 	clean_retire_list(u->name);
-        level_count[u->level]--;
-        sprintf(text,"PURGE: removed user '%s'\n",u->name);
-        write_syslog(text,0,SYSLOG);
-        users_purged++;
+        amsys->level_count[u->level]--;
+        write_syslog(SYSLOG,0,"PURGE: removed user '%s'\n",u->name);
+        amsys->users_purged++;
         destruct_user(u);
         destructed=0;
         goto PURGE_SKIP;
@@ -12568,10 +12617,9 @@ while (entry!=NULL) {
 	if (u->level>=WIZ) rem_wiz_node(u->name);
         clean_files(u->name);
 	clean_retire_list(u->name);
-        level_count[u->level]--;
-        sprintf(text,"PURGE: removed user '%s'\n",u->name);
-        write_syslog(text,0,SYSLOG);
-        users_purged++;
+        amsys->level_count[u->level]--;
+        write_syslog(SYSLOG,0,"PURGE: removed user '%s'\n",u->name);
+        amsys->users_purged++;
         destruct_user(u);
         destructed=0;
         goto PURGE_SKIP;
@@ -12583,10 +12631,9 @@ while (entry!=NULL) {
 	if (u->level>=WIZ) rem_wiz_node(u->name);
         clean_files(u->name);
 	clean_retire_list(u->name);
-        level_count[u->level]--;
-        sprintf(text,"PURGE: removed user '%s'\n",u->name);
-        write_syslog(text,0,SYSLOG);
-        users_purged++;
+        amsys->level_count[u->level]--;
+        write_syslog(SYSLOG,0,"PURGE: removed user '%s'\n",u->name);
+        amsys->users_purged++;
         destruct_user(u);
         destructed=0;
         goto PURGE_SKIP;
@@ -12599,9 +12646,8 @@ while (entry!=NULL) {
 PURGE_SKIP:
   entry=entry->next;
   }
-sprintf(text,"PURGE: Checked %d user%s (%d skipped), %d %s purged.\n\n",
-	purge_count,PLTEXT_S(purge_count),purge_skip,users_purged,PLTEXT_WAS(users_purged));
-write_syslog(text,0,SYSLOG);
+write_syslog(SYSLOG,0,"PURGE: Checked %d user%s (%d skipped), %d %s purged.\n\n",
+	amsys->purge_count,PLTEXT_S(amsys->purge_count),amsys->purge_skip,amsys->users_purged,PLTEXT_WAS(amsys->users_purged));
 /* just make sure that the count is all ok */
 count_users();
 return 1;
@@ -12643,8 +12689,7 @@ else if (!strcmp(word[1],"-s")) {
     write_user(user,"You cannot have *? in your site to purge.\n");
     return;
     }
-  sprintf(text,"~OL~FR***~RS Purging users with site '%s' ~OL~FR***\n",word[2]);
-  write_user(user,text);
+  vwrite_user(user,"~OL~FR***~RS Purging users with site '%s' ~OL~FR***\n",word[2]);
   purge(2,word[2],0);
   }
 else if (!strcmp(word[1],"-t")) {
@@ -12655,16 +12700,14 @@ else if (!strcmp(word[1],"-t")) {
   exp=atoi(word[2]);
   if (exp<=USER_EXPIRES) {
     write_user(user,"You cannot purge users who last logged in less than the default time.\n");
-    sprintf(text,"The current default is: %d days\n",USER_EXPIRES);
-    write_user(user,text);
+    vwrite_user(user,"The current default is: %d days\n",USER_EXPIRES);
     return;
     }
   if (exp<0 || exp>999) {
     write_user(user,"You must enter the amount days from 0-999.\n");
     return;
     }
-  sprintf(text,"~OL~FR***~RS Purging users who last logged in over '%d days' ago ~OL~FR***\n",exp);
-  write_user(user,text);
+  vwrite_user(user,"~OL~FR***~RS Purging users who last logged in over '%d days' ago ~OL~FR***\n",exp);
   purge(3,NULL,exp);
   }
 else {
@@ -12672,9 +12715,8 @@ else {
   return;
   }
 /* finished purging - give result */
-sprintf(text,"Checked ~OL%d~RS user%s (~OL%d~RS skipped), ~OL%d~RS %s purged.  User count is now ~OL%d~RS.\n",
-              purge_count,PLTEXT_S(purge_count),purge_skip,users_purged,PLTEXT_WAS(users_purged),user_count);
-write_user(user,text);
+vwrite_user(user,"Checked ~OL%d~RS user%s (~OL%d~RS skipped), ~OL%d~RS %s purged.  User count is now ~OL%d~RS.\n",
+              amsys->purge_count,PLTEXT_S(amsys->purge_count),amsys->purge_skip,amsys->users_purged,PLTEXT_WAS(amsys->users_purged),amsys->user_count);
 }
 
 
@@ -12691,28 +12733,23 @@ if (word_count<2) {
 if ((u=get_user(word[1]))) {
   if (!u->expire) {
     u->expire=1;
-    sprintf(text,"You have set it so %s will expire when a purge is run.\n",u->name);
-    write_user(user,text);
+    vwrite_user(user,"You have set it so %s will expire when a purge is run.\n",u->name);
     sprintf(text,"%s enables expiration with purge.\n",user->name);
     add_history(u->name,0,text);
-    sprintf(text,"%s enabled expiration on %s.\n",user->name,u->name);
-    write_syslog(text,1,SYSLOG);
+    write_syslog(SYSLOG,1,"%s enabled expiration on %s.\n",user->name,u->name);
     return;
     }
   u->expire=0;
-  sprintf(text,"You have set it so %s will no longer expire when a purge is run.\n",u->name);
-  write_user(user,text);
+  vwrite_user(user,"You have set it so %s will no longer expire when a purge is run.\n",u->name);
   sprintf(text,"%s disables expiration with purge.\n",user->name);
   add_history(u->name,0,text);
-  sprintf(text,"%s disabled expiration on %s.\n",user->name,u->name);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s disabled expiration on %s.\n",user->name,u->name);
   return;
   }
 /* user not logged on */
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user session.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user session in user_expires().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user session.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user session in user_expires().\n");
   return;
   }
 strcpy(u->name,word[1]);
@@ -12724,21 +12761,17 @@ if (!load_user_details(u)) {
   }
 if (!u->expire) {
   u->expire=1;
-  sprintf(text,"You have set it so %s will expire when a purge is run.\n",u->name);
-  write_user(user,text);
+  vwrite_user(user,"You have set it so %s will expire when a purge is run.\n",u->name);
   sprintf(text,"%s enables expiration with purge.\n",user->name);
   add_history(u->name,0,text);
-  sprintf(text,"%s enabled expiration on %s.\n",user->name,u->name);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s enabled expiration on %s.\n",user->name,u->name);
   save_user_details(u,0); destruct_user(u); destructed=0; return;
   }
 u->expire=0;
-sprintf(text,"You have set it so %s will no longer expire when a purge is run.\n",u->name);
-write_user(user,text);
+vwrite_user(user,"You have set it so %s will no longer expire when a purge is run.\n",u->name);
 sprintf(text,"%s disables expiration with purge.\n",user->name);
 add_history(u->name,0,text);
-sprintf(text,"%s disabled expiration on %s.\n",user->name,u->name);
-write_syslog(text,1,SYSLOG);
+write_syslog(SYSLOG,1,"%s disabled expiration on %s.\n",user->name,u->name);
 save_user_details(u,0); destruct_user(u); destructed=0; return;
 }
 
@@ -12760,9 +12793,8 @@ if ((u=get_user(word[1]))!=NULL) {
   }
 /* user not logged on */
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user session.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user session in create_account().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user session.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user session in create_account().\n");
   return;
   }
 if (strlen(word[1])>USER_NAME_LEN) {
@@ -12805,21 +12837,19 @@ if (!load_user_details(u)) {
   strcpy(u->email,"#UNSET");
   strcpy(u->homepage,"#UNSET");
   strcpy(u->icq,"#UNSET");
-  u->prompt=prompt_def;
+  u->prompt=amsys->prompt_def;
   u->charmode_echo=0;
   u->room=room_first;
   u->level=NEW; u->unarrest=NEW;
-  level_count[u->level]++;
-  user_count++;
+  amsys->level_count[u->level]++;
+  amsys->user_count++;
   save_user_details(u,0);
   add_user_node(u->name,u->level);
   add_user_date_node(user->name,(long_date(1)));
   sprintf(text,"Was manually created by %s.\n",user->name);
   add_history(u->name,1,text);
-  sprintf(text,"You have created an account with the name \"~FT%s~RS\" and password \"~FG%s~RS\".\n",u->name,word[2]);
-  write_user(user,text);
-  sprintf(text,"%s created a new account with the name '%s'\n",user->name,u->name);
-  write_syslog(text,1,SYSLOG);
+  vwrite_user(user,"You have created an account with the name \"~FT%s~RS\" and password \"~FG%s~RS\".\n",u->name,word[2]);
+  write_syslog(SYSLOG,1,"%s created a new account with the name '%s'\n",user->name,u->name);
   destruct_user(u);  destructed=0;  return;
   }
 write_user(user,"You cannot create an account with the name of an existing user!\n");
@@ -12835,17 +12865,15 @@ int cnt;
 
 cnt=0;
 for (u=user_first;u!=NULL;u=u->next) {
-  #ifdef NETLINKS
-    if (u->type==REMOTE_TYPE) continue;
-  #endif
+#ifdef NETLINKS
+  if (u->type==REMOTE_TYPE) continue;
+#endif
   if (u->type==CLONE_TYPE) continue;
   cnt++;
   save_user_details(u,1);
   }
-sprintf(text,"Manually saved %d user's details.\n",cnt);
-write_syslog(text,1,SYSLOG);
-sprintf(text,"You have manually saved %d user's details.\n",cnt);
-write_user(user,text);
+write_syslog(SYSLOG,1,"Manually saved %d user's details.\n",cnt);
+vwrite_user(user,"You have manually saved %d user's details.\n",cnt);
 }
 
 
@@ -12853,41 +12881,37 @@ write_user(user,text);
 void viewlog(UR_OBJECT user)
 {
 FILE *fp;
-char c,*emp="This log file is empty.\n\n",*logfile,filename[80];
-int lines,cnt,cnt2,type,level,i;
+char logfile[80],c,*emp="This log file is empty.\n\n";
+int lines,cnt,cnt2,type,level;
 
 if (word_count<2) {
   write_user(user,"Usage: viewlog sys/net/req/retired/<level name> [<lines from end>]\n");
   return;
   }
-logfile="";
+logfile[0]='\0';
 level=-1;
 strtoupper(word[1]);
-for (i=JAILED;i<=GOD;++i) {
-  if (!strcmp(word[1],level_name[i])) level=i;
-  }
+level=get_level(word[1]);
 if (word_count==2) {
   if (!strcmp(word[1],"SYS")) {
-    logfile=MAINSYSLOG;
+    sprintf(logfile,"%s/%s.%d",LOGFILES,MAINSYSLOG,amsys->pid);
     write_user(user,"\n~BB~FG*** System log ***\n\n");
     }
   else if (!strcmp(word[1],"NET")) {
-    logfile=NETSYSLOG;
+    sprintf(logfile,"%s/%s.%d",LOGFILES,NETSYSLOG,amsys->pid);
     write_user(user,"\n~BB~FG*** Netlink log ***\n\n");
     }
   else if (!strcmp(word[1],"REQ")) {
-    logfile=REQSYSLOG;
+    sprintf(logfile,"%s/%s.%d",LOGFILES,REQSYSLOG,amsys->pid);
     write_user(user,"\n~BB~FG*** Account Request log ***\n\n");
     }
   else if (!strcmp(word[1],"RETIRED")) {
-    sprintf(filename,"%s/%s",USERFILES,RETIRE_LIST);
-    logfile=filename;
+    sprintf(logfile,"%s/%s",USERFILES,RETIRE_LIST);
     write_user(user,"\n~BB~FG*** Retired Wiz log ***\n\n");
     }
   else if (level>=0) {
-    sprintf(text,"\n~BB~FG*** User list for level '%s' ***\n\n",level_name[level]);
-    write_user(user,text);
-    if (!level_count[level]) {
+    vwrite_user(user,"\n~BB~FG*** User list for level '%s' ***\n\n",user_level[level].name);
+    if (!amsys->level_count[level]) {
       write_user(user,emp);
       return;
       }
@@ -12913,31 +12937,24 @@ if ((lines=atoi(word[2]))<1) {
   }
 type=0;
 /* find out which log */
-if (!strcmp(word[1],"SYS")) { logfile=MAINSYSLOG; type=SYSLOG; }
-if (!strcmp(word[1],"NET")) { logfile=NETSYSLOG;  type=NETLOG; }
-if (!strcmp(word[1],"REQ")) { logfile=REQSYSLOG;  type=REQLOG; }
-if (!strcmp(word[1],"RETIRED")) {
-  sprintf(filename,"%s/%s",USERFILES,RETIRE_LIST);
-  logfile=filename;
-  type=-1;
-  }
+if (!strcmp(word[1],"SYS")) { sprintf(logfile,"%s/%s.%d",LOGFILES,MAINSYSLOG,amsys->pid);  type=SYSLOG; }
+if (!strcmp(word[1],"NET")) { sprintf(logfile,"%s/%s.%d",LOGFILES,NETSYSLOG,amsys->pid);   type=NETLOG; }
+if (!strcmp(word[1],"REQ")) { sprintf(logfile,"%s/%s.%d",LOGFILES,REQSYSLOG,amsys->pid);   type=REQLOG; }
+if (!strcmp(word[1],"RETIRED")) { sprintf(logfile,"%s/%s",USERFILES,RETIRE_LIST);  type=-1; }
 if (level>=0) {
-  if (!level_count[level]) {
+  if (!amsys->level_count[level]) {
     write_user(user,emp);
     return;
     }
-  if (lines>level_count[level]) {
-    sprintf(text,"There %s only %d line%s in the log.\n",PLTEXT_IS(level_count[level]),level_count[level],PLTEXT_S(level_count[level]));
-    write_user(user,text);
+  if (lines>amsys->level_count[level]) {
+    vwrite_user(user,"There %s only %d line%s in the log.\n",PLTEXT_IS(amsys->level_count[level]),amsys->level_count[level],PLTEXT_S(amsys->level_count[level]));
     return;
     }
-  if (lines==level_count[level])
-    sprintf(text,"\n~BB~FG*** User list for level '%s' ***\n\n",level_name[level]);
+  if (lines==amsys->level_count[level]) vwrite_user(user,"\n~BB~FG*** User list for level '%s' ***\n\n",user_level[level].name);
   else {
-    user->user_page_pos=level_count[level]-lines;
-    sprintf(text,"\n~BB~FG*** User list for level '%s' (last %d line%s) ***\n\n",level_name[level],lines,PLTEXT_S(lines));
+    user->user_page_pos=amsys->level_count[level]-lines;
+    vwrite_user(user,"\n~BB~FG*** User list for level '%s' (last %d line%s) ***\n\n",user_level[level].name,lines,PLTEXT_S(lines));
     }
-  write_user(user,text);
   user->user_page_lev=level;
   switch(more_users(user)) {
     case 0: write_user(user,emp);  return;
@@ -12956,8 +12973,7 @@ while(!feof(fp)) {
   c=getc(fp);
   }
 if (cnt<lines) {
-  sprintf(text,"There %s only %d line%s in the log.\n",PLTEXT_IS(cnt),cnt,PLTEXT_S(cnt));
-  write_user(user,text);
+  vwrite_user(user,"There %s only %d line%s in the log.\n",PLTEXT_IS(cnt),cnt,PLTEXT_S(cnt));
   fclose(fp);
   return;
   }
@@ -12980,12 +12996,11 @@ while(!feof(fp)) {
   c=getc(fp);
   if (cnt2==cnt-lines) {
     switch(type) {
-      case SYSLOG: sprintf(text,"\n~BB~FG*** System log (last %d line%s) ***\n\n",lines,PLTEXT_S(lines));  break;
-      case NETLOG: sprintf(text,"\n~BB~FG*** Netlink log (last %d line%s) ***\n\n",lines,PLTEXT_S(lines));  break;
-      case REQLOG: sprintf(text,"\n~BB~FG*** Account Request log (last %d line%s) ***\n\n",lines,PLTEXT_S(lines));  break;
-          case -1: sprintf(text,"\n~BB~FG*** Retired Wiz log (last %d line%s) ***\n\n",lines,PLTEXT_S(lines));  break;
+      case SYSLOG: vwrite_user(user,"\n~BB~FG*** System log (last %d line%s) ***\n\n",lines,PLTEXT_S(lines));  break;
+      case NETLOG: vwrite_user(user,"\n~BB~FG*** Netlink log (last %d line%s) ***\n\n",lines,PLTEXT_S(lines));  break;
+      case REQLOG: vwrite_user(user,"\n~BB~FG*** Account Request log (last %d line%s) ***\n\n",lines,PLTEXT_S(lines));  break;
+          case -1: vwrite_user(user,"\n~BB~FG*** Retired Wiz log (last %d line%s) ***\n\n",lines,PLTEXT_S(lines));  break;
       }
-    write_user(user,text);
     user->filepos=ftell(fp)-1;
     fclose(fp);
     if (more(user,user->socket,logfile)!=1) user->filepos=0;
@@ -12994,9 +13009,8 @@ while(!feof(fp)) {
     }
   }
 fclose(fp);
-sprintf(text,"%s: Line count error.\n",syserror);
-write_user(user,text);
-write_syslog("ERROR: Line count error in viewlog().\n",0,SYSLOG);
+vwrite_user(user,"%s: Line count error.\n",syserror);
+write_syslog(SYSLOG,0,"ERROR: Line count error in viewlog().\n");
 }
 
 
@@ -13019,15 +13033,13 @@ if (word_count==2) {
     return;
     }
   if ((u=get_user(word[1]))) {
-    sprintf(text,"%s is currently logged on.\n",u->name);
-    write_user(user,text);
+    vwrite_user(user,"%s is currently logged on.\n",u->name);
     return;
     }
   /* User not logged in */
   if ((u=create_user())==NULL) {
-    sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-    write_user(user,text);
-    write_syslog("ERROR: Unable to create temporary user object in show_last().\n",0,SYSLOG);
+    vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+    write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in show_last().\n");
     return;
     }
   strcpy(u->name,word[1]);
@@ -13042,20 +13054,16 @@ if (word_count==2) {
   hours=(timelen%86400)/3600;
   mins=(timelen%3600)/60;
   write_user(user,"\n+----------------------------------------------------------------------------+\n");
-  sprintf(text,"| ~FT~OLLast login details of %-52s~RS |\n",u->name);
-  write_user(user,text);
+  vwrite_user(user,"| ~FT~OLLast login details of %-52s~RS |\n",u->name);
   write_user(user,"+----------------------------------------------------------------------------+\n");
   strcpy(tmp,ctime((time_t *)&(u->last_login)));
   tmp[strlen(tmp)-1]='\0';
-  sprintf(text,"| Was last logged in %-55s |\n",tmp);
-  write_user(user,text);
+  vwrite_user(user,"| Was last logged in %-55s |\n",tmp);
   sprintf(tmp,"Which was %d day%s, %d hour%s and %d minute%s ago",days,PLTEXT_S(days),hours,PLTEXT_S(hours),mins,PLTEXT_S(mins));
-  sprintf(text,"| %-74s |\n",tmp);
-  write_user(user,text);
+  vwrite_user(user,"| %-74s |\n",tmp);
   sprintf(tmp,"Was on for %d hour%s and %d minute%s",
 	  u->last_login_len/3600,PLTEXT_S(u->last_login_len/3600),(u->last_login_len%3600)/60,PLTEXT_S((u->last_login_len%3600)/60));
-  sprintf(text,"| %-74s |\n",tmp);
-  write_user(user,text);
+  vwrite_user(user,"| %-74s |\n",tmp);
   write_user(user,"+----------------------------------------------------------------------------+\n\n");
   destruct_user(u);
   destructed=0;
@@ -13123,40 +13131,29 @@ if (stage==1) {
       if (u_loop==u) continue;
       if (!strcmp(u->site,u_loop->site)) {
 	same++;
-	if (++found==1) {
-	  sprintf(text,"\n~BB~FG*** Users logged on from the same site as ~OL%s~RS~BB~FG ***\n\n",u->name);
-	  write_user(user,text);
-          }
+	if (++found==1) vwrite_user(user,"\n~BB~FG*** Users logged on from the same site as ~OL%s~RS~BB~FG ***\n\n",u->name);
 	sprintf(text,"    %s %s\n",u_loop->name,u_loop->desc);
 	if (u_loop->type==REMOTE_TYPE) text[2]='@';
 	if (!u_loop->vis) text[3]='*';
 	write_user(user,text);
         }
       }
-    if (!found) {
-      sprintf(text,"No users currently logged on have the same site as %s.\n",u->name);
-      write_user(user,text);
-      }
-    else {
-      sprintf(text,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s~RS ~FG(%s)\n\n",cnt,same,u->name,u->site);
-      write_user(user,text);
-      }
+    if (!found) vwrite_user(user,"No users currently logged on have the same site as %s.\n",u->name);
+    else vwrite_user(user,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s~RS ~FG(%s)\n\n",cnt,same,u->name,u->site);
     return;
     }
   /* check all the users..  First, load the name given */
   if (!(u=get_user(user->samesite_check_store))) {
     if ((u=create_user())==NULL) {
-      sprintf(text,"%s: unable to create temporary user session.\n",syserror);
-      write_user(user,text);
-      write_syslog("ERROR: Unable to create temporary user session in samesite() - stage 1/all.\n",0,SYSLOG);
+      vwrite_user(user,"%s: unable to create temporary user session.\n",syserror);
+      write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user session in samesite() - stage 1/all.\n");
       return;
       }
     strcpy(u->name,user->samesite_check_store);
     if (!load_user_details(u)) {
       destruct_user(u); destructed=0;
-      sprintf(text,"Sorry, unable to load user file for %s.\n",user->samesite_check_store);
-      write_user(user,text);
-      write_syslog("ERROR: Unable to load user details in samesite() - stage 1/all.\n",0,SYSLOG);
+      vwrite_user(user,"Sorry, unable to load user file for %s.\n",user->samesite_check_store);
+      write_syslog(SYSLOG,0,"ERROR: Unable to load user details in samesite() - stage 1/all.\n");
       return;
       }
     on=0;
@@ -13169,7 +13166,7 @@ if (stage==1) {
     entry->name[0]=toupper(entry->name[0]); /* just incase */
     /* create a user object if user not already logged on */
     if ((u_loop=create_user())==NULL) {
-      write_syslog("ERROR: Unable to create temporary user session in samesite().\n",0,SYSLOG);
+      write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user session in samesite().\n");
       goto SAME_SKIP1;
       }
     strcpy(u_loop->name,entry->name);
@@ -13180,12 +13177,8 @@ if (stage==1) {
     cnt++;
     if ((on && !strcmp(u->site,u_loop->last_site)) || (!on && !strcmp(u->last_site,u_loop->last_site))) {
       same++;
-      if (++found==1) {
-	sprintf(text,"\n~BB~FG*** All users from the same site as ~OL%s~RS~BB~FG ***\n\n",u->name);
-	write_user(user,text);
-        }
-      sprintf(text,"    %s %s\n",u_loop->name,u_loop->desc);
-      write_user(user,text);
+      if (++found==1) vwrite_user(user,"\n~BB~FG*** All users from the same site as ~OL%s~RS~BB~FG ***\n\n",u->name);
+      vwrite_user(user,"    %s %s\n",u_loop->name,u_loop->desc);
       destruct_user(u_loop);
       destructed=0;
       goto SAME_SKIP1;
@@ -13195,14 +13188,10 @@ if (stage==1) {
   SAME_SKIP1:
     entry=entry->next;
     }
-  if (!found) {
-    sprintf(text,"No users have the same site as %s.\n",u->name);
-    write_user(user,text);
-    }
+  if (!found) vwrite_user(user,"No users have the same site as %s.\n",u->name);
   else {
-    if (!on) sprintf(text,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s~RS ~FG(%s)\n\n",cnt,same,u->name,u->last_site);
-    else sprintf(text,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s~RS ~FG(%s)\n\n",cnt,same,u->name,u->site);
-    write_user(user,text);
+    if (!on) vwrite_user(user,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s~RS ~FG(%s)\n\n",cnt,same,u->name,u->last_site);
+    else vwrite_user(user,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s~RS ~FG(%s)\n\n",cnt,same,u->name,u->site);
     }
   if (!on) { destruct_user(u);  destructed=0; }
   return;
@@ -13230,23 +13219,14 @@ if (stage==2) {
       cnt++;
       if (pattern_match(u->site,user->samesite_check_store)) continue;
       same++;
-      if (++found==1) {
-	sprintf(text,"\n~BB~FG*** Users logged on from the same site as ~OL%s~RS~BB~FG ***\n\n",user->samesite_check_store);
-	write_user(user,text);
-        }
+      if (++found==1) vwrite_user(user,"\n~BB~FG*** Users logged on from the same site as ~OL%s~RS~BB~FG ***\n\n",user->samesite_check_store);
       sprintf(text,"    %s %s\n",u->name,u->desc);
       if (u->type==REMOTE_TYPE) text[2]='@';
       if (!u->vis) text[3]='*';
       write_user(user,text);
       }
-    if (!found) {
-      sprintf(text,"No users currently logged on have that same site as %s.\n",user->samesite_check_store);
-      write_user(user,text);
-      }
-    else {
-      sprintf(text,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s\n\n",cnt,same,user->samesite_check_store);
-      write_user(user,text);
-      }
+    if (!found) vwrite_user(user,"No users currently logged on have that same site as %s.\n",user->samesite_check_store);
+    else vwrite_user(user,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s\n\n",cnt,same,user->samesite_check_store);
     return;
     }
   /* check all the users.. */
@@ -13257,7 +13237,7 @@ if (stage==2) {
     entry->name[0]=toupper(entry->name[0]);
     /* create a user object if user not already logged on */
     if ((u_loop=create_user())==NULL) {
-      write_syslog("ERROR: Unable to create temporary user session in samesite() - stage 2/all.\n",0,SYSLOG);
+      write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user session in samesite() - stage 2/all.\n");
       goto SAME_SKIP2;
       }
     strcpy(u_loop->name,entry->name);
@@ -13268,12 +13248,8 @@ if (stage==2) {
     cnt++;
     if ((pattern_match(u_loop->last_site,user->samesite_check_store))) {
       same++;
-      if (++found==1) {
-	sprintf(text,"\n~BB~FG*** All users that have the site ~OL%s~RS~BB~FG ***\n\n",user->samesite_check_store);
-	write_user(user,text);
-        }
-      sprintf(text,"    %s %s\n",u_loop->name,u_loop->desc);
-      write_user(user,text);
+      if (++found==1) vwrite_user(user,"\n~BB~FG*** All users that have the site ~OL%s~RS~BB~FG ***\n\n",user->samesite_check_store);
+      vwrite_user(user,"    %s %s\n",u_loop->name,u_loop->desc);
       destruct_user(u_loop);
       destructed=0;
       goto SAME_SKIP2;
@@ -13283,14 +13259,10 @@ if (stage==2) {
   SAME_SKIP2:
     entry=entry->next;
     }
-  if (!found) {
-    sprintf(text,"No users have the same site as %s.\n",user->samesite_check_store);
-    write_user(user,text);
-    }
+  if (!found) vwrite_user(user,"No users have the same site as %s.\n",user->samesite_check_store);
   else {
-    if (!on) sprintf(text,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s~RS\n\n",cnt,same,user->samesite_check_store);
-    else sprintf(text,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s~RS\n\n",cnt,same,user->samesite_check_store);
-    write_user(user,text);
+    if (!on) vwrite_user(user,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s~RS\n\n",cnt,same,user->samesite_check_store);
+    else vwrite_user(user,"\nChecked ~FM~OL%d~RS users, ~FM~OL%d~RS had the site as ~FG~OL%s~RS\n\n",cnt,same,user->samesite_check_store);
     }
   return;
   } /* end of stage 2 */
@@ -13307,19 +13279,17 @@ if (word_count<2) {
   }
 /* User currently logged in */
 if ((u=get_user(word[1]))) {
-  #ifdef NETLINKS
-    if (u->type==REMOTE_TYPE) sprintf(text,"%s is remotely connected from %s.\n",u->name,u->site);
-    else 
-  #endif
-      sprintf(text,"%s is logged in from %s (%s) : %d.\n",u->name,u->site,u->ipsite,u->site_port);
-  write_user(user,text);
+#ifdef NETLINKS
+  if (u->type==REMOTE_TYPE) vwrite_user(user,"%s is remotely connected from %s.\n",u->name,u->site);
+  else 
+#endif
+    vwrite_user(user,"%s is logged in from %s (%s) : %d.\n",u->name,u->site,u->ipsite,u->site_port);
   return;
   }
 /* User not logged in */
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user object in site().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in site().\n");
   return;
   }
 strcpy(u->name,word[1]);
@@ -13329,8 +13299,7 @@ if (!load_user_details(u)) {
   destructed=0;
   return;
   }
-sprintf(text,"~OL%s~RS was last logged in from ~OL~FT%s~RS.\n",word[1],u->last_site);
-write_user(user,text);
+vwrite_user(user,"~OL%s~RS was last logged in from ~OL~FT%s~RS.\n",word[1],u->last_site);
 destruct_user(u);
 destructed=0;
 }
@@ -13353,9 +13322,8 @@ if (!(find_user_listed(word[1]))) {
   }
 inpstr=remove_first(inpstr);
 sprintf(text,"%-*s : %s\n",USER_NAME_LEN,user->name,inpstr);
-add_history(word[1],0,text);
-sprintf(text,"You have added to %s's history list.\n",word[1]);
-write_user(user,text);
+add_history(word[1],1,text);
+vwrite_user(user,"You have added to %s's history list.\n",word[1]);
 }
 
 
@@ -13372,8 +13340,7 @@ if (!(find_user_listed(word[1]))) {
   write_user(user,nosuchuser);  return;
   }
 sprintf(filename,"%s/%s/%s.H",USERFILES,USERHISTORYS,word[1]);
-sprintf(text,"~BB~FG*** The history of user ~OL%s~RS~BB~FG is as follows ***\n\n",word[1]);
-write_user(user,text);
+vwrite_user(user,"~BB~FG*** The history of user ~OL%s~RS~BB~FG is as follows ***\n\n",word[1]);
 switch(more(user,user->socket,filename)) {
   case 0: sprintf(text,"%s has no previously recorded history.\n\n",word[1]);
           write_user(user,text);  break;
@@ -13382,20 +13349,111 @@ switch(more(user,user->socket,filename)) {
 }
 
 
-/*** Switch system logging on and off ***/
+/*** Turn on and off each individual system log, or globally on/off ***/
 void logging(UR_OBJECT user)
 {
-if (system_logging) {
-  write_user(user,"System logging ~FROFF.\n");
-  sprintf(text,"%s switched system logging OFF.\n",user->name);
-  write_syslog(text,1,SYSLOG);
-  system_logging=0;
+char temp[ARR_SIZE];
+int cnt;
+
+if (word_count<2) {
+  write_user(user,"Usage: logging -l/-s/-r/-n/-on/-off\n");
   return;
   }
-system_logging=1;
-write_user(user,"System logging ~FGON.\n");
-sprintf(text,"%s switched system logging ON.\n",user->name);
-write_syslog(text,1,SYSLOG);
+cnt=0;
+strtolower(word[1]);
+/* deal with listing the log status first */
+if (!strcmp(word[1],"-l")) {
+  write_user(user,"\n+----------------------------------------------------------------------------+\n");
+  write_user(user,"| ~OL~FTSystem log status~RS                                                          |\n");
+  write_user(user,"+----------------------------------------------------------------------------+\n");
+  sprintf(temp,"General system log : ~OL%s~RS   Account request logs : ~OL%s~RS   Netlinks log : ~OL%s~RS",
+	  (BIT_TEST(amsys->logging,SYSLOG))?"ON ":"OFF",(BIT_TEST(amsys->logging,REQLOG))?"ON ":"OFF",(BIT_TEST(amsys->logging,NETLOG))?"ON ":"OFF");
+  cnt=colour_com_count(temp);
+  vwrite_user(user,"| %-*s |\n",74+cnt*3,temp);
+  write_user(user,"+----------------------------------------------------------------------------+\n\n");
+  return;
+  }
+/* (un)set syslog bit */
+if (!strcmp(word[1],"-s")) {
+  /* if on already */
+  if (BIT_TEST(amsys->logging,SYSLOG)) {
+    write_syslog(SYSLOG,1,"%s switched general system logging OFF.\n",user->name);
+    amsys->logging=BIT_FLIP(amsys->logging,SYSLOG);
+    }
+  else {
+    amsys->logging=BIT_FLIP(amsys->logging,SYSLOG);
+    write_syslog(SYSLOG,1,"%s switched general system logging ON.\n",user->name);
+    }
+  vwrite_user(user,"You have now turned the general system logging %s.\n",(BIT_TEST(amsys->logging,SYSLOG))?"~OL~FGON~RS":"~OL~FROFF~RS");
+  return;
+  }
+/* (un)set reqlog bit */
+if (!strcmp(word[1],"-r")) {
+  /* if on already */
+  if (BIT_TEST(amsys->logging,REQLOG)) {
+    write_syslog(REQLOG,1,"%s switched account request logging OFF.\n",user->name);
+    amsys->logging=BIT_FLIP(amsys->logging,REQLOG);
+    }
+  else {
+    amsys->logging=BIT_FLIP(amsys->logging,REQLOG);
+    write_syslog(REQLOG,1,"%s switched account request logging ON.\n",user->name);
+    }
+  vwrite_user(user,"You have now turned the account logging logging %s.\n",(BIT_TEST(amsys->logging,REQLOG))?"~OL~FGON~RS":"~OL~FROFF~RS");
+  return;
+  }
+/* (un)set netlog bit */
+if (!strcmp(word[1],"-n")) {
+#ifndef NETLINKS
+  write_user(user,"Netlinks are not currently active.\n");
+  return;
+#endif
+  /* if on already */
+  if (BIT_TEST(amsys->logging,NETLOG)) {
+    write_syslog(NETLOG,1,"%s switched netlink logging OFF.\n",user->name);
+    amsys->logging=BIT_FLIP(amsys->logging,NETLOG);
+    }
+  else {
+    amsys->logging=BIT_FLIP(amsys->logging,NETLOG);
+    write_syslog(NETLOG,1,"%s switched netlink logging ON.\n",user->name);
+    }
+  vwrite_user(user,"You have now turned the netlink logging %s.\n",(BIT_TEST(amsys->logging,NETLOG))?"~OL~FGON~RS":"~OL~FROFF~RS");
+  return;
+  }
+/* set all bit */
+if (!strcmp(word[1],"-on")) {
+  if (!(BIT_TEST(amsys->logging,SYSLOG))) {
+    amsys->logging=BIT_SET(amsys->logging,SYSLOG);
+    write_syslog(SYSLOG,1,"%s switched general system logging ON.\n",user->name);
+    }
+  if (!(BIT_TEST(amsys->logging,REQLOG))) {
+    amsys->logging=BIT_SET(amsys->logging,REQLOG);
+    write_syslog(REQLOG,1,"%s switched acount request logging ON.\n",user->name);
+    }
+  if (!(BIT_TEST(amsys->logging,NETLOG))) {
+    amsys->logging=BIT_SET(amsys->logging,NETLOG);
+    write_syslog(NETLOG,1,"%s switched netlink logging ON.\n",user->name);
+    }
+  write_user(user,"You have now turned all logging ~OL~FGON~RS.\n");
+  return;
+  }
+/* unset all bit */
+if (!strcmp(word[1],"-off")) {
+  if (BIT_TEST(amsys->logging,SYSLOG)) {
+    write_syslog(SYSLOG,1,"%s switched general system logging OFF.\n",user->name);
+    amsys->logging=BIT_CLR(amsys->logging,SYSLOG);
+    }
+  if (BIT_TEST(amsys->logging,REQLOG)) {
+    write_syslog(REQLOG,1,"%s switched acount request logging OFF.\n",user->name);
+    amsys->logging=BIT_CLR(amsys->logging,REQLOG);
+    }
+  if (BIT_TEST(amsys->logging,NETLOG)) {
+    write_syslog(NETLOG,1,"%s switched netlink logging OFF.\n",user->name);
+    amsys->logging=BIT_CLR(amsys->logging,NETLOG);
+    }
+  write_user(user,"You have now turned all logging ~OL~FROFF~RS.\n");
+  return;
+  }
+write_user(user,"Usage: logging -l/-s/-r/-n/-on/-off\n");
 }
 
 
@@ -13418,22 +13476,19 @@ if ((lev=get_level(word[1]))==-1) {
   lev=-1;
   strcpy(levstr,"NONE");
   }
-else strcpy(levstr,level_name[lev]);
+else strcpy(levstr,user_level[lev].name);
 if (lev>user->level) {
   write_user(user,"You cannot set minlogin to a higher level than your own.\n");
   return;
   }
-if (minlogin_level==lev) {
+if (amsys->minlogin_level==lev) {
   write_user(user,"It is already set to that.\n");  return;
   }
-minlogin_level=lev;
-sprintf(text,"Minlogin level set to: ~OL%s.\n",levstr);
-write_user(user,text);
+amsys->minlogin_level=lev;
+vwrite_user(user,"Minlogin level set to: ~OL%s.\n",levstr);
 if (user->vis) name=user->name; else name=invisname;
-sprintf(text,"%s has set the minlogin level to: ~OL%s.\n",name,levstr);
-write_room_except(NULL,text,user);
-sprintf(text,"%s set the minlogin level to %s.\n",user->name,levstr);
-write_syslog(text,1,SYSLOG);
+vwrite_room_except(NULL,user,"%s has set the minlogin level to: ~OL%s.\n",name,levstr);
+write_syslog(SYSLOG,1,"%s set the minlogin level to %s.\n",user->name,levstr);
 
 /* Now boot off anyone below that level */
 cnt=0;
@@ -13447,9 +13502,8 @@ while(u) {
     }
   u=next;
   }
-sprintf(text,"Total of %d users were disconnected.\n",cnt);
+vwrite_user(user,"Total of ~OL%d~RS users were disconnected.\n",cnt);
 destructed=0;
-write_user(user,text);
 }
 
 
@@ -13463,17 +13517,17 @@ RM_OBJECT rm;
 UR_OBJECT u;
 char bstr[40],min_login[5];
 char *ca[]={ "NONE  ","IGNORE","REBOOT" };
+char *rip[]={"OFF","AUTO","MANUAL"};
 int days,hours,mins,secs;
 int netlinks,live,inc,outg;
 int rms,inlinks,num_clones,mem,size;
 write_user(user,"\n+----------------------------------------------------------------------------+\n");
-sprintf(text,"~OL~FTSystem details for %s~RS (Amnuts version %s)\n",talker_name,AMNUTSVER);
-write_user(user,text);
+vwrite_user(user,"~OL~FTSystem details for %s~RS (Amnuts version %s)\n",talker_name,AMNUTSVER);
 write_user(user,"+----------------------------------------------------------------------------+\n");
 
 /* Get some values */
-strcpy(bstr,ctime(&boot_time));
-secs=(int)(time(0)-boot_time);
+strcpy(bstr,ctime(&amsys->boot_time));
+secs=(int)(time(0)-amsys->boot_time);
 days=secs/86400;
 hours=(secs%86400)/3600;
 mins=(secs%3600)/60;
@@ -13489,9 +13543,9 @@ rms=0;
 inlinks=0;
 size=sizeof(struct room_struct);
 for(rm=room_first;rm!=NULL;rm=rm->next) {
-  #ifdef NETLINKS
-    if (rm->inlink) ++inlinks;
-  #endif
+#ifdef NETLINKS
+  if (rm->inlink) ++inlinks;
+#endif
   ++rms;  mem+=size;
   }
 netlinks=0;  
@@ -13507,63 +13561,41 @@ outg=0;
     ++netlinks;  mem+=size;
     }
 #endif
-if (minlogin_level==-1) strcpy(min_login,"NONE");
-else strcpy(min_login,level_name[minlogin_level]);
+if (amsys->minlogin_level==-1) strcpy(min_login,"NONE");
+else strcpy(min_login,user_level[amsys->minlogin_level].name);
 
 /* Show header parameters */
 #ifdef NETLINKS
-  sprintf(text,"~FTProcess ID   : ~FG%-20d   ~FTPorts (M/W/L): ~FG%d,  %d,  %d\n",(int)getpid(),port[0],port[1],port[2]);
+  vwrite_user(user,"~FTProcess ID   : ~FG%-20d   ~FTPorts (M/W/L): ~FG%d,  %d,  %d\n",amsys->pid,port[0],port[1],port[2]);
 #else
-  sprintf(text,"~FTProcess ID   : ~FG%-20d   ~FTPorts (M/W): ~FG%d,  %d\n",(int)getpid(),port[0],port[1]);
+  vwrite_user(user,"~FTProcess ID   : ~FG%-20d   ~FTPorts (M/W): ~FG%d,  %d\n",amsys->pid,port[0],port[1]);
 #endif
-write_user(user,text);
-sprintf(text,"~FTTalker booted: ~FG%s~FTUptime       : ~FG%d day%s, %d hour%s, %d minute%s, %d second%s\n",
+vwrite_user(user,"~FTTalker booted: ~FG%s~FTUptime       : ~FG%d day%s, %d hour%s, %d minute%s, %d second%s\n",
 	bstr,days,PLTEXT_S(days),hours,PLTEXT_S(hours),mins,PLTEXT_S(mins),secs,PLTEXT_S(secs));
-write_user(user,text);
 write_user(user,"+----------------------------------------------------------------------------+\n");
 /* Show others */
-sprintf(text,"Max users              : %-3d          Current num. of users  : %d\n",max_users,num_of_users);
-write_user(user,text);
-sprintf(text,"New users this boot    : %-3d          Old users this boot    : %d\n",logons_new,logons_old);
-write_user(user,text);
-sprintf(text,"Max clones             : %-2d           Current num. of clones : %d\n",max_clones,num_clones);
-write_user(user,text);
-sprintf(text,"Current minlogin level : %-4s         Login idle time out    : %d secs.\n",min_login,login_idle_time);
-write_user(user,text);
-sprintf(text,"User idle time out     : %-4d secs.   Heartbeat              : %d\n",user_idle_time,heartbeat);
-write_user(user,text);
-sprintf(text,"Remote user maxlevel   : %-12s Remote user deflevel   : %s\n",level_name[rem_user_maxlevel],level_name[rem_user_deflevel]);
-write_user(user,text);
-sprintf(text,"Wizport min login level: %-12s Gatecrash level        : %s\n",level_name[wizport_level],level_name[gatecrash_level]);
-write_user(user,text);
-sprintf(text,"Time out maxlevel      : %-12s Private room min count : %d\n",level_name[time_out_maxlevel],min_private_users);
-write_user(user,text);
-sprintf(text,"Message lifetime       : %-2d days      Message check time     : %02d:%02d\n",mesg_life,mesg_check_hour,mesg_check_min);
-write_user(user,text);
-sprintf(text,"Net idle time out      : %-4d secs.   Number of rooms        : %d\n",net_idle_time,rms);
-write_user(user,text);
-sprintf(text,"Num. accepting connects: %-2d           Total netlinks         : %d\n",inlinks,netlinks);
-write_user(user,text);
-sprintf(text,"Number which are live  : %-2d           Number incoming        : %d\n",live,inc);
-write_user(user,text);
-sprintf(text,"Number outgoing        : %-2d           Ignoring sigterm       : %s\n",outg,noyes2[ignore_sigterm]);
-write_user(user,text);
-sprintf(text,"Echoing passwords      : %s          Swearing ban status    : %s\n",noyes2[password_echo],minmax[ban_swearing]);
-write_user(user,text);
-sprintf(text,"Time out afks          : %s          Names recaps allowed   : %s\n",noyes2[time_out_afks],noyes2[allow_recaps]);
-write_user(user,text);
-sprintf(text,"New user prompt default: %s          New user colour default: %s\n",offon[prompt_def],offon[colour_def]);
-write_user(user,text);
-sprintf(text,"New user charecho def. : %s          System logging         : %s\n",offon[charecho_def],offon[system_logging]);
-write_user(user,text);
-sprintf(text,"Crash action           : %s       Object memory allocated: %d\n",ca[crash_action],mem);
-write_user(user,text);
-sprintf(text,"User purge length      : %-3d days     Newbie purge length    : %-3d days\n",USER_EXPIRES,NEWBIE_EXPIRES);
-write_user(user,text);
-sprintf(text,"Smail auto-forwarding  : %s          Auto purge on          : %s\n",offon[forwarding],noyes2[auto_purge]);
-write_user(user,text);
-sprintf(text,"Next auto purge date   : %s",ctime((time_t *)&purge_date));
-write_user(user,text);
+vwrite_user(user,"Max users              : %-3d          Current num. of users  : %d\n",amsys->max_users,amsys->num_of_users);
+vwrite_user(user,"New users this boot    : %-3d          Old users this boot    : %d\n",amsys->logons_new,amsys->logons_old);
+vwrite_user(user,"Max clones             : %-2d           Current num. of clones : %d\n",amsys->max_clones,num_clones);
+vwrite_user(user,"Current minlogin level : %-4s         Login idle time out    : %d secs.\n",min_login,amsys->login_idle_time);
+vwrite_user(user,"User idle time out     : %-4d secs.   Heartbeat              : %d\n",amsys->user_idle_time,amsys->heartbeat);
+vwrite_user(user,"Remote user maxlevel   : %-12s Remote user deflevel   : %s\n",user_level[amsys->rem_user_maxlevel].name,user_level[amsys->rem_user_deflevel].name);
+vwrite_user(user,"Wizport min login level: %-12s Gatecrash level        : %s\n",user_level[amsys->wizport_level].name,user_level[amsys->gatecrash_level].name);
+vwrite_user(user,"Time out maxlevel      : %-12s Private room min count : %d\n",user_level[amsys->time_out_maxlevel].name,amsys->min_private_users);
+vwrite_user(user,"Message lifetime       : %-2d days      Message check time     : %02d:%02d\n",amsys->mesg_life,amsys->mesg_check_hour,amsys->mesg_check_min);
+vwrite_user(user,"Net idle time out      : %-4d secs.   Number of rooms        : %d\n",amsys->net_idle_time,rms);
+vwrite_user(user,"Num. accepting connects: %-2d           Total netlinks         : %d\n",inlinks,netlinks);
+vwrite_user(user,"Number which are live  : %-2d           Number incoming        : %d\n",live,inc);
+vwrite_user(user,"Number outgoing        : %-2d           Ignoring sigterm       : %s\n",outg,noyes2[amsys->ignore_sigterm]);
+vwrite_user(user,"Echoing passwords      : %s          Swearing ban status    : %s\n",noyes2[amsys->password_echo],minmax[amsys->ban_swearing]);
+vwrite_user(user,"Time out afks          : %s          Names recaps allowed   : %s\n",noyes2[amsys->time_out_afks],noyes2[amsys->allow_recaps]);
+vwrite_user(user,"New user prompt default: %s          New user colour default: %s\n",offon[amsys->prompt_def],offon[amsys->colour_def]);
+vwrite_user(user,"New user charecho def. : %s          System logging         : %s\n",offon[amsys->charecho_def],offon[(amsys->logging)?1:0]);
+vwrite_user(user,"Crash action           : %s       Object memory allocated: %d\n",ca[amsys->crash_action],mem);
+vwrite_user(user,"User purge length      : %-3d days     Newbie purge length    : %-3d days\n",USER_EXPIRES,NEWBIE_EXPIRES);
+vwrite_user(user,"Smail auto-forwarding  : %s          Auto purge on          : %s\n",offon[amsys->forwarding],noyes2[amsys->auto_purge]);
+vwrite_user(user,"Flood protection       : %s          Resolving IP           : %s\n",offon[amsys->flood_protect],rip[amsys->resolve_ip]);
+vwrite_user(user,"Next auto purge date   : %s",ctime((time_t *)&amsys->purge_date));
 write_user(user,"+----------------------------------------------------------------------------+\n\n");
 }
 
@@ -13589,11 +13621,9 @@ if (!u->login) {
   return;
   }
 write_user(u,"\n\nThis line is being cleared.\n\n");
-disconnect_user(u); 
-sprintf(text,"%s cleared line %d.\n",user->name,sock);
-write_syslog(text,1,SYSLOG);
-sprintf(text,"Line %d cleared.\n",sock);
-write_user(user,text);
+disconnect_user(u);
+write_syslog(SYSLOG,1,"%s cleared line %d.\n",user->name,sock);
+vwrite_user(user,"Line %d cleared.\n",sock);
 destructed=0;
 no_prompt=0;
 }
@@ -13602,22 +13632,22 @@ no_prompt=0;
 /*** Switch swearing ban on and off ***/
 void toggle_swearban(UR_OBJECT user)
 {
-switch(ban_swearing) {
-  case OFF: write_user(user,"Swearing ban now set to ~FGminimum ban~RS.\n");
-            ban_swearing=MIN;
-	    sprintf(text,"%s set swearing ban to MIN.\n",user->name);
-	    write_syslog(text,1,SYSLOG);
-	    break;
-  case MIN: write_user(user,"Swearing ban now set to ~FRmaximum ban~RS.\n");
-            ban_swearing=MAX;
-	    sprintf(text,"%s set swearing ban to MAX.\n",user->name);
-	    write_syslog(text,1,SYSLOG);
-	    break;
-  case MAX: write_user(user,"Swearing ban now set to ~FYoff~RS.\n");
-            ban_swearing=OFF;
-	    sprintf(text,"%s set swearing ban to OFF.\n",user->name);
-	    write_syslog(text,1,SYSLOG);
-	    break;
+switch(amsys->ban_swearing) {
+  case SBOFF:
+    write_user(user,"Swearing ban now set to ~FGminimum ban~RS.\n");
+    amsys->ban_swearing=SBMIN;
+    write_syslog(SYSLOG,1,"%s set swearing ban to MIN.\n",user->name);
+    break;
+  case SBMIN:
+    write_user(user,"Swearing ban now set to ~FRmaximum ban~RS.\n");
+    amsys->ban_swearing=SBMAX;
+    write_syslog(SYSLOG,1,"%s set swearing ban to MAX.\n",user->name);
+    break;
+  case SBMAX:
+    write_user(user,"Swearing ban now set to ~FYoff~RS.\n");
+    amsys->ban_swearing=SBOFF;
+    write_syslog(SYSLOG,1,"%s set swearing ban to OFF.\n",user->name);
+    break;
   }
 }
 
@@ -13631,10 +13661,8 @@ if (user->room==NULL) {
   prompt(user);
   return;
   }
-for(col=1;col<NUM_COLS;++col) {
-  sprintf(text,"%s: ~%sAmnuts v. %s VIDEO TEST~RS\n",colour_codes[col].txt_code,colour_codes[col].txt_code,AMNUTSVER);
-  write_user(user,text);
-  }
+for(col=1;col<NUM_COLS;++col)
+  vwrite_user(user,"^~%s: ~%sAmnuts version %s VIDEO TEST~RS\n",colour_codes[col].txt_code,colour_codes[col].txt_code,AMNUTSVER);
 }
 
 
@@ -13649,8 +13677,7 @@ if (user->muzzled) {
   return;
   }
 write_monitor(user,user->room,0);
-sprintf(text,"~FT~OLType -->~RS %s\n",inpstr);
-write_room(user->room,text);
+vwrite_room(user->room,"~FT~OLType -->~RS %s\n",inpstr);
 }
 
 
@@ -13659,7 +13686,7 @@ void show_ranks(UR_OBJECT user)
 {
 int i,total,cnt[GOD+1];
 char null[1],*ptr;
-char *cl="~FT~OL";
+char *cl="~FY~OL";
 
 for (i=JAILED;i<=GOD;i++) cnt[i]=0;
 total=i=0;
@@ -13668,13 +13695,15 @@ while (command_table[i].name[0]!='*') {
   i++;
   }
 null[0]='\0';
-write_user(user,"+----- The ranks are as follows ---------------------------------------------+\n\n");
+write_user(user,"+----------------------------------------------------------------------------+\n");
+write_user(user,"| ~OL~FTThe ranks (levels) on the talker~RS                                           |\n");
+write_user(user,"+----------------------------------------------------------------------------+\n");
 for (i=JAILED; i<=GOD; i++) {
   if (i==user->level) ptr=cl;  else ptr=null;
-  sprintf(text,"%s(%s) : %-10.10s : Lev %d : %3d cmds total : %2d cmds this level\n",ptr,level_alias[i],level_name[i],i,total+=cnt[i],cnt[i]);
-  write_user(user,text);
+  vwrite_user(user,"| %s(%s) : %-10.10s : Lev %d : %3d cmds total : %2d cmds this level             ~RS|\n",
+	      ptr,user_level[i].alias,user_level[i].name,i,total+=cnt[i],cnt[i]);
   }
-write_user(user,"\n+----------------------------------------------------------------------------+\n\n");
+write_user(user,"+----------------------------------------------------------------------------+\n\n");
 }
 
 
@@ -13690,7 +13719,7 @@ struct wiz_list_struct *entry;
 write_user(user,"+----- ~FGWiz List~RS -------------------------------------------------------------+\n\n");
 for (i=GOD;i>=WIZ;i--) {
   text2[0]='\0';  cnt=0;  inlist=0;
-  sprintf(text,"~OL%s%-10s~RS : ",clrs[i%4],level_name[i]);
+  sprintf(text,"~OL%s%-10s~RS : ",clrs[i%4],user_level[i].name);
   for(entry=first_wiz_entry;entry!=NULL;entry=entry->next) {
     if (in_retire_list(entry->name)) continue;
     if (entry->level==i) {
@@ -13712,19 +13741,15 @@ if (u->room!=NULL)  {
   if (u->level>=WIZ) {
     if (!u->vis && (user->level<u->level && !(user->level>=ARCH)))  { ++count;  continue;  }
     else {
-      if (u->vis) sprintf(text2,"  %s %s~RS",u->recap,u->desc);
-      else sprintf(text2,"* %s %s~RS",u->recap,u->desc);
+      if (u->vis) sprintf(text2,"  %s~RS %s~RS",u->recap,u->desc);
+      else sprintf(text2,"* %s~RS %s~RS",u->recap,u->desc);
       cnt=colour_com_count(text2);
-      sprintf(text,"%-*.*s : %15s : (%s) %s\n",43+cnt*3,43+cnt*3,text2,u->room->name,level_alias[u->level],level_name[u->level]);
-      write_user(user,text);
+      vwrite_user(user,"%-*.*s : %15s : (%s) %s\n",43+cnt*3,43+cnt*3,text2,u->room->name,user_level[u->level].alias,user_level[u->level].name);
       }
     }
   some_on=1;
   }
-if (count>0) {
-  sprintf(text,"Number of the wiz invisible to you : %d\n",count);
-  write_user(user,text);
-  }
+if (count>0) vwrite_user(user,"Number of the wiz invisible to you : %d\n",count);
 if (!some_on) write_user(user,"Sorry, no wizzes are on at the moment...\n");
 write_user(user,"\n");
 write_user(user,"+----------------------------------------------------------------------------+\n");
@@ -13738,9 +13763,9 @@ char bstr[40],temp[80];
 int secs,mins,hours,days;
 
 /* Get some values */
-strcpy(bstr,ctime(&boot_time));
+strcpy(bstr,ctime(&amsys->boot_time));
 bstr[strlen(bstr)-1]='\0';
-secs=(int)(time(0)-boot_time);
+secs=(int)(time(0)-amsys->boot_time);
 days=secs/86400;
 hours=(secs%86400)/3600;
 mins=(secs%3600)/60;
@@ -13749,13 +13774,10 @@ write_user(user,"+--------------------------------------------------------------
 write_user(user,"| ~OL~FTTalker times~RS                                                               |\n");
 write_user(user,"+----------------------------------------------------------------------------+\n");
 sprintf(temp,"%s, %d %s, %02d:%02d:%02d %d",day[twday],tmday,month[tmonth],thour,tmin,tsec,tyear);
-sprintf(text,"| The current system time is : ~OL%-45s~RS |\n",temp);
-write_user(user,text);
-sprintf(text,"| System booted              : ~OL%-45s~RS |\n",bstr);
-write_user(user,text);
+vwrite_user(user,"| The current system time is : ~OL%-45s~RS |\n",temp);
+vwrite_user(user,"| System booted              : ~OL%-45s~RS |\n",bstr);
 sprintf(temp,"%d days, %d hours, %d minutes, %d seconds",days,hours,mins,secs);
-sprintf(text,"| Uptime                     : ~OL%-45s~RS |\n",temp);
-write_user(user,text);
+vwrite_user(user,"| Uptime                     : ~OL%-45s~RS |\n",temp);
 write_user(user,"+----------------------------------------------------------------------------+\n\n");
 }
 
@@ -13767,35 +13789,24 @@ int rms,i;
 RM_OBJECT rm;
 
 write_user(user,"+----------------------------------------------------------------------------+\n");
-sprintf(text,"| ~FT~OLAmnuts version %5s                           Andrew Collington, May 1999~RS |\n",AMNUTSVER,NUTSVER);
-write_user(user,text);
+vwrite_user(user,"| ~FT~OLAmnuts version %5s                 (C) Andrew Collington, September 1999~RS |\n",AMNUTSVER);
 write_user(user,"+----------------------------------------------------------------------------+\n");
-sprintf(text,"| Logons this current boot : ~OL%4d~RS new users, ~OL%4d~RS old users~RS                  |\n",logons_new,logons_old);
-write_user(user,text);
-sprintf(text,"| Total number of users    : ~OL%-4d~RS  Maximum online users     : ~OL%-3d~RS            |\n",user_count,max_users);
-write_user(user,text);
+vwrite_user(user,"| Logons this current boot : ~OL%4d~RS new users, ~OL%4d~RS old users~RS                  |\n",amsys->logons_new,amsys->logons_old);
+vwrite_user(user,"| Total number of users    : ~OL%-4d~RS  Maximum online users     : ~OL%-3d~RS            |\n",amsys->user_count,amsys->max_users);
 rms=0;  for(rm=room_first;rm!=NULL;rm=rm->next) ++rms;
-sprintf(text,"| Total number of rooms    : ~OL%-3d~RS   Swear ban currently on   : ~OL%s~RS            |\n",rms,minmax[ban_swearing]);
-write_user(user,text);
-sprintf(text,"| Smail auto-forwarding on : ~OL%s~RS   Auto purge on            : ~OL%s~RS            |\n",noyes2[forwarding],noyes2[auto_purge]);
-write_user(user,text);
-sprintf(text,"| Maximum smail copies     : ~OL%-3d~RS   Names can be recapped    : ~OL%s~RS            |\n",MAX_COPIES,noyes2[allow_recaps]);
-write_user(user,text);
-sprintf(text,"| Maximum smail copies     : ~OL%-3d~RS   Personal rooms active    : ~OL%s~RS            |\n",MAX_COPIES,noyes2[personal_rooms]);
-write_user(user,text);
-sprintf(text,"| Maximum user idle time   : ~OL%-3d~RS minutes~RS                                     |\n",user_idle_time/60);
-write_user(user,text);
+vwrite_user(user,"| Total number of rooms    : ~OL%-3d~RS   Swear ban currently on   : ~OL%s~RS            |\n",rms,minmax[amsys->ban_swearing]);
+vwrite_user(user,"| Smail auto-forwarding on : ~OL%s~RS   Auto purge on            : ~OL%s~RS            |\n",noyes2[amsys->forwarding],noyes2[amsys->auto_purge]);
+vwrite_user(user,"| Maximum smail copies     : ~OL%-3d~RS   Names can be recapped    : ~OL%s~RS            |\n",MAX_COPIES,noyes2[amsys->allow_recaps]);
+vwrite_user(user,"| Personal rooms active    : ~OL%-3s~RS   Maximum user idle time   : ~OL%-3d~RS mins~RS       |\n",noyes2[amsys->personal_rooms],amsys->user_idle_time/60);
 if (user->level>=WIZ) {
-  #ifdef NETLINKS
-    write_user(user,"| Compiled netlinks        : ~OLYES~RS                                             |\n");
-  #else
-    write_user(user,"| Compiled netlinks        : ~OLNO~RS                                              |\n");
-  #endif
+#ifdef NETLINKS
+  write_user(user,"| Compiled netlinks        : ~OLYES~RS                                             |\n");
+#else
+  write_user(user,"| Compiled netlinks        : ~OLNO~RS                                              |\n");
+#endif
   write_user(user,"+----------------------------------------------------------------------------+\n");
-  for (i=JAILED;i<=GOD;i++) {
-    sprintf(text,"| Number of users at level %-6s : ~OL%-4d~RS                                     |\n",level_name[i],level_count[i]);
-    write_user(user,text);
-    }
+  for (i=JAILED;i<=GOD;i++)
+    vwrite_user(user,"| Number of users at level %-6s : ~OL%-4d~RS                                     |\n",user_level[i].name,amsys->level_count[i]);
   }
 write_user(user,"+----------------------------------------------------------------------------+\n");
 }
@@ -13804,7 +13815,7 @@ write_user(user,"+--------------------------------------------------------------
 /**** Show the amount of memory that the objects are currently taking up ***/
 void show_memory(UR_OBJECT user)
 {
-int usize,rsize,nsize,dsize,csize,lsize,wsize,total,i;
+int ssize,usize,rsize,nsize,dsize,csize,lsize,wsize,total,i;
 int tusize,trsize,tnsize,tdsize,tcsize,tlsize,twsize;
 float mb;
 UR_OBJECT u;
@@ -13816,8 +13827,10 @@ struct command_struct *c;
 struct user_dir_struct *d;
 struct wiz_list_struct *w;
 
-usize=rsize=nsize=dsize=csize=lsize=wsize=0;
+ssize=usize=rsize=nsize=dsize=csize=lsize=wsize=0;
 tusize=trsize=tnsize=tdsize=tcsize=tlsize=twsize=0;
+
+ssize=sizeof(struct system_struct);
 usize=sizeof(struct user_struct);
 for (u=user_first;u!=NULL;u=u->next) tusize+=sizeof(struct user_struct);
 rsize=sizeof(struct room_struct);
@@ -13834,33 +13847,27 @@ lsize=sizeof(last_login_info[0]);
 for (i=0;i<LASTLOGON_NUM;i++) tlsize+=sizeof(last_login_info[i]);
 wsize=sizeof(struct wiz_list_struct);
 for (w=first_wiz_entry;w!=NULL;w=w->next) twsize+=sizeof(struct wiz_list_struct);
-total=tusize+trsize+tnsize+tdsize+tcsize+tlsize+twsize;
+total=tusize+trsize+tnsize+tdsize+tcsize+tlsize+twsize+ssize;
 mb=(float)total/1000000;
 
 write_user(user,"+----------------------------------------------------------------------------+\n");
 write_user(user,"| ~OL~FTMemory Object Allocation~RS                                                   |\n");
 write_user(user,"|----------------------------------------------------------------------------|\n");
-sprintf(text,"|    user structure : %8d bytes    directory structure : %8d bytes |\n",usize,dsize);
-write_user(user,text);
-sprintf(text,"|                   : ~OL%8d~RS bytes                        : ~OL%8d~RS bytes |\n",tusize,tdsize);
-write_user(user,text);
-sprintf(text,"|    room structure : %8d bytes      command structure : %8d bytes |\n",rsize,csize);
-write_user(user,text);
-sprintf(text,"|                   : ~OL%8d~RS bytes                        : ~OL%8d~RS bytes |\n",trsize,tcsize);
-write_user(user,text);
-sprintf(text,"| wizlist structure : %8d bytes   last login structure : %8d bytes |\n",wsize,lsize);
-write_user(user,text);
-sprintf(text,"|                   : ~OL%8d~RS bytes                        : ~OL%8d~RS bytes |\n",twsize,tlsize);
-write_user(user,text);
+vwrite_user(user,"|    user structure : %8d bytes    directory structure : %8d bytes |\n",usize,dsize);
+vwrite_user(user,"|                   : ~OL%8d~RS bytes                        : ~OL%8d~RS bytes |\n",tusize,tdsize);
+vwrite_user(user,"|    room structure : %8d bytes      command structure : %8d bytes |\n",rsize,csize);
+vwrite_user(user,"|                   : ~OL%8d~RS bytes                        : ~OL%8d~RS bytes |\n",trsize,tcsize);
+vwrite_user(user,"| wizlist structure : %8d bytes   last login structure : %8d bytes |\n",wsize,lsize);
+vwrite_user(user,"|                   : ~OL%8d~RS bytes                        : ~OL%8d~RS bytes |\n",twsize,tlsize);
 #ifdef NETLINKS
-  sprintf(text,"| netlink structure : %8d bytes                                         |\n",nsize);
-  write_user(user,text);
-  sprintf(text,"|                   : ~OL%8d~RS bytes                                         |\n",tnsize);
-  write_user(user,text);
+  vwrite_user(user,"|  system structure : %8d bytes      netlink structure : %8d bytes |\n",ssize,nsize);
+  vwrite_user(user,"|                   : ~OL%8d~RS bytes                        : ~OL%8d~RS bytes |\n",ssize,tnsize);
+#else
+  vwrite_user(user,"|  system structure : %8d bytes                                         |\n",ssize);
+  vwrite_user(user,"|                   : ~OL%8d~RS bytes                                         |\n",ssize);
 #endif
 write_user(user,"+----------------------------------------------------------------------------+\n");
-sprintf(text,   "| Total object memory allocated : ~OL%9d~RS bytes   (%02.3f Mb)               |\n",total,mb);
-write_user(user,text);
+vwrite_user(user,   "| Total object memory allocated : ~OL%9d~RS bytes   (%02.3f Mb)               |\n",total,mb);
 write_user(user,"+----------------------------------------------------------------------------+\n\n");
 }
 
@@ -13884,9 +13891,8 @@ if (!strcmp("status",word[1])) {
     return;
     }
   write_user(user,"Your current hangman game status is:\n");
-  if (strlen(user->hang_guess)<1) sprintf(text,hanged[user->hang_stage],user->hang_word_show,"None yet!");
-  else sprintf(text,hanged[user->hang_stage],user->hang_word_show,user->hang_guess);
-  write_user(user,text);
+  if (strlen(user->hang_guess)<1) vwrite_user(user,hanged[user->hang_stage],user->hang_word_show,"None yet!");
+  else vwrite_user(user,hanged[user->hang_stage],user->hang_word_show,user->hang_guess);
   write_user(user,"\n");
   return;
   }
@@ -13912,8 +13918,7 @@ if (!strcmp("start",word[1])) {
   for (i=0;i<strlen(user->hang_word_show);++i) user->hang_word_show[i]='-';
   user->hang_stage=0;
   write_user(user,"Your current hangman game status is:\n\n");
-  sprintf(text,hanged[user->hang_stage],user->hang_word_show,"None yet!");
-  write_user(user,text);
+  vwrite_user(user,hanged[user->hang_stage],user->hang_word_show,"None yet!");
   return;
   }
 write_user(user,"Usage: hangman [start/stop/status]\n");
@@ -13973,8 +13978,7 @@ strtolower(word[1]);
 if (strstr(user->hang_guess,word[1])) {
   user->hang_stage++;
   write_user(user,"You have already guessed that letter!  And you know what that means...\n\n");
-  sprintf(text,hanged[user->hang_stage],user->hang_word_show,user->hang_guess);
-  write_user(user,text);
+  vwrite_user(user,hanged[user->hang_stage],user->hang_word_show,user->hang_guess);
   if (user->hang_stage>=7) {
     write_user(user,"~FR~OLUh-oh!~RS  You couldn't guess the word and died!\n");
     user->hang_stage=-1;
@@ -13996,8 +14000,7 @@ strcat(user->hang_guess,word[1]);
 if (!count) {
   user->hang_stage++;
   write_user(user,"That letter isn't in the word!  And you know what that means...\n");
-  sprintf(text,hanged[user->hang_stage],user->hang_word_show,user->hang_guess);
-  write_user(user,text);
+  vwrite_user(user,hanged[user->hang_stage],user->hang_word_show,user->hang_guess);
   if (user->hang_stage>=7) {
     write_user(user,"~FR~OLUh-oh!~RS  You couldn't guess the word and died!\n");
     user->hang_stage=-1;
@@ -14008,11 +14011,9 @@ if (!count) {
   write_user(user,"\n");
   return;
   }
-if (count==1) sprintf(text,"Well done!  There was 1 occurrence of the letter %s\n",word[1]);
-else sprintf(text,"Well done!  There were %d occurrences of the letter %s\n",count,word[1]);
-write_user(user,text);
-sprintf(text,hanged[user->hang_stage],user->hang_word_show,user->hang_guess);
-write_user(user,text);
+if (count==1) vwrite_user(user,"Well done!  There was 1 occurrence of the letter %s\n",word[1]);
+else vwrite_user(user,"Well done!  There were %d occurrences of the letter %s\n",count,word[1]);
+vwrite_user(user,hanged[user->hang_stage],user->hang_word_show,user->hang_guess);
 if (!blanks) {
   write_user(user,"~FY~OLCongratz!~RS  You guessed the word without dying!\n");
   user->hang_stage=-1;
@@ -14034,8 +14035,7 @@ if (word_count<2) {
   }
 word[1][0]=toupper(word[1][0]);
 if (in_retire_list(word[1])) {
-  sprintf(text,"%s has already been retired from the wizlist.\n",word[1]);
-  write_user(user,text);
+  vwrite_user(user,"%s has already been retired from the wizlist.\n",word[1]);
   return;
   }
 if ((u=get_user_name(user,word[1]))) {
@@ -14047,11 +14047,9 @@ if ((u=get_user_name(user,word[1]))) {
     write_user(user,"You cannot retire anyone under the level WIZ\n");  return;
     }
   add_retire_list(u->name);
-  sprintf(text,"You retire %s from the wizlist.\n",u->name);
-  write_user(user,text);
+  vwrite_user(user,"You retire %s from the wizlist.\n",u->name);
   write_user(u,"You have been retired from the wizlist but still retain your level.\n");
-  sprintf(text,"%s RETIRED %s\n",user->name,u->name);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s RETIRED %s\n",user->name,u->name);
   sprintf(text,"Was ~FRretired~RS by %s.\n",user->name);
   add_history(u->name,1,text);
   return;
@@ -14059,9 +14057,8 @@ if ((u=get_user_name(user,word[1]))) {
 /* Create a temp session, load details, alter , then save. This is inefficient
    but its simpler than the alternative */
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user object in retire_user().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+  write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in retire_user().\n");
   return;
   }
 strcpy(u->name,word[1]);
@@ -14078,14 +14075,11 @@ if (u->level<WIZ) {
   return;
   }
 add_retire_list(u->name);
-sprintf(text,"You retire %s from the wizlist.\n",u->name);
-write_user(user,text);
-sprintf(text,"%s RETIRED %s\n",user->name,u->name);
-write_syslog(text,1,SYSLOG);
+vwrite_user(user,"You retire %s from the wizlist.\n",u->name);
+write_syslog(SYSLOG,1,"%s RETIRED %s\n",user->name,u->name);
 sprintf(text,"Was ~FRretired~RS by %s.\n",user->name);
 add_history(u->name,1,text);
-sprintf(text,"~OLYou have been ~FRretired~RS~OL from the wizlist but still retain your level.\n");
-send_mail(user,u->name,text,0);
+send_mail(user,u->name,"~OLYou have been ~FRretired~RS~OL from the wizlist but still retain your level.\n",0);
 destruct_user(u);
 destructed=0;
 }
@@ -14102,8 +14096,7 @@ if (word_count<2) {
   }
 word[1][0]=toupper(word[1][0]);
 if (!in_retire_list(word[1])) {
-  sprintf(text,"%s has not been retired from the wizlist.\n",word[1]);
-  write_user(user,text);
+  vwrite_user(user,"%s has not been retired from the wizlist.\n",word[1]);
   return;
   }
 if ((u=get_user_name(user,word[1]))) {
@@ -14115,11 +14108,9 @@ if ((u=get_user_name(user,word[1]))) {
     write_user(user,"You cannot retire anyone under the level WIZ.\n");  return;
     }
   clean_retire_list(u->name);
-  sprintf(text,"You unretire %s and put them back on the wizlist.\n",u->name);
-  write_user(user,text);
+  vwrite_user(user,"You unretire %s and put them back on the wizlist.\n",u->name);
   write_user(u,"You have been unretired and placed back on the wizlist.\n");
-  sprintf(text,"%s UNRETIRED %s\n",user->name,u->name);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s UNRETIRED %s\n",user->name,u->name);
   sprintf(text,"Was ~FGunretired~RS by %s.\n",user->name);
   add_history(u->name,1,text);
   return;
@@ -14127,9 +14118,8 @@ if ((u=get_user_name(user,word[1]))) {
 /* Create a temp session, load details, alter , then save. This is inefficient
    but its simpler than the alternative */
 if ((u=create_user())==NULL) {
-  sprintf(text,"%s: unable to create temporary user object.\n",syserror);
-  write_user(user,text);
-  write_syslog("ERROR: Unable to create temporary user object in unretire_user().\n",0,SYSLOG);
+  vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+  write_syslog(SYSLOG,1,"ERROR: Unable to create temporary user object in unretire_user().\n");
   return;
   }
 strcpy(u->name,word[1]);
@@ -14140,19 +14130,15 @@ if (!load_user_details(u)) {
   return;
   }
 if (!in_retire_list(u->name)) {
-  sprintf(text,"%s has not been retired.\n",word[1]);
-  write_user(user,text);
+  vwrite_user(user,"%s has not been retired.\n",word[1]);
   destruct_user(u);
   destructed=0;
   return;
   }
 clean_retire_list(u->name);
-sprintf(text,"You unretire %s and put them back on the wizlist.\n",u->name);
-write_user(user,text);
-sprintf(text,"~OLYou have been ~FGunretired~RS~OL and put back on the wizlist.\n");
-send_mail(user,u->name,text,0);
-sprintf(text,"%s UNRETIRED %s.\n",user->name,u->name);
-write_syslog(text,1,SYSLOG);
+vwrite_user(user,"You unretire %s and put them back on the wizlist.\n",u->name);
+send_mail(user,u->name,"~OLYou have been ~FGunretired~RS~OL and put back on the wizlist.\n",0);
+write_syslog(SYSLOG,1,"%s UNRETIRED %s.\n",user->name,u->name);
 sprintf(text,"Was ~FGunretired~RS by %s.\n",user->name);
 add_history(u->name,1,text);
 destruct_user(u);
@@ -14288,8 +14274,7 @@ write_user(user,"| Any other commands have not yet been used, or you cannot view
 write_user(user,"+----------------------------------------------------------------------------+\n");
 sprintf(text2,"Total of ~OL%d~RS commands.    ~OL%d~RS command%s used a total of ~OL%d~RS time%s.",
 	total_cmds,cmds_used,PLTEXT_S(cmds_used),total_hits,PLTEXT_S(total_hits));
-sprintf(text,"| %-92s |\n",text2);
-write_user(user,text);
+vwrite_user(user,"| %-92s |\n",text2);
 write_user(user,"+----------------------------------------------------------------------------+\n");
 }
 
@@ -14325,12 +14310,12 @@ strcpy(dirname,USERFILES);
 dirp=opendir(dirname);
 if (dirp==NULL) {
   write_user(user,"ERROR: Failed to open userfile directory.\n");
-  write_syslog("ERROR: Directory open failure in recount_users().\n",1,SYSLOG);
+  write_syslog(SYSLOG,1,"ERROR: Directory open failure in recount_users().\n");
   return;
   }
 if ((u=create_user())==NULL) {
   write_user(user,"ERROR: Cannot create user object.\n");
-  write_syslog("ERROR: Cannot create user object in recount_users().\n",1,SYSLOG);
+  write_syslog(SYSLOG,1,"ERROR: Cannot create user object in recount_users().\n");
   (void) closedir(dirp);
   return;
   }
@@ -14349,9 +14334,8 @@ while((dp=readdir(dirp))!=NULL) {
       strcpy(u->name,name);
       if (load_user_details(u)) {
 	add_user_node(u->name,u->level);
-	level_count[u->level]++;
-	sprintf(text,"Added new user node for existing user '%s'\n",name);
-	write_syslog(text,0,SYSLOG);
+	amsys->level_count[u->level]++;
+	write_syslog(SYSLOG,0,"Added new user node for existing user '%s'\n",name);
 	++added;
 	reset_user(u);
         }
@@ -14388,23 +14372,21 @@ while (entry!=NULL) {
   }
 /* remove the node */
 if (notin) {
-  sprintf(text,"Removed user node for '%s' - user file does not exist.\n",name);
-  write_syslog(text,0,SYSLOG);
+  write_syslog(SYSLOG,0,"Removed user node for '%s' - user file does not exist.\n",name);
   ++removed;
   --correct;
   rem_user_node(name,level);
-  level_count[level]--;
+  amsys->level_count[level]--;
   goto START_LIST;
   }
 
 /* now to make sure that the user level counts are correct as show in .version */
 count_users();
 write_user(user,"\n+----------------------------------------------------------------------------+\n");
-sprintf(text,"Checked ~OL%d~RS user%s.  ~OL%d~RS node%s %s added, and ~OL%d~RS node%s %s removed.\n",
+vwrite_user(user,"Checked ~OL%d~RS user%s.  ~OL%d~RS node%s %s added, and ~OL%d~RS node%s %s removed.\n",
 	added+removed+correct,PLTEXT_S(added+removed+correct),
         added,PLTEXT_S(added),PLTEXT_WAS(added),
         removed,PLTEXT_S(removed),PLTEXT_WAS(removed));
-write_user(user,text);
 if (incorrect) write_user(user,"See the system log for further details.\n");
 write_user(user,"+----------------------------------------------------------------------------+\n");
 user->misc_op=0;
@@ -14446,9 +14428,8 @@ for (entry=first_dir_entry;entry!=NULL;entry=entry->next) {
   strcpy(name,entry->name);
   name[0]=tolower(name[0]);
   if (pattern_match(name,pat)) {
-    if (!x) sprintf(text,"| %-*s  ~FT%-20s~RS   ",USER_NAME_LEN,entry->name,level_name[entry->level]);
-    else sprintf(text,"   %-*s  ~FT%-20s~RS |\n",USER_NAME_LEN,entry->name,level_name[entry->level]);
-    write_user(user,text);
+    if (!x) vwrite_user(user,"| %-*s  ~FT%-20s~RS   ",USER_NAME_LEN,entry->name,user_level[entry->level].name);
+    else vwrite_user(user,"   %-*s  ~FT%-20s~RS |\n",USER_NAME_LEN,entry->name,user_level[entry->level].name);
     x=!x;
     ++found;
     }
@@ -14462,8 +14443,7 @@ if (!found) {
   return;
   }
 write_user(user,"+----------------------------------------------------------------------------+\n");
-sprintf(text,"  ~OL%d~RS user%s had the pattern ~OL%s\n",found,PLTEXT_S(found),word[1]);
-write_user(user,text);
+vwrite_user(user,"  ~OL%d~RS user%s had the pattern ~OL%s\n",found,PLTEXT_S(found),word[1]);
 write_user(user,"+----------------------------------------------------------------------------+\n\n");
 }
 
@@ -14482,19 +14462,16 @@ if (rm==NULL) {
   return;
   }
 if (user->room!=rm) {
-  sprintf(text,"Don't be shooting in a public place.  Go to the ~OL%s~RS to play.\n",rm->name);
-  write_user(user,text);
+  vwrite_user(user,"Don't be shooting in a public place.  Go to the ~OL%s~RS to play.\n",rm->name);
   return;
   }
 if (word_count<2) {
   if (user->bullets==0) {
-    sprintf(text,"%s's gun goes *click* as they pull the trigger.\n",user->recap);
-    write_room_except(rm,text,user);
+    vwrite_room_except(rm,user,"%s~RS's gun goes *click* as they pull the trigger.\n",user->recap);
     write_user(user,"Your gun goes *click* as you pull the trigger.\n");
     return;
     }
-  sprintf(text,"%s fires their gun off into the air.\n",user->recap);
-  write_room_except(rm,text,user);
+  vwrite_room_except(rm,user,"%s~RS fires their gun off into the air.\n",user->recap);
   write_user(user,"You fire your gun off into the air.\n");
   --user->bullets;
   return;
@@ -14517,14 +14494,12 @@ if (user==user2) {
   return;
   }
 if (user->bullets==0) {
-  sprintf(text,"%s's gun goes *click* as they pull the trigger.\n",user->recap);
-  write_room_except(rm,text,user);
+  vwrite_room_except(rm,user,"%s~RS's gun goes *click* as they pull the trigger.\n",user->recap);
   write_user(user,"Your gun goes *click* as you pull the trigger.\n");
   return;
   }
 if (prob1>prob2) {
-  sprintf(text,"A bullet flies from %s's gun and ~FR~OLhits~RS %s.\n",user->recap,user2->recap);
-  write_room(rm,text);
+  vwrite_room(rm,"A bullet flies from %s~RS's gun and ~FR~OLhits~RS %s.\n",user->recap,user2->recap);
   --user->bullets;
   ++user->hits;
   --user2->hps;
@@ -14532,15 +14507,13 @@ if (prob1>prob2) {
   write_user(user,"~FG~OLGood shot!\n");
   if (user2->hps<1) {
     ++user2->deaths;
-    sprintf(text,"\nYou have won the shoot out, %s is dead!  You may now rejoice!\n",user2->recap);
-    write_user(user,text);
+    vwrite_user(user,"\nYou have won the shoot out, %s~RS is dead!  You may now rejoice!\n",user2->recap);
     write_user(user2,"\nYou have received a fatal wound, and you feel your warm ~FRblood ~OLooze~RS out of you.\n");
     write_user(user2,"The room starts to fade and grow grey...\n");
     write_user(user2,"In the bleak mist of Death's shroud you see a man walk towards you.\n");
     write_user(user2,"The man is wearing a tall black hat, and a wide grin...\n\n");
     user2->hps=5*user2->level;
-    sprintf(text,"%s shot dead by %s\n",user2->name,user->name);
-    write_syslog(text,1,SYSLOG);
+    write_syslog(SYSLOG,1,"%s shot dead by %s\n",user2->name,user->name);
     disconnect_user(user2);
     ++user->kills;
     user->hps=user->hps+5;
@@ -14548,8 +14521,7 @@ if (prob1>prob2) {
     }
   return;
   }
-sprintf(text,"A bullet flies from %s's gun and ~FG~OLmisses~RS %s.\n",user->recap,user2->recap);
-write_room(rm,text);
+vwrite_room(rm,"A bullet flies from %s~RS's gun and ~FG~OLmisses~RS %s~RS.\n",user->recap,user2->recap);
 --user->bullets;
 ++user->misses;
 write_user(user2,"~FGThat was a close shave!\n");
@@ -14568,17 +14540,14 @@ if (rm==NULL) {
   return;
   }
 if (user->room!=rm) {
-  sprintf(text,"Don't be shooting in a public place.  Go to the ~OL%s~RS to play.\n",rm->name);
-  write_user(user,text);
+  vwrite_user(user,"Don't be shooting in a public place.  Go to the ~OL%s~RS to play.\n",rm->name);
   return;
   }
 if (user->bullets>0) {
-  sprintf(text,"You have ~OL%d~RS bullets left.\n",user->bullets);
-  write_user(user,text);
+  vwrite_user(user,"You have ~OL%d~RS bullets left.\n",user->bullets);
   return;
   }
-sprintf(text,"~FY%s reloads their gun.\n",user->recap);
-write_room_except(user->room,text,user);
+vwrite_room_except(user->room,user,"~FY%s reloads their gun.\n",user->bw_recap);
 write_user(user,"~FYYou reload your gun.\n");
 user->bullets=6;
 }
@@ -14612,16 +14581,13 @@ if (!strcmp(word[2],"NORM")) {
     cmd=cmd->next;
     } /* end while */
   if (found) {
-    sprintf(text,"%s has returned level to normal for cmd '%s'\n",user->name,cmd->name);
-    write_syslog(text,1,SYSLOG);
+    write_syslog(SYSLOG,1,"%s has returned level to normal for cmd '%s'\n",user->name,cmd->name);
     write_monitor(user,NULL,0);
-    sprintf(text,"~OL~FR--==<~RS The level for command ~OL%s~RS has been returned to %s ~OL~FR>==--\n",cmd->name,level_name[cmd->min_lev]);
-    write_room(NULL,text);
+    vwrite_room(NULL,"~OL~FR--==<~RS The level for command ~OL%s~RS has been returned to %s ~OL~FR>==--\n",cmd->name,user_level[cmd->min_lev].name);
     return;
     }
   else {
-    sprintf(text,"The command '~OL%s~RS' could not be found.\n",word[1]);
-    write_user(user,text);
+    vwrite_user(user,"The command '~OL%s~RS' could not be found.\n",word[1]);
     return;
     }
   } /* end if 'norm' */
@@ -14648,16 +14614,11 @@ while (cmd!=NULL) {
   cmd=cmd->next;
   } /* end while */
 if (found) {
-  sprintf(text,"%s has set the level for cmd '%s' to %d (%s)\n",user->name,cmd->name,cmd->min_lev,level_name[cmd->min_lev]);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s has set the level for cmd '%s' to %d (%s)\n",user->name,cmd->name,cmd->min_lev,user_level[cmd->min_lev].name);
   write_monitor(user,NULL,0);
-  sprintf(text,"~OL~FR--==<~RS The level for command ~OL%s~RS has been set to %s ~OL~FR>==--\n",cmd->name,level_name[cmd->min_lev]);
-  write_room(NULL,text);
+  vwrite_room(NULL,"~OL~FR--==<~RS The level for command ~OL%s~RS has been set to %s ~OL~FR>==--\n",cmd->name,user_level[cmd->min_lev].name);
   }
-else {
-  sprintf(text,"The command '~OL%s~RS' could not be found.\n",word[1]);
-  write_user(user,text);
-  }
+else vwrite_user(user,"The command '~OL%s~RS' could not be found.\n",word[1]);
 } /* end set_command_level */
 
 
@@ -14684,15 +14645,13 @@ if (u==user) {
 if (word_count<3) {
   x=0;
   write_user(user,"+----------------------------------------------------------------------------+\n");
-  sprintf(text,"~OL~FTBanned commands for user '%s'\n",u->name);
-  write_user(user,text);
+  vwrite_user(user,"~OL~FTBanned commands for user '%s'\n",u->name);
   write_user(user,"+----------------------------------------------------------------------------+\n");
   for (i=0;i<MAX_XCOMS;i++) {
     if (u->xcoms[i]!=-1) {
       for (cmd=first_command;cmd!=NULL;cmd=cmd->next) {
 	if (cmd->id==u->xcoms[i]) {
-	  sprintf(text,"~OL%s~RS (level %d)\n",cmd->name,cmd->min_lev);
-	  write_user(user,text);
+	  vwrite_user(user,"~OL%s~RS (level %d)\n",cmd->name,cmd->min_lev);
 	  x=1;
 	  }
         } /* end for */
@@ -14710,8 +14669,7 @@ cmd_id=-1;
 for (cmd=first_command;cmd!=NULL;cmd=cmd->next) {
   if (!strncmp(word[2],cmd->name,strlen(word[2]))) {
     if (u->level<cmd->min_lev) {
-      sprintf(text,"%s is not of a high enough level to use that command anyway.\n",u->name);
-      write_user(user,text);
+      vwrite_user(user,"%s is not of a high enough level to use that command anyway.\n",u->name);
       return;
       }
     cmd_id=cmd->id;
@@ -14730,28 +14688,22 @@ if (has_gcom(u,cmd_id)) {
 /* user already has the command, so unabn it */
 if (has_xcom(u,cmd_id)) {
   if (set_xgcom(user,u,cmd_id,1,0)) {
-    sprintf(text,"You have unbanned the '%s' command for %s\n",word[2],u->name);
-    write_user(user,text);
-    sprintf(text,"The command '%s' has been unbanned and you can use it again.\n",word[2]);
-    write_user(u,text);
+    vwrite_user(user,"You have unbanned the '%s' command for %s\n",word[2],u->name);
+    vwrite_user(u,"The command '%s' has been unbanned and you can use it again.\n",word[2]);
     sprintf(text,"%s ~FGUNXCOM'd~RS the command '%s'\n",user->name,word[2]);
     add_history(u->name,1,text);
-    sprintf(text,"%s UNXCOM'd the command '%s' for %s\n",user->name,word[2],u->name);
-    write_syslog(text,1,SYSLOG);
+    write_syslog(SYSLOG,1,"%s UNXCOM'd the command '%s' for %s\n",user->name,word[2],u->name);
     return;
     }
   else return;
   }
 /* user doesn't have the command, so ban it */
 if (set_xgcom(user,u,cmd_id,1,1)) {
-  sprintf(text,"You have banned the '%s' command for %s\n",word[2],u->name);
-  write_user(user,text);
-  sprintf(text,"You have been banned from using the command '%s'.\n",word[2]);
-  write_user(u,text);
+  vwrite_user(user,"You have banned the '%s' command for %s\n",word[2],u->name);
+  vwrite_user(u,"You have been banned from using the command '%s'.\n",word[2]);
   sprintf(text,"%s ~FRXCOM'd~RS the command '%s'\n",user->name,word[2]);
   add_history(u->name,1,text);
-  sprintf(text,"%s XCOM'd the command '%s' for %s\n",user->name,word[2],u->name);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s XCOM'd the command '%s' for %s\n",user->name,word[2],u->name);
   }
 }
 
@@ -14779,15 +14731,13 @@ if (u==user) {
 if (word_count<3) {
   x=0;
   write_user(user,"+----------------------------------------------------------------------------+\n");
-  sprintf(text,"~OL~FTGiven commands for user '%s'\n",u->name);
-  write_user(user,text);
+  vwrite_user(user,"~OL~FTGiven commands for user '%s'\n",u->name);
   write_user(user,"+----------------------------------------------------------------------------+\n");
   for (i=0;i<MAX_GCOMS;i++) {
     if (u->gcoms[i]!=-1) {
       for (cmd=first_command;cmd!=NULL;cmd=cmd->next) {
 	if (cmd->id==u->gcoms[i]) {
-	  sprintf(text,"~OL%s~RS (level %d)\n",cmd->name,cmd->min_lev);
-	  write_user(user,text);
+	  vwrite_user(user,"~OL%s~RS (level %d)\n",cmd->name,cmd->min_lev);
 	  x=1;
 	  }
         } /* end for */
@@ -14805,8 +14755,7 @@ cmd_id=-1;
 for (cmd=first_command;cmd!=NULL;cmd=cmd->next) {
   if (!strncmp(word[2],cmd->name,strlen(word[2]))) {
     if (u->level>cmd->min_lev) {
-      sprintf(text,"%s can already use that command.\n",u->name);
-      write_user(user,text);
+      vwrite_user(user,"%s can already use that command.\n",u->name);
       return;
       }
     cmd_id=cmd->id;
@@ -14825,28 +14774,22 @@ if (has_xcom(u,cmd_id)) {
 /* user already has the command, so ungive it */
 if (has_gcom(u,cmd_id)) {
   if (set_xgcom(user,u,cmd_id,0,0)) {
-    sprintf(text,"You have removed the given command '%s' for %s\n",word[2],u->name);
-    write_user(user,text);
-    sprintf(text,"Access to the given command '%s' has now been taken away from you.\n",word[2]);
-    write_user(u,text);
+    vwrite_user(user,"You have removed the given command '%s' for %s\n",word[2],u->name);
+    vwrite_user(u,"Access to the given command '%s' has now been taken away from you.\n",word[2]);
     sprintf(text,"%s ~FRUNGCOM'd~RS the command '%s'\n",user->name,word[2]);
     add_history(u->name,1,text);
-    sprintf(text,"%s UNGCOM'd the command '%s' for %s\n",user->name,word[2],u->name);
-    write_syslog(text,1,SYSLOG);
+    write_syslog(SYSLOG,1,"%s UNGCOM'd the command '%s' for %s\n",user->name,word[2],u->name);
     return;
     }
   else return;
   }
 /* user doesn't have the command, so give it */
 if (set_xgcom(user,u,cmd_id,0,1)) {
-  sprintf(text,"You have given the '%s' command for %s\n",word[2],u->name);
-  write_user(user,text);
-  sprintf(text,"You have been given access to the command '%s'.\n",word[2]);
-  write_user(u,text);
+  vwrite_user(user,"You have given the '%s' command for %s\n",word[2],u->name);
+  vwrite_user(u,"You have been given access to the command '%s'.\n",word[2]);
   sprintf(text,"%s ~FGGCOM'd~RS the command '%s'\n",user->name,word[2]);
   add_history(u->name,1,text);
-  sprintf(text,"%s GCOM'd the command '%s' for %s\n",user->name,word[2],u->name);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s GCOM'd the command '%s' for %s\n",user->name,word[2],u->name);
   }
 }
 
@@ -14881,8 +14824,7 @@ if (banned) {
       goto XGCOM_SKIP;
       }
     } /* end for */
-  sprintf(text,"%s has had the maximum amount of commands banned.\n",u->name);
-  write_user(user,text);
+  vwrite_user(user,"%s has had the maximum amount of commands banned.\n",u->name);
   return 0;
   } /* end if */
 
@@ -14905,16 +14847,14 @@ for (i=0;i<MAX_GCOMS;++i) {
     goto XGCOM_SKIP;
     }
   } /* end for */
-sprintf(text,"%s has had the maximum amount of commands given.\n",u->name);
-write_user(user,text);
+vwrite_user(user,"%s has had the maximum amount of commands given.\n",u->name);
 return 0;
 /* write out the commands to a file */
 XGCOM_SKIP:
 sprintf(filename,"%s/%s/%s.C",USERFILES,USERCOMMANDS,u->name);
 if (!(fp=fopen(filename,"w"))) {
-  write_user(user,"ERROR: Unable to open to command list file.\n");
-  sprintf(text,"Unable to open %s's command list in set_xgcom().\n",u->name);
-  write_syslog(text,1,SYSLOG);
+  write_user(user,"ERROR: Unable to open the command list file.\n");
+  write_syslog(SYSLOG,1,"Unable to open %s's command list in set_xgcom().\n",u->name);
   return 0;
   }
 cnt=0;
@@ -14977,10 +14917,8 @@ if (!strcmp(word[1],"-a")) {
     if (rm->access==PERSONAL_UNLOCKED || rm->access==PERSONAL_LOCKED) continue;
     sprintf(filename,"%s/%s.R",DATAFILES,rm->name);
     if (!(fp=fopen(filename,"r"))) {
-      sprintf(text,"Sorry, cannot reload the description file for the room '%s'.\n",rm->name);
-      write_user(user,text);
-      sprintf(text,"ERROR: Couldn't reload the description file for room %s.\n",rm->name);
-      write_syslog(text,0,SYSLOG);
+      vwrite_user(user,"Sorry, cannot reload the description file for the room '%s'.\n",rm->name);
+      write_syslog(SYSLOG,0,"ERROR: Couldn't reload the description file for room %s.\n",rm->name);
       ++error;
       continue;
       }
@@ -14988,10 +14926,8 @@ if (!strcmp(word[1],"-a")) {
     c=getc(fp);
     while(!feof(fp)) {
       if (i==ROOM_DESC_LEN) {
-	sprintf(text,"The description is too long for the room '%s'.\n",rm->name);
-	write_user(user,text);
-	sprintf(text,"ERROR: Description too long when reloading for room %s.\n",rm->name);
-	write_syslog(text,0,SYSLOG);
+	vwrite_user(user,"The description is too long for the room '%s'.\n",rm->name);
+	write_syslog(SYSLOG,0,"ERROR: Description too long when reloading for room %s.\n",rm->name);
 	break;
         } /* end if */
       rm->desc[i]=c;
@@ -15003,8 +14939,7 @@ if (!strcmp(word[1],"-a")) {
     } /* end for */
   if (!error) write_user(user,"You have now reloaded all room descriptions.\n");
   else  write_user(user,"You have now reloaded all room descriptions that you can.\n");
-  sprintf(text,"%s reloaded all of the room descriptions.\n",user->name);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s reloaded all of the room descriptions.\n",user->name);
   return;
   } /* end if */
 /* if it's just one room to reload */
@@ -15021,20 +14956,16 @@ if ((rm=get_room(word[1]))==NULL) {
   }
 sprintf(filename,"%s/%s.R",DATAFILES,rm->name);
 if (!(fp=fopen(filename,"r"))) {
-  sprintf(text,"Sorry, cannot reload the description file for the room '%s'.\n",rm->name);
-  write_user(user,text);
-  sprintf(text,"ERROR: Couldn't reload the description file for room %s.\n",rm->name);
-  write_syslog(text,0,SYSLOG);
+  vwrite_user(user,"Sorry, cannot reload the description file for the room '%s'.\n",rm->name);
+  write_syslog(SYSLOG,0,"ERROR: Couldn't reload the description file for room %s.\n",rm->name);
   return;
   }
 i=0;
 c=getc(fp);
 while(!feof(fp)) {
   if (i==ROOM_DESC_LEN) {
-    sprintf(text,"The description is too long for the room '%s'.\n",rm->name);
-    write_user(user,text);
-    sprintf(text,"ERROR: Description too long when reloading for room %s.\n",rm->name);
-    write_syslog(text,0,SYSLOG);
+    vwrite_user(user,"The description is too long for the room '%s'.\n",rm->name);
+    write_syslog(SYSLOG,0,"ERROR: Description too long when reloading for room %s.\n",rm->name);
     break;
     }
   rm->desc[i]=c;
@@ -15043,10 +14974,8 @@ while(!feof(fp)) {
   }
 rm->desc[i]='\0';
 fclose(fp);
-sprintf(text,"You have now reloaded the desctiption for the room '%s'.\n",rm->name);
-write_user(user,text);
-sprintf(text,"%s reloaded the description for the room %s\n",user->name,rm->name);
-write_syslog(text,1,SYSLOG);
+vwrite_user(user,"You have now reloaded the desctiption for the room '%s'.\n",rm->name);
+write_syslog(SYSLOG,1,"%s reloaded the description for the room %s\n",user->name,rm->name);
 }
 
 
@@ -15074,10 +15003,8 @@ UR_OBJECT u;
 
 for (u=user_first;u!=NULL;u=u->next) {
   if (!u->alert) continue;
-  if ((user_is_friend(u,user)) && user->vis) {
-    sprintf(text,"\n\07~FG~OL~LIHEY!~RS~OL~FG  Your friend ~FT%s~FG has just logged on\n\n",user->name);
-    write_user(u,text);
-    }
+  if ((user_is_friend(u,user)) && user->vis)
+    vwrite_user(u,"\n\07~FG~OL~LIHEY!~RS~OL~FG  Your friend ~FT%s~FG has just logged on\n\n",user->name);
   }
 }
 
@@ -15119,8 +15046,7 @@ if (word_count<2) {
       write_user(user,"| ~FT~OLYou will be alerted when the following people log on~RS                       |\n");
       write_user(user,"+----------------------------------------------------------------------------+\n");
       }
-    sprintf(text,"| %-74s |\n",user->friend[i]);
-    write_user(user,text);
+    vwrite_user(user,"| %-74s |\n",user->friend[i]);
     }
   if (!cnt) write_user(user,"You are not being alerted when anyone logs on.\n");
   else {
@@ -15146,8 +15072,7 @@ if (!strcmp(word[1],user->name)) {
   }
 for (i=0;i<MAX_FRIENDS;++i) {
   if (!strcmp(user->friend[i],word[1])) {
-    sprintf(text,"You have removed %s from your friend list.\n",user->friend[i]);
-    write_user(user,text);
+    vwrite_user(user,"You have removed %s from your friend list.\n",user->friend[i]);
     user->friend[i][0]='\0';
     goto SKIP;
     }
@@ -15165,8 +15090,7 @@ if (!found) {
 for (i=0;i<MAX_FRIENDS;++i) {
   if (!user->friend[i][0]) {
     strcpy(user->friend[i],word[1]);
-    sprintf(text,"You have added %s to your list of friends.\n",user->friend[i]);
-    write_user(user,text);
+    vwrite_user(user,"You have added %s to your list of friends.\n",user->friend[i]);
     goto SKIP;
     }
   }
@@ -15176,8 +15100,7 @@ SKIP:
 sprintf(filename,"%s/%s/%s.F",USERFILES,USERFRIENDS,user->name);
 if (!(fp=fopen(filename,"w"))) {
   write_user(user,"ERROR: Unable to open to friend list file.\n");
-  sprintf(text,"Unable to open %s's friend list in friends().\n",user->name);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"Unable to open %s's friend list in friends().\n",user->name);
   return;
   }
 cnt=0;
@@ -15208,11 +15131,11 @@ if (!cnt) {
   write_user(user,"You have no friends listed.\n");
   return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
@@ -15223,7 +15146,8 @@ if (word_count<2) {
 smiley_type(inpstr,type);
 sprintf(text,"~FGYou %s to your friends:~RS %s\n",type,inpstr);
 write_user(user,text);
-if (user->vis) name=user->recap; else name=invisname;
+record_tell(user,text);
+if (user->vis) name=user->bw_recap; else name=invisname;
 sprintf(text,"~FGFriend %s %ss:~RS %s\n",name,type,inpstr);
 write_friends(user,text,1);
 }
@@ -15249,18 +15173,18 @@ if (!cnt) {
   write_user(user,"You have no friends listed.\n");
   return;
   }
-if (ban_swearing && contains_swearing(inpstr)) {
-  switch(ban_swearing) {
-    case MIN: inpstr=censor_swear_words(inpstr);
+if (amsys->ban_swearing && contains_swearing(inpstr)) {
+  switch(amsys->ban_swearing) {
+    case SBMIN: inpstr=censor_swear_words(inpstr);
               break;
-    case MAX: write_user(user,noswearing);
+    case SBMAX: write_user(user,noswearing);
               return;
     default : break; /* do nothing as ban_swearing is off */
     }
   }
 if (user->vis) name=user->recap; else name=invisname;
-if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) sprintf(text,"~OL~FGFriend~RS %s%s\n",name,inpstr);
-else sprintf(text,"~OL~FGFriend~RS %s %s\n",name,inpstr);
+if (inpstr[0]=='\'' && (inpstr[1]=='s' || inpstr[1]=='S')) sprintf(text,"~OL~FGFriend~RS %s~RS%s\n",name,inpstr);
+else sprintf(text,"~OL~FGFriend~RS %s~RS %s\n",name,inpstr);
 write_user(user,text);
 record_tell(user,text);
 write_friends(user,text,1);
@@ -15290,8 +15214,7 @@ if (user==u) {
   return;
   }
 if (rm==u->room) {
-  sprintf(text,"%s is already here!\n",u->recap);
-  write_user(user,text);
+  vwrite_user(user,"%s~RS is already here!\n",u->recap);
   return;
   }
 if (u->level>=user->level && user->level!=GOD) {
@@ -15299,10 +15222,7 @@ if (u->level>=user->level && user->level!=GOD) {
   return;
   }
 write_user(user,"You chant a mystic spell...\n");
-if (user->vis) {
-  sprintf(text,"%s chants a mystic spell...\n",user->recap);
-  write_room_except(user->room,text,user);
-  }
+if (user->vis) vwrite_room_except(user->room,user,"%s~RS chants a mystic spell...\n",user->recap);
 else {
   write_monitor(user,user->room,0);
   write_room_except(user->room,"Someone chants a mystic spell...\n",user);
@@ -15336,8 +15256,7 @@ if (u->level>=user->level) {
   return;
   }
 inpstr=remove_first(inpstr);
-sprintf(text,"%s FORCED %s to: '%s'\n",user->name,u->name,inpstr);
-write_syslog(text,0,SYSLOG);
+write_syslog(SYSLOG,0,"%s FORCED %s to: '%s'\n",user->name,u->name,inpstr);
 
 /* shift words down to pass to exec_com */
 for (w=2;w<word_count;++w) strcpy(word[w-2],word[w]);
@@ -15345,22 +15264,14 @@ word[w][0]='\0';
 word[w+1][0]='\0';
 word_count-=2;
 
-sprintf(text,"%s forces you to: '%s'\n",user->name,inpstr);
-write_user(u,text);
-sprintf(text,"You force %s to: '%s'\n",u->name,inpstr);
-write_user(user,text);
-if (!exec_com(u,inpstr)) {
-  sprintf(text,"Unable to execute the command for %s.\n",u->name);
-  write_user(user,text);
-  }
+vwrite_user(u,"%s forces you to: '%s'\n",user->name,inpstr);
+vwrite_user(user,"You force %s to: '%s'\n",u->name,inpstr);
+if (!exec_com(u,inpstr)) vwrite_user(user,"Unable to execute the command for %s.\n",u->name);
 prompt(u);
 }
 
 
 /*****************************************************************************
-          Calendar source code taken from Way Out West version 4.0.0
-                     Copyright (C) Andrew Collington
-
               based upon scalar date routines by Ray Gardner
                 and CAL - a calendar for DOS by Bob Stout
  *****************************************************************************/
@@ -15469,9 +15380,7 @@ if (2==mo && is_leap(yr)) ++numdays;
 day_1=(int)((ymd_to_scalar(yr,mo,1) - (long)ISO)%7L);
 temp[0]='\n';  text[0]='\n';
 write_user(user,"\n+-----------------------------------+\n");
-sprintf(temp,"~OL~FT%s %d~RS",month[mo-1],yr);
-sprintf(text,"| %-42.42s |\n",temp);
-write_user(user,text);
+write_user(user,center_string(42,1,"|","~OL~FT%s %d~RS",month[mo-1],yr));
 write_user(user,"+-----------------------------------+\n");
 text[0]='\0';
 strcat(text,"  ");
@@ -15508,7 +15417,7 @@ char name[ROOM_NAME_LEN+1],filename[80];
 RM_OBJECT rm;
 int pcnt=0;
 
-if (!personal_rooms) {
+if (!amsys->personal_rooms) {
   write_user(user,"Personal room functions are currently disabled.\n");
   return;
   }
@@ -15539,8 +15448,7 @@ if (word_count>=2) {
   unlink(filename);
   sprintf(filename,"%s/%s/%s.K",USERFILES,USERROOMS,user->name);
   unlink(filename);
-  sprintf(text,"%s destructed their personal room.\n",user->name);
-  write_syslog(text,1,SYSLOG);
+  write_syslog(SYSLOG,1,"%s destructed their personal room.\n",user->name);
   return;
   }
 /* if the user is moving to their room */
@@ -15552,7 +15460,7 @@ if (user->lroom==2) {
 if ((rm=get_room_full(name))==NULL) {
   if ((rm=create_room())==NULL) {
     write_user(user,"Sorry, but your room could not be created at this time.\n");
-    write_syslog("ERROR: Could not create room for in personal_room()\n",1,SYSLOG);
+    write_syslog(SYSLOG,0,"ERROR: Could not create room for in personal_room()\n");
     return;
     }
   write_user(user,"\nYour room doesn't exists.  Building it now...\n\n");
@@ -15565,10 +15473,9 @@ if ((rm=get_room_full(name))==NULL) {
   if (!(personal_room_store(user->name,0,rm))) {
     strcpy(rm->desc,default_personal_room_desc);
     strcpy(rm->topic,"Welcome to my room!");
-    sprintf(text,"%s creates their own room.\n",user->name);
-    write_syslog(text,1,SYSLOG);
+    write_syslog(SYSLOG,1,"%s creates their own room.\n",user->name);
     if (!personal_room_store(user->name,1,rm)) {
-      write_syslog("ERROR: Unable to save personal room status in personal_room_decorate()\n",1,SYSLOG);
+      write_syslog(SYSLOG,1,"ERROR: Unable to save personal room status in personal_room_decorate()\n");
       }
     }
   }
@@ -15586,7 +15493,7 @@ void personal_room_lock(UR_OBJECT user) {
 char name[ROOM_NAME_LEN+1];
 RM_OBJECT rm;
 
-if (!personal_rooms) {
+if (!amsys->personal_rooms) {
   write_user(user,"Personal room functions are currently disabled.\n");
   return;
   }
@@ -15611,9 +15518,8 @@ switch(rm->access) {
     write_user(user,"You have now ~OL~FGunlocked~RS your room to all the other users.\n");
     break;
   }
-if (!personal_room_store(user->name,1,rm)) {
-  write_syslog("ERROR: Unable to save personal room status in personal_room_decorate()\n",1,SYSLOG);
-  }
+if (!personal_room_store(user->name,1,rm))
+  write_syslog(SYSLOG,1,"ERROR: Unable to save personal room status in personal_room_decorate()\n");
 }
 
 
@@ -15626,15 +15532,14 @@ if (word_count<2) {
   write_user(user,"Usage: visit <name>\n");
   return;
   }
-if (!personal_rooms) {
+if (!amsys->personal_rooms) {
   write_user(user,"Personal room functions are currently disabled.\n");
   return;
   }
 /* check if not same user */
 word[1][0]=toupper(word[1][0]);
 if (!strcmp(user->name,word[1])) {
-  sprintf(text,"To go to your own room use the .%s command.\n",command_table[MYROOM].name);
-  write_user(user,text);
+  vwrite_user(user,"To go to your own room use the '%s' command.\n",command_table[MYROOM].name);
   return;
   }
 /* see if there is such a user */
@@ -15664,7 +15569,7 @@ char *c,name[ROOM_NAME_LEN+1];
 RM_OBJECT rm;
 int i;
 
-if (!personal_rooms) {
+if (!amsys->personal_rooms) {
   write_user(user,"Personal room functions are currently disabled.\n");
   return;
   }
@@ -15691,19 +15596,16 @@ i=0;
 c=user->malloc_start;
 while(c!=user->malloc_end) {
   if (i==ROOM_DESC_LEN) {
-    sprintf(text,"The description is too long for the room '%s'.\n",rm->name);
-    write_user(user,text);
-    sprintf(text,"ERROR: Description too long when reloading for room %s.\n",rm->name);
-    write_syslog(text,0,SYSLOG);
+    vwrite_user(user,"The description is too long for the room '%s'.\n",rm->name);
+    write_syslog(SYSLOG,0,"ERROR: Description too long when reloading for room %s.\n",rm->name);
     break;
     } /* end if */
   rm->desc[i++]=*c++;
   }
 rm->desc[i]='\0';
 write_user(user,"You have now redecorated your personal room.\n");
-if (!personal_room_store(user->name,1,rm)) {
-  write_syslog("ERROR: Unable to save personal room status in personal_room_decorate()\n",1,SYSLOG);
-  }
+if (!personal_room_store(user->name,1,rm))
+  write_syslog(SYSLOG,1,"ERROR: Unable to save personal room status in personal_room_decorate()\n");
 }
 
 
@@ -15714,7 +15616,7 @@ RM_OBJECT rm, rmto;
 UR_OBJECT u;
 char name[ROOM_NAME_LEN+1];
 
-if (!personal_rooms) {
+if (!amsys->personal_rooms) {
   write_user(user,"Personal room functions are currently disabled.\n");
   return;
   }
@@ -15726,7 +15628,7 @@ sprintf(name,"(%s)",user->name);
 strtolower(name);
 /* get room that user is in */
 if ((rm=get_room_full(name))==NULL) {
-  write_user(user,"Sorry, but you cannot use the room bgone feature at this time.\n");
+  write_user(user,"Sorry, but you cannot use the personal room bgone feature at this time.\n");
   return;
   }
 if (user->room!=rm) {
@@ -15743,9 +15645,8 @@ strtolower(word[1]);
 if (!strcmp(word[1],"all")) {
   for (u=user_first;u!=NULL;u=u->next) {
     if (u==user || u->room!=rm || u->level==GOD) continue;
-    sprintf(text,"%s is forced from the room.\n",u->recap);
-    write_user(user,text);
-    write_user(u,"You are being forced from the room.\n");
+    vwrite_user(user,"%s~RS is forced to leave the room.\n",u->recap);
+    write_user(u,"You are being forced to leave the room.\n");
     move_user(u,rmto,0);
     }
   return;
@@ -15756,16 +15657,15 @@ if (!(u=get_user_name(user,word[1]))) {
   return;
   }
 if (u->room!=rm) {
-  sprintf(text,"%s is not in your personal room.\n",u->name);
-  write_user(user,text);  return;
+  vwrite_user(user,"%s is not in your personal room.\n",u->name);
+  return;
   }
 if (u->level==GOD) {
-  sprintf(text,"%s cannot be forced from your personal room.\n",u->name);
-  write_user(user,text);  return;
+  vwrite_user(user,"%s cannot be forced to leave your personal room.\n",u->name);
+  return;
   }
-sprintf(text,"%s is forced from the room.\n",u->recap);
-write_user(user,text);
-write_user(u,"You are being forced from the room.\n");
+vwrite_user(user,"%s~RS is forced to leave the room.\n",u->recap);
+write_user(u,"You are being forced to leave the room.\n");
 move_user(u,rmto,0);
 }
 
@@ -15796,8 +15696,7 @@ if (!store) {
   c=getc(fp);
   while(!feof(fp)) {
     if (i==ROOM_DESC_LEN) {
-      sprintf(text,"ERROR: Description too long when reloading for room %s.\n",rm->name);
-      write_syslog(text,0,SYSLOG);
+      write_syslog(SYSLOG,0,"ERROR: Description too long when reloading for room %s.\n",rm->name);
       break;
       } /* end if */
     rm->desc[i]=c;
@@ -15832,13 +15731,13 @@ return 1;
 void personal_room_admin(UR_OBJECT user) {
 RM_OBJECT rm;
 int rsize,trsize,rmcnt,locked,unlocked,pcnt;
-char uname[USER_NAME_LEN+1],filename[80];
+char usrname[USER_NAME_LEN+1],filename[80];
 
 if (word_count<2) {
   write_user(user,"Usage: rmadmin -l / -m / -u <name> / -d <name>\n");
   return;
   }
-if (!personal_rooms) {
+if (!amsys->personal_rooms) {
   write_user(user,"Personal room functions are currently disabled.\n");
   return;
   }
@@ -15857,10 +15756,8 @@ if (!strcmp(word[1],"-m")) {
       rmcnt++;
       }
     }
-  sprintf(text,"| room structure : ~OL%4d~RS bytes      total memory : ~OL%8d~RS bytes  (%02.3f Mb) |\n",rsize,trsize,(float)trsize/1000000);
-  write_user(user,text);
-  sprintf(text,"|    total rooms : ~OL%4d~RS                  status : ~OL%2d~RS locked, ~OL%2d~RS unlocked     |\n",rmcnt,locked,unlocked);
-  write_user(user,text);
+  vwrite_user(user,"| room structure : ~OL%4d~RS bytes      total memory : ~OL%8d~RS bytes  (%02.3f Mb) |\n",rsize,trsize,(float)trsize/1000000);
+  vwrite_user(user,"|    total rooms : ~OL%4d~RS                  status : ~OL%2d~RS locked, ~OL%2d~RS unlocked     |\n",rmcnt,locked,unlocked);
   write_user(user,"+----------------------------------------------------------------------------+\n");
   return;
   }
@@ -15873,19 +15770,17 @@ if (!strcmp(word[1],"-l")) {
   for (rm=room_first;rm!=NULL;rm=rm->next) {
     if (is_personal_room(rm)) {
       pcnt=room_visitor_count(rm);
-      midcpy(rm->name,uname,1,strlen(rm->name)-2);
-      uname[0]=toupper(uname[0]);
-      sprintf(text,"| Owner : ~OL%-*s~RS       Status : ~OL%s~RS   Msg Count : ~OL%-2d~RS  People : ~OL%-2d~RS |\n",
-	      USER_NAME_LEN,uname,(rm->access==PERSONAL_LOCKED)?"~FRlocked  ":"~FGunlocked",rm->mesg_cnt,pcnt);
-      write_user(user,text);
+      midcpy(rm->name,usrname,1,strlen(rm->name)-2);
+      usrname[0]=toupper(usrname[0]);
+      vwrite_user(user,"| Owner : ~OL%-*s~RS       Status : ~OL%s~RS   Msg Count : ~OL%-2d~RS  People : ~OL%-2d~RS |\n",
+	      USER_NAME_LEN,usrname,(rm->access==PERSONAL_LOCKED)?"~FRlocked  ":"~FGunlocked",rm->mesg_cnt,pcnt);
       rmcnt++;
       }
     }
   if (!rmcnt) write_user(user,"| ~FRNo personal rooms are currently in memory~RS                                  |\n");
   write_user(user,"+----------------------------------------------------------------------------+\n");
   if (rmcnt) {
-    sprintf(text,"| Total personal rooms : ~OL~FM%2d~RS                                                  |\n",rmcnt);
-    write_user(user,text);
+    vwrite_user(user,"| Total personal rooms : ~OL~FM%2d~RS                                                  |\n",rmcnt);
     write_user(user,"+----------------------------------------------------------------------------+\n");
     }
   return;
@@ -15896,10 +15791,10 @@ if (!strcmp(word[1],"-u") || !strcmp(word[1],"-d")) {
     write_user(user,"Usage: rmadmin -l / -m / -u <name> / -d <name>\n");
     return;
     }
-  sprintf(uname,"(%s)",word[2]);
-  strtolower(uname);
+  sprintf(usrname,"(%s)",word[2]);
+  strtolower(usrname);
   /* first do checks on the room */
-  if ((rm=get_room_full(uname))==NULL) {
+  if ((rm=get_room_full(usrname))==NULL) {
     write_user(user,"That user does not have a personal room built.\n");
     return;
     }
@@ -15918,17 +15813,13 @@ if (!strcmp(word[1],"-u") || !strcmp(word[1],"-d")) {
     unlink(filename);
     sprintf(filename,"%s/%s/%s.B",USERFILES,USERROOMS,word[2]);
     unlink(filename);
-    sprintf(text,"%s deleted the personal room of %s.\n",user->name,word[2]);
-    write_syslog(text,1,SYSLOG);
-    sprintf(text,"You have now ~OL~FRdeleted~RS the room belonging to %s.\n",word[2]);
-    write_user(user,text);
+    write_syslog(SYSLOG,1,"%s deleted the personal room of %s.\n",user->name,word[2]);
+    vwrite_user(user,"You have now ~OL~FRdeleted~RS the room belonging to %s.\n",word[2]);
     }
   /* just unload from memory */
   else {
-    sprintf(text,"%s unloaded the personal room of %s from memory.\n",user->name,word[2]);
-    write_syslog(text,1,SYSLOG);
-    sprintf(text,"You have now ~OL~FGunloaded~RS the room belonging to %s from memory.\n",word[2]);
-    write_user(user,text);
+    write_syslog(SYSLOG,1,"%s unloaded the personal room of %s from memory.\n",user->name,word[2]);
+    vwrite_user(user,"You have now ~OL~FGunloaded~RS the room belonging to %s from memory.\n",word[2]);
     }
   return;
   }
@@ -15946,7 +15837,7 @@ RM_OBJECT rm;
 FILE *fp;
 int cnt=0;
 
-if (!personal_rooms) {
+if (!amsys->personal_rooms) {
   write_user(user,"Personal room functions are currently disabled.\n");
   return;
   }
@@ -16005,10 +15896,8 @@ if (!strcmp(user->name,word[1])) {
    */
 if (has_room_key(word[1],rm)) {
   if (personal_key_remove(user,word[1])) {
-    sprintf(text,"You take your personal room key away from ~FT~OL%s~RS.\n",word[1]);
-    write_user(user,text);
-    sprintf(text,"%s takes back their personal room key.\n",user->name);
-    write_user(get_user(word[1]),text);
+    vwrite_user(user,"You take your personal room key away from ~FT~OL%s~RS.\n",word[1]);
+    vwrite_user(get_user(word[1]),"%s takes back their personal room key.\n",user->name);
     return;
     }
   else {
@@ -16023,10 +15912,8 @@ if (!find_user_listed(word[1])) {
   }
 /* give them a key */
 if (personal_key_add(user,word[1])) {
-  sprintf(text,"You give ~FT~OL%s~RS a key to your personal room.\n",word[1]);
-  write_user(user,text);
-  sprintf(text,"%s gives you a key to their room.\n",user->name);
-  write_user(get_user(word[1]),text);
+  vwrite_user(user,"You give ~FT~OL%s~RS a key to your personal room.\n",word[1]);
+  vwrite_user(get_user(word[1]),"%s gives you a key to their room.\n",user->name);
   }
 else write_user(user,"There was an error taking the key away from that user.\n");
 }
@@ -16073,6 +15960,366 @@ return 1;
 }
 
 
+/*** Allows you to dump certain things to files as a record ***/
+void dump_to_file(UR_OBJECT user) {
+char filename[80],bstr[40];
+FILE *fp;
+int ssize,usize,rsize,nsize,dsize,csize,lsize,wsize,total,i,j;
+int tusize,trsize,tnsize,tdsize,tcsize,tlsize,twsize,lev,cnt;
+int days,hours,mins,secs;
+float mb;
+UR_OBJECT u;
+RM_OBJECT r;
+#ifdef NETLINKS
+  NL_OBJECT n;
+#endif
+struct command_struct *c;
+struct user_dir_struct *d,*entry;
+struct wiz_list_struct *w;
+
+u=NULL;
+r=NULL;
+#ifdef NETLINKS
+  n=NULL;
+#endif
+ssize=usize=rsize=nsize=dsize=csize=lsize=wsize=i=j=cnt=0;
+tusize=trsize=tnsize=tdsize=tcsize=tlsize=twsize=0;
+days=hours=mins=secs=0;
+lev=-1;
+
+if (word_count<2) {
+  write_user(user,"Usage: dump -u/-r <rank>/-c/-m/-s\n");
+  return;
+  }
+strtolower(word[1]);
+/* see if -r switch was used : dump all users of given level */
+if (!strcmp("-r",word[1])) {
+  if (word_count<3) {
+    write_user(user,"Usage: dump -r <rank>\n");
+    return;
+    }
+  strtoupper(word[2]);
+  if ((lev=get_level(word[2]))==-1) {
+    write_user(user,"Usage: dump -r <rank>\n");
+    return;
+    }
+  sprintf(filename,"%s/%s.dump",DUMPFILES,user_level[lev].name);
+  if (!(fp=fopen(filename,"w"))) {
+    write_user(user,"There was an error trying to open the file to dump to.\n");
+    write_syslog(SYSLOG,0,"Unable to open dump file %s in dump_to_file().\n",filename);
+    return;
+    }
+  cnt=0;
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  fprintf(fp,"Users of level %s %s\n",user_level[lev].name,long_date(1));
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  for (entry=first_dir_entry;entry!=NULL;entry=entry->next)
+    if (entry->level==lev) {
+      fprintf(fp,"%s\n",entry->name);
+      ++cnt;
+      }
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  fprintf(fp,"Total users at %s : %d\n",user_level[lev].name,cnt);
+  fprintf(fp,"------------------------------------------------------------------------------\n\n");
+  fclose(fp);
+  sprintf(text,"Dumped rank ~OL%s~RS to file.  ~OL%d~RS user%s recorded.\n",user_level[lev].name,cnt,PLTEXT_S(cnt)); 
+  write_user(user,text);
+  return;
+  }
+/* check to see if -u switch was used : dump all users */
+if (!strcmp("-u",word[1])) {
+  sprintf(filename,"%s/users.dump",DUMPFILES);
+  if (!(fp=fopen(filename,"w"))) {
+    write_user(user,"There was an error trying to open the file to dump to.\n");
+    write_syslog(SYSLOG,0,"Unable to open dump file %s in dump_to_file().\n",filename);
+    return;
+    }
+  cnt=0;
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  fprintf(fp,"All users %s\n",long_date(1));
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  for (entry=first_dir_entry;entry!=NULL;entry=entry->next) {
+    fprintf(fp,"%s\n",entry->name);
+    ++cnt;
+    }
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  fprintf(fp,"Total users : %d\n",cnt);
+  fprintf(fp,"------------------------------------------------------------------------------\n\n");
+  fclose(fp);
+  sprintf(text,"Dumped all users to file.  ~OL%d~RS user%s recorded.\n",cnt,PLTEXT_S(cnt)); 
+  write_user(user,text);
+  return;
+  }
+/* check to see if -c switch was used : dump last few commands used */
+if (!strcmp("-c",word[1])) {
+  sprintf(filename,"%s/cmds.dump",DUMPFILES);
+  if (!(fp=fopen(filename,"w"))) {
+    write_user(user,"There was an error trying to open the file to dump to.\n");
+    write_syslog(SYSLOG,0,"Unable to open dump file %s in dump_to_file().\n",filename);
+    return;
+    }
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  fprintf(fp,"The last 16 commands %s\n",long_date(1));
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  for (i=((j=amsys->last_cmd_cnt-16)>0?j:0);i<amsys->last_cmd_cnt;i++) fprintf(fp,"%s\n",cmd_history[i&15]);
+  fprintf(fp,"------------------------------------------------------------------------------\n\n");
+  fclose(fp);
+  write_user(user,"Dumped the last 16 commands that have been used.\n");
+  return;
+  }
+/* check to see if -m was used : dump memory currently being used */
+if (!strcmp("-m",word[1])) {
+  sprintf(filename,"%s/memory.dump",DUMPFILES);
+  if (!(fp=fopen(filename,"w"))) {
+    write_user(user,"There was an error trying to open the file to dump to.\n");
+    write_syslog(SYSLOG,0,"Unable to open dump file %s in dump_to_file().\n",filename);
+    return;
+    }
+  ssize=sizeof(struct system_struct);
+  usize=sizeof(struct user_struct);
+  for (u=user_first;u!=NULL;u=u->next) tusize+=sizeof(struct user_struct);
+  rsize=sizeof(struct room_struct);
+  for (r=room_first;r!=NULL;r=r->next) trsize+=sizeof(struct room_struct);
+#ifdef NETLINKS
+  nsize=sizeof(struct netlink_struct);
+  for (n=nl_first;n!=NULL;n=n->next) tnsize+=sizeof(struct netlink_struct);
+#endif
+  dsize=sizeof(struct user_dir_struct);
+  for (d=first_dir_entry;d!=NULL;d=d->next) tdsize+=sizeof(struct user_dir_struct);
+  csize=sizeof(struct command_struct);
+  for (c=first_command;c!=NULL;c=c->next) tcsize+=sizeof(struct command_struct);
+  lsize=sizeof(last_login_info[0]);
+  for (i=0;i<LASTLOGON_NUM;i++) tlsize+=sizeof(last_login_info[i]);
+  wsize=sizeof(struct wiz_list_struct);
+  for (w=first_wiz_entry;w!=NULL;w=w->next) twsize+=sizeof(struct wiz_list_struct);
+  total=tusize+trsize+tnsize+tdsize+tcsize+tlsize+twsize+ssize;
+  mb=(float)total/1000000;
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  fprintf(fp,"Memory Object Allocation %s\n",long_date(1));
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  fprintf(fp,"     user structure : %8d bytes    directory structure : %8d bytes\n",usize,dsize);
+  fprintf(fp,"              total : %8d bytes                  total : %8d bytes\n",tusize,tdsize);
+  fprintf(fp,"     room structure : %8d bytes      command structure : %8d bytes\n",rsize,csize);
+  fprintf(fp,"              total : %8d bytes                  total : %8d bytes\n",trsize,tcsize);
+  fprintf(fp,"  wizlist structure : %8d bytes   last login structure : %8d bytes\n",wsize,lsize);
+  fprintf(fp,"              total : %8d bytes                  total : %8d bytes\n",twsize,tlsize);
+#ifdef NETLINKS
+  fprintf(fp,"   system structure : %8d bytes      netlink structure : %8d bytes\n",ssize,nsize);
+  fprintf(fp,"              total : %8d bytes                  total : %8d bytes\n",ssize,tnsize);
+#else
+  fprintf(fp,"   system structure : %8d bytes\n",ssize);
+  fprintf(fp,"              total : %8d bytes\n",ssize);
+#endif
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  fprintf(fp,"Total object memory allocated : %9d bytes   (%02.3f Mb)\n",total,mb);
+  fprintf(fp,"------------------------------------------------------------------------------\n\n");
+  fclose(fp);
+  write_user(user,"Dumped the memory currently being used by the talker.\n");
+  return;
+  }
+/* check to see if -s switch was used : show system details */
+if (!strcmp("-s",word[1])) {
+  sprintf(filename,"%s/system.dump",DUMPFILES);
+  if (!(fp=fopen(filename,"w"))) {
+    write_user(user,"There was an error trying to open the file to dump to.\n");
+    write_syslog(SYSLOG,0,"Unable to open dump file %s in dump_to_file().\n",filename);
+    return;
+    }
+  strcpy(bstr,ctime(&amsys->boot_time));
+  secs=(int)(time(0)-amsys->boot_time);
+  days=secs/86400;
+  hours=(secs%86400)/3600;
+  mins=(secs%3600)/60;
+  secs=secs%60;
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  fprintf(fp,"System details %s\n",long_date(1));
+  fprintf(fp,"------------------------------------------------------------------------------\n");
+  fprintf(fp,"System name : %s, release %s, %s\n",amsys->sysname,amsys->sysrelease,amsys->sysversion);
+  fprintf(fp,"Running on  : %s, %s\n",amsys->sysmachine,amsys->sysnodename);
+  fprintf(fp,"Talker PID  : %d\n",amsys->pid);
+  fprintf(fp,"Booted      : %s",bstr);
+  fprintf(fp,"Uptime      : %d day%s, %d hour%s, %d minute%s, %d second%s\n",
+	  days,PLTEXT_S(days),hours,PLTEXT_S(hours),mins,PLTEXT_S(mins),secs,PLTEXT_S(secs));
+#ifdef NETLINKS
+  fprintf(fp,"Netlinks    : Compiled and running\n");
+#else
+  fprintf(fp,"Netlinks    : Not currently compiled or running\n");
+#endif
+  switch(amsys->resolve_ip) {
+    case 0:
+      fprintf(fp,"IP Resolve  : Not currently in use\n");
+      break;
+    case 1:
+      fprintf(fp,"IP Resolve  : Resolving automatically with gethostbyaddr()\n");
+      break;
+    case 2:
+      fprintf(fp,"IP Resolve  : Resolving IPs without gethostbyaddr()\n");
+      break;
+    }
+  fprintf(fp,"------------------------------------------------------------------------------\n\n");
+  fclose(fp);
+  write_user(user,"Dumped the system details.\n");
+  return;
+  }
+write_user(user,"Usage: dump -u/-r <rank>/-c/-m/-s\n");
+return;
+}
+
+
+/*** Change a user's name from their existing one to whatever ***/
+void change_user_name(UR_OBJECT user)
+{
+UR_OBJECT u,usr;
+char *name,oldname[ARR_SIZE],newname[ARR_SIZE],oldfile[80],newfile[80];
+int i,on=0;
+struct wiz_list_struct *wiz;
+struct user_dir_struct *uds;
+
+if (word_count<3) {
+  write_user(user,"Usage: morph <old user name> <new user name>\n");  return;
+  }
+/* do a bit of setting up */
+strcpy(oldname,colour_com_strip(word[1]));
+strcpy(newname,colour_com_strip(word[2]));
+strtolower(oldname);
+strtolower(newname);
+oldname[0]=toupper(oldname[0]);
+newname[0]=toupper(newname[0]);
+/* first check the given attributes */
+if (!(find_user_listed(oldname))) {
+  write_user(user,nosuchuser);
+  return;
+  }
+if (find_user_listed(newname)) {
+  write_user(user,"You cannot change the name to that of an existing user.\n");
+  return;
+  }
+if (strlen(newname)>USER_NAME_LEN) {
+  write_user(user,"The new name given was too long.\n");
+  return;
+  }
+if (strlen(newname)<3) {
+  write_user(user,"The new name given was too short.\n");
+  return;
+  }
+for (i=0;i<strlen(newname);++i) {
+  if (!isalpha(newname[i])) {
+    write_user(user,"You cannot have anything but letters in the new name.\n");
+    return;
+    }
+  }
+if (contains_swearing(newname)) {
+  write_user(user,"You cannot use a name that contains swearing.\n");
+  return;
+  }
+/* See if user is on atm */
+if ((u=get_user(oldname))!=NULL) on=1;
+else {
+  /* User not logged on */
+  if ((u=create_user())==NULL) {
+    vwrite_user(user,"%s: unable to create temporary user object.\n",syserror);
+    write_syslog(SYSLOG,0,"ERROR: Unable to create temporary user object in change_user_name().\n");
+    return;
+    }
+  strcpy(u->name,oldname);
+  if (!load_user_details(u)) {
+    write_user(user,nosuchuser);  
+    destruct_user(u);
+    destructed=0;
+    return;
+    }
+  on=0;
+  }
+if (u->level>=user->level) {
+  write_user(user,"You cannot change the name of a user with the same of higher level to you.\n");
+  return;
+  }
+/* everything is ok, so go ahead with change */
+strcpy(u->name,newname);
+strcpy(u->recap,u->name);
+strcpy(u->bw_recap,u->name);
+/* if user was a WIZ+ */
+if (u->level>=WIZ) {
+  if (in_retire_list(oldname)) {
+    clean_retire_list(oldname);
+    add_retire_list(u->name);
+    }
+  for (wiz=first_wiz_entry;wiz!=NULL;wiz=wiz->next) {
+    if (!strcmp(wiz->name,oldname)) {
+      strcpy(wiz->name,u->name);
+      break;
+      }
+    }
+  }
+/* online user list */
+for(usr=user_first;usr!=NULL;usr=usr->next) {
+  if (!strcmp(usr->name,oldname)) {
+    strcpy(usr->name,u->name);
+    break;
+    }
+  }
+/* all users list */
+for(uds=first_dir_entry;uds!=NULL;uds=uds->next) {
+  if (!strcmp(uds->name,oldname)) {
+    strcpy(uds->name,u->name);
+    break;
+    }
+  }
+/* all memory occurences should be done.  now do files */
+sprintf(oldfile,"%s/%s.D",USERFILES,oldname);
+sprintf(newfile,"%s/%s.D",USERFILES,u->name);
+rename(oldfile,newfile);
+sprintf(oldfile,"%s/%s/%s.M",USERFILES,USERMAILS,oldname);
+sprintf(newfile,"%s/%s/%s.M",USERFILES,USERMAILS,u->name);
+rename(oldfile,newfile);
+sprintf(oldfile,"%s/%s/%s.P",USERFILES,USERPROFILES,oldname);
+sprintf(newfile,"%s/%s/%s.P",USERFILES,USERPROFILES,u->name);
+rename(oldfile,newfile);
+sprintf(oldfile,"%s/%s/%s.H",USERFILES,USERHISTORYS,oldname);
+sprintf(newfile,"%s/%s/%s.H",USERFILES,USERHISTORYS,u->name);
+rename(oldfile,newfile);
+sprintf(oldfile,"%s/%s/%s.C",USERFILES,USERCOMMANDS,oldname);
+sprintf(newfile,"%s/%s/%s.C",USERFILES,USERCOMMANDS,u->name);
+rename(oldfile,newfile);
+sprintf(oldfile,"%s/%s/%s.MAC",USERFILES,USERMACROS,oldname);
+sprintf(newfile,"%s/%s/%s.MAC",USERFILES,USERMACROS,u->name);
+rename(oldfile,newfile);
+sprintf(oldfile,"%s/%s/%s.F",USERFILES,USERFRIENDS,oldname);
+sprintf(newfile,"%s/%s/%s.F",USERFILES,USERFRIENDS,u->name);
+rename(oldfile,newfile);
+sprintf(oldfile,"%s/%s/%s.R",USERFILES,USERROOMS,oldname);
+sprintf(newfile,"%s/%s/%s.R",USERFILES,USERROOMS,u->name);
+rename(oldfile,newfile);
+sprintf(oldfile,"%s/%s/%s.B",USERFILES,USERROOMS,oldname);
+sprintf(newfile,"%s/%s/%s.B",USERFILES,USERROOMS,u->name);
+rename(oldfile,newfile);
+sprintf(oldfile,"%s/%s/%s.K",USERFILES,USERROOMS,oldname);
+sprintf(newfile,"%s/%s/%s.K",USERFILES,USERROOMS,u->name);
+rename(oldfile,newfile);
+/* give results of name change */
+sprintf(text,"Had name changed from ~OL%s~RS by %s~RS.\n",oldname,user->recap);
+add_history(u->name,1,text);
+write_syslog(SYSLOG,1,"%s MORPHED %s to %s.\n",user->name,oldname,u->name);
+if (user->vis) name=user->bw_recap; else name=invisname;
+if (on) {
+  vwrite_user(u,"\n~FR~OL%s has changed your name to '~RS~OL%s~FR'.\n\n",name,u->name);
+  write_room_except(u->room,"~OL~FMThere is a shimmering in the air and something pops into existence...\n",u);
+  }
+else {
+  u->socket=-2;
+  strcpy(u->site,u->last_site);
+  save_user_details(u,0);
+  sprintf(text,"~FR~OLYou have had your name changed from ~FY%s~FR to ~FY%s~FR.\nDon't forget to reset your recap if you want.\n",oldname,u->name);
+  send_mail(user,u->name,text,0);
+  destruct_user(u);
+  destructed=0;
+  }
+vwrite_user(user,"You have changed the name of ~OL%s~RS to ~OL%s~RS.\n\n",oldname,u->name);
+}
+
+
+
 /*****************************************************************************/
+
 
 

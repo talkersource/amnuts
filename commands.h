@@ -1,6 +1,6 @@
 /*****************************************************************************
-                Commands header file for Amnuts version 2.1.1
-        Copyright (C) Andrew Collington - Last update: 25th May, 1999
+                Commands header file for Amnuts version 2.2.0
+      Copyright (C) Andrew Collington - Last update: 5th September, 1999
  *****************************************************************************/
 
 
@@ -223,6 +223,13 @@ struct {
     { "rmadmin",    "",    ARCH,    CT_ADMIN   },
     { "mykey",      "",    SUPER,   CT_GENERAL },
     { "mybgone",    "",    SUPER,   CT_GENERAL },
+    { "wrules",     "",    WIZ,     CT_GENERAL },
+    { "files",      "",    USER,    CT_GENERAL },
+    { "adminfiles", "",    WIZ,     CT_ADMIN   },
+    { "dump",       "",    GOD,     CT_ADMIN   },
+    { "tpromote",   "",    WIZ,     CT_ADMIN   },
+    { "morph",      "",    ARCH,    CT_ADMIN   },
+    { "fmail",      "",    SUPER,   CT_MSG     },
     { "*","*",-1,-1 } /* stopping clause - do not remove */
   };
 
@@ -417,7 +424,14 @@ enum comvals {
   BEEP,
   RMADMIN,
   MYKEY,
-  MYBGONE
+  MYBGONE,
+  WIZRULES,
+  DISPLAY,
+  DISPLAYADMIN,
+  DUMPCMD,
+  TEMPRO,
+  MORPH,
+  FMAIL
 } com_num;
 
 
@@ -431,7 +445,7 @@ struct {
     {"gender","sets your gender (male, female, or neuter)"},
     {"age","set your age for people to see"},
     {"email","enter your email address"},
-    {"homepage","enter your homepage address"},
+    {"www","enter your homepage address"},
     {"hide","makes your email visible to only you and the law, or everyone (toggle)"},
     {"wrap","sets screen wrap to be on or off (toggle)"},
     {"pager","sets how many lines per page of the pager you get"},

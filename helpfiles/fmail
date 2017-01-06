@@ -1,0 +1,6 @@
+~OLCommand :~RS fmail
+~OLUsage   :~RS fmail all/<message number>
+
+This command allows you to manually send all of, or specific messages from
+your smail box.  You need to have your email entered and verified, though
+you do not need to have the autofwd set.

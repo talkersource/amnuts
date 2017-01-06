@@ -1,13 +1,14 @@
 /*****************************************************************************
-                    Header file for Amnuts version 2.1.1
-        Copyright (C) Andrew Collington - Last update: 25th May, 1998
+                    Header file for Amnuts version 2.2.0
+      Copyright (C) Andrew Collington - Last update: 5th September, 1999
  *****************************************************************************/
 
 /* version number - you can add and check against your own version number
    but the Amnuts and NUTS must stay the same as listed below
    */
-#define AMNUTSVER "2.1.1"
+#define AMNUTSVER "2.2.0"
 #define NUTSVER "3.3.3"
+#define USERVER "0.1"
 
 /* general directories */
 #define DATAFILES "datafiles"
@@ -15,8 +16,11 @@
 #define MAILSPOOL "mailspool"
 #define MISCFILES "miscfiles"
 #define PICTFILES "pictfiles"
-#define LASTCMDLOGS "lastcmdlogs"
 #define MOTDFILES "motds"
+#define DUMPFILES "dumpfiles"
+#define TEXTFILES "textfiles"
+#define ADMINFILES "adminfiles"
+#define LOGFILES "logfiles"
 
 /* user directories */
 #define USERFILES "userfiles"
@@ -31,13 +35,14 @@
 /* files */
 #define CONFIGFILE "config"
 #define NEWSFILE "newsfile"
-#define MAPFILE "mapfile"
 #define SITEBAN "siteban"
 #define USERBAN "userban"
 #define NEWBAN "newban"
 #define SUGBOARD "suggestions"
 #define RULESFILE "rules"
+#define WIZRULESFILE "wizrules"
 #define HANGDICT "hangman_words"
+#define SHOWFILES "showfiles"
 
 /* system logs */
 #define LAST_CMD   "last_command"
@@ -45,13 +50,13 @@
 #define NETSYSLOG  "netlog"
 #define REQSYSLOG  "reqlog"
 #define SYSLOG 0
-#define NETLOG 1
-#define REQLOG 2
+#define REQLOG 1
+#define NETLOG 2
 
 /* general defines */
 #define OUT_BUFF_SIZE 1000
 #define MAX_WORDS 10
-#define WORD_LEN 40
+#define WORD_LEN 80
 #define ARR_SIZE 1000
 #define MAX_LINES 15
 #define REVIEW_LINES 15
@@ -60,10 +65,11 @@
 #define BUFSIZE 1000
 #define ROOM_NAME_LEN 20
 #define ROOM_LABEL_LEN 5
-#define OFF 0
-#define MIN 1
-#define MAX 2
+#define SBOFF 0
+#define SBMIN 1
+#define SBMAX 2
 #define LASTLOGON_NUM 5
+#define LOGIN_FLOOD_CNT 20
 
 /* netlink defines */
 #ifdef NETLINKS
@@ -140,24 +146,28 @@
 #define LOGIN_PROMPT 4
 
 /* some macros that are used in the code */
+/* these are for grammer */
 #define PLTEXT_S(n) &"s"[(1==(n))]
 #define PLTEXT_ES(n) &"es"[(1==(n))<<1]
 #define PLTEXT_IS(n) ((1==(n))?"is":"are")
 #define PLTEXT_WAS(n) ((1==(n))?"was":"were")
 #define SIZEOF(table) (sizeof(table)/sizeof(table[0]))
+/* these are for bit manipulation */
+#define BIT_BOOL(x) (!(!(x)))
+#define BIT_SET(arg,pos) ((arg) | (1L << (pos)))
+#define BIT_CLR(arg,pos) ((arg) & ~(1L << (pos)))
+#define BIT_TEST(arg,pos) BIT_BOOL((arg) & (1L << (pos)))
+#define BIT_FLIP(arg,pos) ((arg) ^ (1L << (pos)))
+
 
 /* attempt to stop freezing time.  Thanks to Arny ('Paris' code creator)
    and Cygnus ('Ncohafmuta' code creator) for this */
-#if !defined(__GLIBC__) || (__GLIBC__ < 2)
+#if !defined __GLIBC__ || __GLIBC__ < 2
 #define SIGNAL(x,y) signal(x,y)
 #else
 #define SIGNAL(x,y) sysv_signal(x,y)
 #endif
 
-/* syserrlist - hopefully it'll work like this */
-#if !defined(__GLIBC__)
-  extern char *const sys_errlist[];
-#endif
 
 /* user variables - some are saved in the user file, and some are not */
 struct user_struct {
@@ -168,13 +178,13 @@ struct user_struct {
   char afk_mesg[AFK_MESG_LEN+1],inpstr_old[REVIEW_LEN+1];
   char tname[80],tsite[80],tport[5],logout_room[ROOM_NAME_LEN+1],version[10];
   char copyto[MAX_COPIES][USER_NAME_LEN+1],invite_by[USER_NAME_LEN+1],date[80];
-  char email[81],homepage[81],ignoreuser[MAX_IGNORES][USER_NAME_LEN+1],recap[USER_NAME_LEN+1];
-  char call[USER_NAME_LEN+1],macros[10][MACRO_LEN],friend[MAX_FRIENDS][USER_NAME_LEN+1];
+  char email[81],homepage[81],ignoreuser[MAX_IGNORES][USER_NAME_LEN+1],recap[USER_NAME_LEN+USER_NAME_LEN*3];
+  char bw_recap[USER_NAME_LEN+1],call[USER_NAME_LEN+1],macros[10][MACRO_LEN],friend[MAX_FRIENDS][USER_NAME_LEN+1];
   char verify_code[80],afkbuff[REVTELL_LINES][REVIEW_LEN+2],editbuff[REVTELL_LINES][REVIEW_LEN+2];
   char samesite_check_store[ARR_SIZE],hang_word[WORD_LEN+1],hang_word_show[WORD_LEN+1],hang_guess[WORD_LEN+1];
   char *malloc_start,*malloc_end,icq[ICQ_LEN+1];
   int type,login,attempts,vis,ignall,prompt,command_mode,muzzled,charmode_echo;
-  int gender,hideemail,edit_line,warned,accreq,ignall_store,igntells;
+  int gender,hideemail,edit_line,warned,accreq,ignall_store,igntells,real_level;
   int afk,clone_hear,colour,ignshouts,unarrest,arrestby,pager,expire,lroom,monitor;
   int show_rdesc,wrap,alert,mail_verified,autofwd,editing,show_pass,pagecnt,pages[MAX_PAGES];
   int ignpics,ignlogons,ignwiz,igngreets,ignbeeps,hang_stage,samesite_all_store;
@@ -201,48 +211,43 @@ last_login_info[LASTLOGON_NUM+1];
 
 /* room informaytion structure */
 struct room_struct {
-  char name[ROOM_NAME_LEN+1];
-  char label[ROOM_LABEL_LEN+1];
-  char desc[ROOM_DESC_LEN+1];
-  char topic[TOPIC_LEN+1];
-  char revbuff[REVIEW_LINES][REVIEW_LEN+2];
+  char name[ROOM_NAME_LEN+1],label[ROOM_LABEL_LEN+1],desc[ROOM_DESC_LEN+1];
+  char topic[TOPIC_LEN+1],revbuff[REVIEW_LINES][REVIEW_LEN+2],map[ROOM_NAME_LEN+1];
   int access; /* public , private etc */
   int revline; /* line number for review */
   int mesg_cnt;
   char link_label[MAX_LINKS][ROOM_LABEL_LEN+1]; /* temp store for parse */
   struct room_struct *link[MAX_LINKS];
   struct room_struct *next,*prev;
-  #ifdef NETLINKS
-    int inlink; /* 1 if room accepts incoming net links */
-    char netlink_name[SERV_NAME_LEN+1]; /* temp store for config parse */
-    struct netlink_struct *netlink; /* for net links, 1 per room */
-  #endif
+#ifdef NETLINKS
+  int inlink; /* 1 if room accepts incoming net links */
+  char netlink_name[SERV_NAME_LEN+1]; /* temp store for config parse */
+  struct netlink_struct *netlink; /* for net links, 1 per room */
+#endif
   };
 typedef struct room_struct *RM_OBJECT;
 RM_OBJECT room_first,room_last;
-RM_OBJECT create_room();
 
 #ifdef NETLINKS
-  /* Structure for net links, ie server initiates them */
-  struct netlink_struct {
-    char service[SERV_NAME_LEN+1];
-    char site[SITE_NAME_LEN+1];
-    char verification[VERIFY_LEN+1];
-    char buffer[ARR_SIZE*2];
-    char mail_to[WORD_LEN+1];
-    char mail_from[WORD_LEN+1];
-    FILE *mailfile;
-    time_t last_recvd; 
-    int port,socket,type,connected;
-    int stage,lastcom,allow,warned,keepalive_cnt;
-    int ver_major,ver_minor,ver_patch;
-    struct user_struct *mesg_user;
-    struct room_struct *connect_room;
-    struct netlink_struct *prev,*next;
-  };
-  typedef struct netlink_struct *NL_OBJECT;
-  NL_OBJECT nl_first,nl_last;
-  NL_OBJECT create_netlink();
+/* Structure for net links, ie server initiates them */
+struct netlink_struct {
+  char service[SERV_NAME_LEN+1];
+  char site[SITE_NAME_LEN+1];
+  char verification[VERIFY_LEN+1];
+  char buffer[ARR_SIZE*2];
+  char mail_to[WORD_LEN+1];
+  char mail_from[WORD_LEN+1];
+  FILE *mailfile;
+  time_t last_recvd; 
+  int port,socket,type,connected;
+  int stage,lastcom,allow,warned,keepalive_cnt;
+  int ver_major,ver_minor,ver_patch;
+  struct user_struct *mesg_user;
+  struct room_struct *connect_room;
+  struct netlink_struct *prev,*next;
+};
+typedef struct netlink_struct *NL_OBJECT;
+NL_OBJECT nl_first,nl_last;
 #endif
 
 /* main user list structure */
@@ -271,15 +276,39 @@ struct command_struct {
 struct command_struct *first_command,*last_command;
 char cmd_history[16][128];
 
+/* system structure */
+struct system_struct {
+  int heartbeat,keepalive_interval,ignore_sigterm,mesg_life,mesg_check_hour,mesg_check_min;
+  int net_idle_time,login_idle_time,user_idle_time,time_out_maxlevel,time_out_afks,crash_action;
+  int num_of_users,num_of_logins,logons_old,logons_new,auto_purge,purge_count,purge_skip,users_purged;
+  int user_count,max_users,max_clones,min_private_users,colour_def,charecho_def,prompt_def;
+  int wizport_level,minlogin_level,gatecrash_level,ignore_mp_level,rem_user_maxlevel,rem_user_deflevel;
+  int password_echo,auto_promote,ban_swearing,personal_rooms,startup_room_parse,auto_connect;
+  int allow_recaps,suggestion_count,random_motds,motd1_cnt,motd2_cnt,forwarding,sbuffline;
+  int pid,resolve_ip,rs_countdown,level_count[GOD+1],last_cmd_cnt,flood_protect;
+  unsigned short logging;
+  char sysname[64],sysmachine[64],sysrelease[64],sysversion[64],sysnodename[256],shoutbuff[REVIEW_LINES][REVIEW_LEN+2];
+  time_t boot_time,rs_announce,rs_which,purge_date;
+  UR_OBJECT rs_user;
+  };
+typedef struct system_struct *SYS_OBJECT;
+SYS_OBJECT amsys;
+
 
 /* levels used on the talker */
-char *level_name[]={
-  "JAILED","NEW","USER","SUPER","WIZ","ARCH","GOD","*"
+struct {
+  char *name;
+  char *alias;
+  } user_level[]={
+    { "JAILED", "|" },
+    { "NEW",    "_" },
+    { "USER",   " " },
+    { "SUPER",  " " },
+    { "WIZ",    "^" },
+    { "ARCH",   "+" },
+    { "GOD",    "*" }
   };
-
-char *level_alias[]={
-  "|","_"," "," ","^","+","*"
-  };
+#define NUM_LEVELS SIZEOF(user_level)
 
 
 /* default rooms */
@@ -379,7 +408,6 @@ char *invisleave="A presence leaves the room...\n";
 char *invisname="A presence";
 char *talker_name="Amnuts";
 char *crypt_salt="NU";
-char *long_date();
 
 
 /* you can change this for whatever sig you want - of just "" if you don't want
@@ -407,11 +435,10 @@ char *noswearing="Swearing is not allowed here.\n";
 
 
 /* Other global variables */
-char text[ARR_SIZE*2];
+char text[ARR_SIZE*2],vtext[ARR_SIZE*2];
 char word[MAX_WORDS][WORD_LEN+1];
 char wrd[8][81];
 char progname[40],confile[40];
-time_t boot_time;
 jmp_buf jmpvar;
 #ifdef NETLINKS
   char verification[SERV_NAME_LEN+1];
@@ -419,25 +446,9 @@ jmp_buf jmpvar;
 #else 
   int listen_sock[2],port[2],port_total=2;
 #endif
-int wizport_level,minlogin_level;
-int colour_def,password_echo,ignore_sigterm;
-int max_users,max_clones,num_of_users,num_of_logins,heartbeat;
-int login_idle_time,user_idle_time,config_line,word_count;
 int tyear,tmonth,tday,tmday,twday,thour,tmin,tsec;
-int mesg_life,system_logging,prompt_def,no_prompt,auto_promote;
-int force_listen,gatecrash_level,min_private_users;
-int ignore_mp_level,rem_user_maxlevel,rem_user_deflevel;
-int destructed,mesg_check_hour,mesg_check_min,net_idle_time;
-int keepalive_interval,auto_connect,ban_swearing,crash_action;
-int time_out_afks,rs_countdown,allow_recaps,user_count;
-int charecho_def,time_out_maxlevel,auto_purge,personal_rooms;
-int logons_old,logons_new,purge_count,purge_skip,users_purged,suggestion_count;
-int startup_room_parse,motd1_cnt,motd2_cnt,random_motds;
-int level_count[GOD+1];  /* keep count of users/level - MUST be max. level + 1 */
-static int last_cmd_cnt;
-time_t rs_announce,rs_which,purge_date,sbuffline,forwarding,logon_flag;
-char shoutbuff[REVIEW_LINES][REVIEW_LEN+2];
-UR_OBJECT rs_user;
+int destructed,force_listen,no_prompt,logon_flag;
+int config_line,word_count;
 
 
 /* Letter array map - for greet() */

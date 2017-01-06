@@ -1,4 +1,7 @@
 ~OLCommand :~RS logging
-~OLUsage   :~RS logging
+~OLUsage   :~RS logging -l/-s/-r/-n/-on/-off
 
-This is a toggle command that switches logging to the syslog on and off.
+This allows you to toggle the logging functions.  Using the -l option with
+list the status of the logging function.  The -s, -r and -n options will
+toggle the system log, request log and netlinks log (respectively).  The
+-on option will turn all logging on, and -off will turn everything off.
