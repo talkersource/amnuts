@@ -1,0 +1,5 @@
+Command : viewlog
+Usage   : viewlog sys/net/req/<level name> [<lines from end>]
+
+Shows various logs.  If lines from the end is specified it only shows the
+last n lines of the log so you don't have to page through the whole thing.

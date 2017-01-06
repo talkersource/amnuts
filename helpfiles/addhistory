@@ -1,0 +1,4 @@
+Command : addhistory
+Usage   : addhistory <user> <text>
+
+This allows you to add your own text to the user's history list.

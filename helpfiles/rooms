@@ -1,0 +1,6 @@
+Command : rooms
+Usage   : rooms [level]
+
+Displays a list of the rooms and their current topics.  If the "level"
+option is used then any rooms that require you to be of a certain
+level and above to enter will be displayed.

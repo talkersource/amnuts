@@ -1,0 +1,5 @@
+Command : unban
+Usage   : unban site/user/new <site/user name/site>
+
+This will remove a site, user, or new users from site ban if the ban is
+currently set.

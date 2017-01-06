@@ -1,0 +1,4 @@
+Command : version
+Usage   : version
+
+Shows the current talker version, and also some various other statistics.

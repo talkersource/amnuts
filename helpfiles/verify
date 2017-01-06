@@ -1,0 +1,9 @@
+Command : verify
+Usage   : verify <verification code>
+
+This will allow you verify that you have been sent an email from the talker.
+You will be sent this when you set your email address using the 'set'
+command (providing you specify a correct email address).  Once you get the
+email you will have a <verification code> which you must supply before
+you can have smails auto-forwarded to your email address.
+Use the 'set' command to turn on/off auto-forwarding.

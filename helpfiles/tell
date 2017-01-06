@@ -1,0 +1,6 @@
+Command : tell
+Usage   : tell <user> <message>
+Aliases : >
+
+This allows you to speak privately to another user without having to
+find a private room.

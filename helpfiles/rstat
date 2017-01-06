@@ -1,0 +1,5 @@
+Command : rstat
+Usage   : rstat <room>
+
+Gives statistcs of the service the given room is linked to providing that room
+has an active netlink.

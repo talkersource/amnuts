@@ -1,0 +1,6 @@
+Command : arrest
+Usage   : arrest <user>
+
+Sends the given user to jail (if there is an allocated jail room) and sets
+their level to 0 (Outlaw).  If the users logs off and then back on they will
+remain an Outlaw and be sent automatically to jail.

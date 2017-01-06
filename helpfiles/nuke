@@ -1,0 +1,5 @@
+Command : nuke
+Usage   : nuke <user>
+
+This will enable you to delete the files of a given user.  This can be used if
+the user has been banned, or their user files have been corrupted, etc.

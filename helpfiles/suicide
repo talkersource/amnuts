@@ -1,0 +1,5 @@
+Command : suicide
+Usage   : suicide <your password>
+
+This allows you to delete your own account, also wiping your profile and any
+mail you may have.

@@ -1,0 +1,4 @@
+Command : topic
+Usage   : topic <text>
+
+You can set the topic of the room you are in to the text given.

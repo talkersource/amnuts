@@ -1,0 +1,5 @@
+Command : recount
+Usage   : recount
+
+This allows the boards to be recounted incase they have been edited manually
+and the count has an error.

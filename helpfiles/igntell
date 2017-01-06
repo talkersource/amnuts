@@ -1,0 +1,5 @@
+Command : igntell
+Usage   : igntell
+
+This allows you to ignore any tells.  Acts as a toggle, so type it 
+again to listen.

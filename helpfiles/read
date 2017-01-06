@@ -1,0 +1,6 @@
+Command : read
+Usage   : read [<room>]
+
+This displays the message board of the given room, providing you have access
+to that room (ie, it is not fixed to private). If no room is given it defaults
+to your current room.

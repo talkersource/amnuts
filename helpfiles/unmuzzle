@@ -1,0 +1,6 @@
+Command : unmuzzle
+Usage   : unmuzzle [<user>]
+
+Removes a muzzle from a user.  This will only work if the user was muzzled
+by someone of equal or lesser level that yourself.  If you omit the user then
+you will be displayed a list of users currently logged on that are muzzled.

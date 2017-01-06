@@ -1,0 +1,5 @@
+Command : shout
+Usage   : shout <message>
+Aliases : [
+
+This allows you to "shout" to the whole talker.

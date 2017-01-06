@@ -1,0 +1,8 @@
+Command : ewiz
+Usage   : ewiz [<wiz level>] <text>
+
+This command allows the Wiz to emote to various Wiz levels though they can
+only specifically emote to levels equal or less that of their own. 
+If no level is specified it defaults to WIZ which means all the Wiz levels
+can hear it.
+Example of emoting to all ARCH's: .ewiz arch grins.

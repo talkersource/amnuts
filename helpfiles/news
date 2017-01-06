@@ -1,0 +1,4 @@
+Command : news
+Usage   : news
+
+Allows you to read the news file (if there is one).

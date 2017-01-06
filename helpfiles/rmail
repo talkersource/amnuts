@@ -1,0 +1,6 @@
+Command : rmail
+Usage   : rmail [<message #>]
+
+If a message number is given then you will be shown only that
+message, otherwise any mail that you currently have in your mailbox.
+Message numbers can be checked using the ~FGfrom~RS command.

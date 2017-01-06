@@ -1,0 +1,5 @@
+Command : cbuff
+Usage   : cbuff
+Aliases : *
+
+Clears the conversation buffer of the room you are currently in.

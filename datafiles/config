@@ -1,0 +1,47 @@
+# Main config file.
+
+INIT:
+verification       amnuts1
+mainport           7000
+wizport            7001
+linkport           7002
+max_users          50
+max_clones         5
+heartbeat          2
+login_idle_time    180
+user_idle_time     3600
+ban_swearing       NO
+auto_connect       NO
+password_echo      YES
+ignore_sigterm     NO
+allow_caps_in_name NO
+system_logging     ON
+colour_def         ON
+prompt_def         OFF
+charecho_def       OFF
+minlogin_level     NONE
+mesg_life          10
+mesg_check_time    01:00
+min_private        2
+ignore_mp_level    ARCH
+rem_user_maxlevel  WIZ
+rem_user_deflevel  USER
+wizport_level      WIZ
+gatecrash_level    GOD
+time_out_maxlevel  WIZ
+crash_action       REBOOT
+
+ROOMS:
+dr drive    ha        PUB  CONNECT WayOutWest
+ha hallway  dr,co,wz  PUB  
+wz wizroom  ha        PRIV
+co corridor ha,lg     
+lg lounge   co        BOTH ACCEPT
+
+
+# Link to the 2nd talker. You may need to put the machine name rather than
+# localhost here when youre running the 2nd talker on the same machine , it
+# depends on how the /etc/hosts file is set up and also the resolver.
+SITES:
+WayOutWest  ultra.ccp.com 2576  West3
+

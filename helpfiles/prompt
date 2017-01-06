@@ -1,0 +1,6 @@
+Command : prompt
+Usage   : prompt
+
+Toggles the prompt on and off.  The prompt has the following layout:
+<current system time, time on, name +>
+The + will only appear if you are invisible.

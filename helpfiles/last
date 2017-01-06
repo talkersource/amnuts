@@ -1,0 +1,4 @@
+Command : last
+Usage   : last <user>
+
+Shows you when a user was last logged on.

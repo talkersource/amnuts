@@ -1,0 +1,4 @@
+Command : makeinvis
+Usage   : makeinvis <user>
+
+Forces a user to become invisible if they are visible.

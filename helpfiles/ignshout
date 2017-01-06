@@ -1,0 +1,5 @@
+Command : ignshout
+Usage   : ignshout
+
+This allows you to ignore any shouts.  Acts as a toggle, so type it 
+again to listen.
