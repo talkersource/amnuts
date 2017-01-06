@@ -1,6 +1,7 @@
 /*****************************************************************************
-           Netlinks prototypes header file for Amnuts version 2.2.0
-        Copyright (C) Andrew Collington - Last updated: 28th July, 1999
+           Netlinks prototypes header file for Amnuts version 2.2.1
+       Copyright (C) Andrew Collington - Last updated: 3rd October, 1999
+              amnuts@iname.com  |  http://www.talker.com/amnuts/
  *****************************************************************************/
 
 

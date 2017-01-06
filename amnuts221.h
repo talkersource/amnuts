@@ -1,6 +1,7 @@
 /*****************************************************************************
-                    Header file for Amnuts version 2.2.0
-      Copyright (C) Andrew Collington - Last update: 5th September, 1999
+                    Header file for Amnuts version 2.2.1
+      Copyright (C) Andrew Collington - Last update: 3rd October, 1999
+               amnuts@iname.com  |  http://www.talker.com/amnuts/
  *****************************************************************************/
 
 /* version number - you can add and check against your own version number
@@ -8,7 +9,7 @@
    */
 #define AMNUTSVER "2.2.0"
 #define NUTSVER "3.3.3"
-#define USERVER "0.1"
+#define USERVER "0.3"
 
 /* general directories */
 #define DATAFILES "datafiles"
@@ -31,6 +32,7 @@
 #define USERCOMMANDS "xgcoms"
 #define USERMACROS "macros"
 #define USERROOMS "rooms"
+#define USERREMINDERS "reminders"
 
 /* files */
 #define CONFIGFILE "config"
@@ -109,6 +111,8 @@
 #define MAX_XCOMS 10
 #define MAX_GCOMS 10
 #define MAX_PAGES 1000 /* should be enough! */
+#define MAX_REMINDERS 30
+#define REMINDER_LEN  70
 
 /* rooms */
 #define MAX_LINKS 20
@@ -194,6 +198,9 @@ struct user_struct {
   int lmail_lev,hwrap_lev,hwrap_id,hwrap_same,hwrap_func,gcoms[MAX_GCOMS],xcoms[MAX_XCOMS];
   struct room_struct *room,*invite_room,*wrap_room;
   struct user_struct *prev,*next,*owner;
+  struct {
+    int day,month,year,alert; char msg[REMINDER_LEN];
+    } reminder[MAX_REMINDERS],temp_remind;
   time_t last_input,last_login,total_login,read_mail,t_expire;
   #ifdef NETLINKS
     struct netlink_struct *netlink,*pot_netlink;
@@ -285,8 +292,9 @@ struct system_struct {
   int wizport_level,minlogin_level,gatecrash_level,ignore_mp_level,rem_user_maxlevel,rem_user_deflevel;
   int password_echo,auto_promote,ban_swearing,personal_rooms,startup_room_parse,auto_connect;
   int allow_recaps,suggestion_count,random_motds,motd1_cnt,motd2_cnt,forwarding,sbuffline;
-  int pid,resolve_ip,rs_countdown,level_count[GOD+1],last_cmd_cnt,flood_protect;
+  int resolve_ip,rs_countdown,level_count[GOD+1],last_cmd_cnt,flood_protect;
   unsigned short logging;
+  unsigned int pid;
   char sysname[64],sysmachine[64],sysrelease[64],sysversion[64],sysnodename[256],shoutbuff[REVIEW_LINES][REVIEW_LEN+2];
   time_t boot_time,rs_announce,rs_which,purge_date;
   UR_OBJECT rs_user;

@@ -24,7 +24,7 @@
 
 #=-- Set up some variables ------------------------------------------
 
-$userdir='userfiles';  # what directory to load files from
+$userdir='../userfiles';  # what directory to load files from
 $backup='USERS';       # what name you want the backup file to have
 $filetype='D';         # what name of files you want to alter
 $default_content='#UNSET';  # What to add to a line if nothing was given

@@ -39,15 +39,18 @@ auto_promote       NO
 personal_rooms     NO
 startup_room_parse NO
 random_motds       NO
+resolve_ip         AUTO
+flood_protect      ON
 
 
 ROOMS:
-dr drive    ha        PUB  CONNECT talker1
-ha hallway  dr,co,wz  PUB  
-wz wizroom  ha        PRIV
-co corridor ha,lg     
-lg lounge   co        BOTH ACCEPT
-ja jail     wz        PRIV
+general dr drive    ha        PUB  CONNECT talker1
+general ha hallway  dr,co,wz  PUB  
+general wz wizroom  ha        PRIV
+general co corridor ha,lg     
+general lg lounge   co        BOTH ACCEPT
+general ja jail     wz        PRIV
+
 
 # Link back to talker 1
 SITES:

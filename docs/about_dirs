@@ -1,6 +1,6 @@
 +------------------------------------------------------------------------------+
         DIRECTORY STRUCTURE - DIRECTORY STRUCTURE - DIRECTORY STRUCTURE
-      Directory information for the Unix talker code Amnuts version 2.1.1
+      Directory information for the Unix talker code Amnuts version 2.2.0
 +------------------------------------------------------------------------------+
 
 The server has a fixed directory structure and expects certain files to be
@@ -13,11 +13,14 @@ datafiles
 This directory contains the config file which contains all the parameters
 necessary to boot the server and also the room description and message
 board files. These are in the form of <room name>.R and <room name>.B
-respectively. Also the 2 ban files: sitebans and userbans are stored here
-which store banned sites and banned users.
+respectively.  It also expects to find the map files in this directory, of
+the form <map name>.map.
 
-There is another directory in here, 'old_datafiles', just incase any of
-you wanted the old rooms and config files.
+Also the 2 ban files: sitebans and userbans are stored here which store
+banned sites and banned users.
+
+There is another directory in here, 'old_datafiles', just incase any of you
+wanted the old rooms and config files.
 
 
 helpfiles
@@ -32,15 +35,16 @@ userfiles
 The root of userfiles contains the .D files - the user information.
 There is also a sub-structure of directories which are as follows:
 
-   friends  : List of friends (.F)
-   historys : History of user events (.H)
-   mail     : User's mail files (.M)
-   macros   : Any macros the user has set (.MAC)
-   profiles : Profiles is the user has made them (.P)
-   rooms    : Stores the user's room information (.R), rooms board
-              information (.B) and key information (.K)
-   xgcoms   : Any commands the user has been restricted from using of given
-              access to (.C)
+   friends   : List of friends (.F)
+   historys  : History of user events (.H)
+   mail      : User's mail files (.M)
+   macros    : Any macros the user has set (.MAC)
+   profiles  : Profiles is the user has made them (.P)
+   rooms     : Stores the user's room information (.R), rooms board
+               information (.B) and key information (.K)
+   xgcoms    : Any commands the user has been restricted from using of
+               given access to (.C)
+   reminders : Stores reminder message and date (.REM)
 
 
 mailspool
@@ -51,11 +55,11 @@ to be sent off or while it is being received.
 
 Outgoing mail filenames are in the format of: OUT_<from>_<to>@<service to>
 
-eg OUT_Fred_Neil@talker2
+eg OUT_Bod_Andy@talker2
 
 Incoming ones are: IN_<to>_<from>@<service_from>
 
-eg IN_Neil_Fred@talker1
+eg IN_Andy_Bod@talker1
 
 
 pictfiles
@@ -71,8 +75,8 @@ miscfiles
 
 This contains any files that could not be classed into the other
 directories.  I suppose they could all have been put into 'datafiles', but
-I personally like to use that just for room data and talker
-configuration... But maybe that's just me?
+I personally like to use that just for room data and talker configuration..
+But maybe that's just me?
 
 
 motds
@@ -89,13 +93,28 @@ consequtivly, such as 'motd1', 'motd2', 'motd3', etc.  They MUST be called
 this.
 
 
-lastcmdlogs
------------
+logfiles
+--------
 
-Contains a dump of the last number of commands used on the talker before
-it crashed (should it crash).  These dumps may help to track down bugs and
-reasons why the talker has crashed.
+This contains the system logs and crash logs.  Each log file has the PID
+for that session as an extention.
 
+
+dumpfiles
+---------
+
+This directory will only contain itmes if you use the 'dump' command on
+the talker.
+
+
+textfiles
+---------
+
+This contains the further directory:
+
+	- adminfiles
+
+This is where files for the 'files' and 'adminfiles' commands reside.
 
 +------------------------------------------------------------------------------+
 

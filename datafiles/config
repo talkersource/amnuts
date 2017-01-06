@@ -44,7 +44,7 @@ ROOMS:
 # map  label  name         links              netlink connections
 general re  reception      cp,s1,mo,cu        PUB
 general cp  car_park       re                 PUB CONNECT talker1
-general s1  store_room     re,mo,s2,wr        
+general s1  store_room     re,mo,s2,wr,cra        
 general mo  main_office    re,s1,li,cr,to,dr  PUB
 general s2  back_store     s1,to,cr           
 general li  library        mo,cr,ac           
@@ -54,14 +54,16 @@ general dr  directors      mo                 PUB
 general wr  wizroom        s1                 PRIV
 general cu  cupboard       re                 PRIV
 general ac  andys_computer li                 PRIV
+store   cra crate          s1,box
+store   box box            cra
 
 TOPICS:
 # format
 # room name     topic
 reception       Welcome to the talker!
 library         Ssshhhhhh....
-directors       Shoot, kill, destory...
-andys_computer  (A)bort  (R)etry  (K)ill Bill
+directors       Let the slaughter begin!
+andys_computer  (A)bort  (R)etry  (K)ill Bill Gates
 
 # Link to the 2nd talker. You may need to put the machine name rather than
 # localhost here when you're running the 2nd talker on the same machine, it

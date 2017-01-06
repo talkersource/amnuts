@@ -1,6 +1,7 @@
 /*****************************************************************************
-               Prototypes header file for Amnuts version 2.2.0
-      Copyright (C) Andrew Collington - Last update: 5th September, 1999
+               Prototypes header file for Amnuts version 2.2.1
+      Copyright (C) Andrew Collington - Last update: 20th September, 1999
+               amnuts@iname.com  |  http://www.talker.com/amnuts/
  *****************************************************************************/
 
 #define args(list) list
@@ -106,7 +107,7 @@ void      parse_init_section args((void));
 void      parse_rooms_section args((void));
 void      parse_topics_section args((char *topic));
 #ifdef NETLINKS
-  void      parse_sites_section args((void));
+void      parse_sites_section args((void));
 #endif
 void      parse_user_rooms args((void));
 
@@ -130,6 +131,7 @@ void      record_last_logout args((char *name));
 
 int       load_user_details args((UR_OBJECT user));
 int       save_user_details args((UR_OBJECT user,int save_current));
+int       load_user_details_old args((UR_OBJECT user));
 int       load_oldversion_user args((UR_OBJECT user,int version));
 void      set_date_time args((void));
 void      process_users args((void));
@@ -168,8 +170,8 @@ void      add_history args((char *name,int showtime,char *str));
 
 void      login args((UR_OBJECT user, char *inpstr));
 void      attempts args((UR_OBJECT user));
+void      show_login_info args((UR_OBJECT user));
 void      connect_user args((UR_OBJECT user));
-void      cls args((UR_OBJECT user));
 void      disconnect_user args((UR_OBJECT user));
 
 /* misc and line editor functions */
@@ -390,10 +392,12 @@ void      get_friends args((UR_OBJECT user));
 void      friends args((UR_OBJECT user));
 void      friend_say args((UR_OBJECT user, char *inpstr));
 void      friend_emote args((UR_OBJECT user, char *inpstr));
+void      friend_smail args((UR_OBJECT user, char *inpstr,int done_editing));
+
 void      bring args((UR_OBJECT user));
 void      force args((UR_OBJECT user,char *inpstr));
 
-/* calendar stuff */
+/* calendar and reminders stuff */
 
 int       is_leap args((unsigned yr));
 unsigned  months_to_days args((unsigned mn));
@@ -402,6 +406,12 @@ long      ymd_to_scalar args((unsigned yr,unsigned mo,unsigned dy));
 void      scalar_to_ymd args((long scalar,unsigned *yr,unsigned *mo,unsigned *dy));
 int       is_ymd_today args((unsigned yr,unsigned mo,unsigned dy));
 void      show_calendar args((UR_OBJECT user));
+int       has_reminder args((UR_OBJECT user,int dd,int mm,int yy));
+int       has_reminder_today args((UR_OBJECT user));
+int       remove_old_reminders args((UR_OBJECT user));
+int       read_user_reminders args((UR_OBJECT user));
+int       write_user_reminders args((UR_OBJECT user));
+void      show_reminders args((UR_OBJECT user,int stage));
 
 /* personal rooms stuff */
 

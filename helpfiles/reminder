@@ -1,0 +1,10 @@
+~OLCommand :~RS reminder
+~OLUsage   :~RS (to view)
+~OL        :~RS reminder all/today/<d> [<m> [<y>]]
+~OL        :~RS (to manage)
+~OL        :~RS reminder set/del <num>
+
+This command allows you to set reminders.  You'll be notified of the number
+of reminders you have for that day when logging in, and reminders will also
+be signified on the calendar output.  If the date for a reminder has passed
+then the reminder will automatically be removed.

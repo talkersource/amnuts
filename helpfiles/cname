@@ -1,5 +1,5 @@
-~OLCommand :~RS morph
-~OLUsage   :~RS morph <old user name> <new user name>
+~OLCommand :~RS cname
+~OLUsage   :~RS cname <old user name> <new user name>
 
 This command allows you to change the name of an existing user to another
 name.  This will allow users to be able to change their name if they wish

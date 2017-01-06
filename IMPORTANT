@@ -1,6 +1,6 @@
 +------------------------------------------------------------------------------+
     IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT
-        Information for the running of a talker based on Amnuts 2.2.0
+        Information for the running of a talker based on Amnuts 2.2.x
 +------------------------------------------------------------------------------+
 
 Ok, now I know how most of you just loathe reading these things, but as you may
@@ -10,16 +10,20 @@ I'm getting married on the 16th October, so this may very well be the last
 version of Amnuts for a while.  There are a number of things I didn't get
 done because time ran out, but ain't that always the way?   Don't forget
 the Amnuts website though; http://www.talker.com/amnuts/
+You may also want to check out another talker site, thanks to Squirt and
+Arny, which is at http://talkers.talker.org/.  This website also has a
+message board for Amnuts (as well as RaMTITS, Paris and others), and is a
+good place to get coding help.  So check it out, and give it your support.
 
-The most notable thing to put here is about the Netlinks function.  There
-have been many requests for me to remove the Netlinks system, but I've also
-had people ask me to keep it.  Obviously, a problem.  But I think I've
-managed to work a way around it.  If you compile in the normal way (eg;
-'gcc -lcrypt amnuts220.c') then the talker will run without any Netlink
-functions.  The port that Netlinks normally uses will not be used in any
-way.  The commands associated with Netlinks will not be in the command
-listing... Nothing!  This should make the people happy who didn't want
-Netlinks in the code.
+As of this version the userfiles have undergone a fundemental change of
+format.  It will allow for a more robust way of reading the userfiles.  If
+you are new to Amnuts then you can remove the functions
+'load_user_details_old' and 'load_old_version' because you'll not require
+them.  I have left them in though so that people who already use Amnuts
+that want to upgrade to this version don't have to wipe their userfiles.
+So why the change?  Well, there are a number of reasons, none of which I
+want to waste space here going on about.  If you REALLY want to know then
+email me and I'll tell ya.
 
 If you WANT Netlinks then, when compiling, you have to compile with the switch
 '-DNETLINKS'.  eg; 'gcc -lcrypt -DNETLINKS amnuts220.c'.  If you do this then
@@ -30,6 +34,20 @@ have the Netlink code active.
 I'll say that again because there are always people who ask me about something
 I've put in this document... The Netlink functions HAVE to be COMPILED IN by
 YOU!
+
+The *MOST* important thing to remember though is; RTFM!!  Read the
+documents supplied with the distribution, look at the code, try something
+out.. Only then if that fails should you go asking questions on boards and
+such.  It also helps if you give an example of what you've tried too.
+Like I said, I'm getting married, and I'm moving to the States.  So I'll
+not have a computer for a while so I WILL NOT ANSWER ANY QUESTIONS about
+how to code, how to update Amnuts or anything like that.  Bug reports I'm
+still up to receiving, but even then, don't expect a response.  I'm sure
+you'll be nice and understand how I need to devote time to my REAL life
+for a while...
+
+Oh!  And if you want to send my fiancee and I a wedding present then feel
+free ;)
 
                                                               Andrew Collington
                                                                 September, 1999

@@ -1,9 +1,8 @@
 /*****************************************************************************
-             Amnuts version 2.2.0 - Copyright (C) Andrew Collington
-                        Last update: 28th July, 1999
+             Amnuts version 2.2.1 - Copyright (C) Andrew Collington
+                        Last update: 3rd October, 1999
 
-     email: amnuts@iname.com     homepage: http://www.talker.com/amnuts/
-                  personal: http://www.andyc.dircon.co.uk/
+               amnuts@iname.com  |  http://www.talker.com/amnuts/
 
                         which is (heavily) modified
 
@@ -215,16 +214,16 @@ void accept_server_connection(int sock, struct sockaddr_in acc_addr)
 {
 NL_OBJECT nl,nl2;
 RM_OBJECT rm;
-char site[81];
+char nlsite[81];
 
 /* Send server type id and version number */
 sprintf(text,"NUTS %s\n",NUTSVER);
 write_sock(sock,text);
-strcpy(site,(char *)inet_ntoa(acc_addr.sin_addr));
-write_syslog(NETLOG,1,"NETLINK: Received request connection from site %s.\n",site);
+strcpy(nlsite,(char *)inet_ntoa(acc_addr.sin_addr));
+write_syslog(NETLOG,1,"NETLINK: Received request connection from site %s.\n",nlsite);
 
 /* See if legal site, ie site is in config sites list. */
-for(nl2=nl_first;nl2!=NULL;nl2=nl2->next) if (!strcmp(nl2->site,site)) goto OK;
+for(nl2=nl_first;nl2!=NULL;nl2=nl2->next) if (!strcmp(nl2->site,nlsite)) goto OK;
 write_sock(sock,"DENIED CONNECT 1\n");
 close(sock);
 write_syslog(NETLOG,1,"NETLINK: Request denied, remote site not in valid sites list.\n");
@@ -248,7 +247,7 @@ for(rm=room_first;rm!=NULL;rm=rm->next) {
     nl->allow=nl2->allow;
     nl->last_recvd=time(0);
     strcpy(nl->service,"<verifying>");
-    strcpy(nl->site,site);
+    strcpy(nl->site,nlsite);
     write_sock(sock,"GRANTED CONNECT\n");
     write_syslog(NETLOG,1,"NETLINK: Request granted.\n");
     return;
@@ -934,9 +933,9 @@ sprintf(text,"NUTS version         : %s\nHost                 : %s\n",NUTSVER,st
 write_sock(nl->socket,text);
 sprintf(text,"Ports (Main/Wiz/Link): %d ,%d, %d\n",port[0],port[1],port[2]);
 write_sock(nl->socket,text);
-sprintf(text,"Number of users      : %d\nRemote user maxlevel : %s\n",amsys->num_of_users,level_name[amsys->rem_user_maxlevel]);
+sprintf(text,"Number of users      : %d\nRemote user maxlevel : %s\n",amsys->num_of_users,user_level[amsys->rem_user_maxlevel].name);
 write_sock(nl->socket,text);
-sprintf(text,"Remote user deflevel : %s\n\nEMSG\nPRM %s\n",level_name[amsys->rem_user_deflevel],to);
+sprintf(text,"Remote user deflevel : %s\n\nEMSG\nPRM %s\n",user_level[amsys->rem_user_deflevel].name,to);
 write_sock(nl->socket,text);
 }
 
@@ -1032,7 +1031,7 @@ NL_OBJECT nl;
 UR_OBJECT u;
 char *allow[]={ "  ?","ALL"," IN","OUT" };
 char *type[]={ "  -"," IN","OUT" };
-char portstr[6],stat[9],vers[8];
+char portstr[6],nlstat[9],vers[8];
 int iu,ou,a;
 
 if (nl_first==NULL) {
@@ -1051,11 +1050,11 @@ for(nl=nl_first;nl!=NULL;nl=nl->next) {
     }
   if (nl->port) sprintf(portstr,"%d",nl->port);  else portstr[0]='\0';
   if (nl->type==UNCONNECTED) {
-    strcpy(stat,"~FRDOWN");  strcpy(vers,"-");
+    strcpy(nlstat,"~FRDOWN");  strcpy(vers,"-");
     }
   else {
-    if (nl->stage==UP) strcpy(stat,"  ~FGUP");
-    else strcpy(stat," ~FYVER");
+    if (nl->stage==UP) strcpy(nlstat,"  ~FGUP");
+    else strcpy(nlstat," ~FYVER");
     if (!nl->ver_major) strcpy(vers,"3.?.?"); /* Pre - 3.2 version */  
     else sprintf(vers,"%d.%d.%d",nl->ver_major,nl->ver_minor,nl->ver_patch);
     }
@@ -1063,7 +1062,7 @@ for(nl=nl_first;nl!=NULL;nl=nl->next) {
      what the permissions on it are so set to blank */
   if (!nl->ver_major && nl->type==INCOMING && nl->allow!=IN) a=0; 
   else a=nl->allow+1;
-  sprintf(text,"%-15s :   %s  %s   %s~RS %2d %2d %7s  %s %s\n",nl->service,allow[a],type[nl->type],stat,iu,ou,vers,nl->site,portstr);
+  sprintf(text,"%-15s :   %s  %s   %s~RS %2d %2d %7s  %s %s\n",nl->service,allow[a],type[nl->type],nlstat,iu,ou,vers,nl->site,portstr);
   write_user(user,text);
   }
 write_user(user,"\n");

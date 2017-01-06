@@ -3,6 +3,13 @@
         Information on the changes between different version of Amnuts
 +------------------------------------------------------------------------------+
 
+2.2.1
+-----
+
+Fixed calls to non-existent array level_name in netlinks.c
+Fixed conflict with the 'OUT' label in load_user_details when compiling with -DNETLINKS switch
+Fixed bug in the output of text to a room by a clone
+
 2.2.0
 -----
 
@@ -36,7 +43,7 @@ Added the ability to have coloured recaps.. made sure this had GOOD integration.
 Added the command 'tpromote' - promotion for the current session only
 Added the option 'resolve_ip' to the config file so that you no longer have to use the -DRESOLVEIP switch.  Options are OFF, AUTO, MANUAL.  OFF is obvious - you only get IP addresses, AUTO uses gethostbyaddr() and MANUAL uses the resolve_ip() function.
 Updated the output in (un)arrest so that it takes into consideration what you rename the level names to.
-Added the new command 'morph' to allow you to change one user's name into something else.  Use does not need to be logged on at the time.
+Added the new command 'cname' to allow you to change one user's name into something else.  Use does not need to be logged on at the time.
 Added port flooding protection, with auto-banning of a site if someone tries to flood the port.  The new define LOGIN_FLOOD_MAX and new functions login_port_flood() and auto_ban_site().
 Updated the function ban_site() so that it no longer attaches a '*' onto the site you're banning.
 The add_history() function now also writes to the SYSLOG to indicate history addition.
@@ -52,6 +59,13 @@ Now parse command abbreviations a different way (which works better).  This has 
 Added the new #define 'USERVER'.  This'll make it possible to update the user file format version without changing the Amnuts version number.
 Combined level_names and level_alias arrays into one structure called user_levels.  Updated the code to use it.  Also added define NUM_LEVELS.
 Updated the output of record_last_command so that it now also stores length of inpstr and word_count.  (though it will only report up to MAX_WORDS)
+Updated the login information so that it's all contained, neat and tidy.  (the login info being "Welcome, x! You were last logged in on..." and all that)
+Added a reminders function (new command 'reminder').  It integrates with the calendar - showing up if you have a reminder for that day.  Also shows up on the new login info message.  Auto removal of old reminders also worked in.
+Changed the enum types THINK and SING to THINKIT and SINGIT.
+Changed the way userfiles are loaded and saved.  It should lead to a more robust way of reading userfiles and cause less errors when reading in a screwed file.  I've kept the old way of loading a userfiles though, for those people upgrading from an old version.
+Added the new command 'fsmail' to enable you to smail all the people listed on your friends list.  Updated the send_mail function slightly as well.
+Added the functions process_input_string and split_command_string.  These enable better handling of abbreviation commands, such as ";grins", "; grins" and so on.  Stops the bug that enables people to do a blank shout, emote, etc.
+Updated all the docs, including those that people never read (ie, ANY of the ones in the docs/ directory!)
 
 
 2.1.1

@@ -1,6 +1,7 @@
 /*****************************************************************************
-                Commands header file for Amnuts version 2.2.0
-      Copyright (C) Andrew Collington - Last update: 5th September, 1999
+                 Commands header file for Amnuts version 2.2.1
+       Copyright (C) Andrew Collington - Last update: 3rd October, 1999
+               amnuts@iname.com  |  http://www.talker.com/amnuts/
  *****************************************************************************/
 
 
@@ -228,8 +229,10 @@ struct {
     { "adminfiles", "",    WIZ,     CT_ADMIN   },
     { "dump",       "",    GOD,     CT_ADMIN   },
     { "tpromote",   "",    WIZ,     CT_ADMIN   },
-    { "morph",      "",    ARCH,    CT_ADMIN   },
+    { "cname",      "",    ARCH,    CT_ADMIN   },
     { "fmail",      "",    SUPER,   CT_MSG     },
+    { "reminder",   "",    SUPER,   CT_MSG     },
+    { "fsmail",     "",    USER,    CT_MSG     },
     { "*","*",-1,-1 } /* stopping clause - do not remove */
   };
 
@@ -350,8 +353,8 @@ enum comvals {
   PREVIEW,
   PICTURE,
   GREET,
-  THINK,
-  SING,
+  THINKIT,
+  SINGIT,
   WIZEMOTE,
   SUG,
   RSUG,
@@ -431,7 +434,9 @@ enum comvals {
   DUMPCMD,
   TEMPRO,
   MORPH,
-  FMAIL
+  FMAIL,
+  REMINDER,
+  FSMAIL
 } com_num;
 
 

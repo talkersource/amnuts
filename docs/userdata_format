@@ -3,50 +3,60 @@
      User file information for the Unix talker code Amnuts (version 2.2.0)
 +------------------------------------------------------------------------------+
 
-This is a short description of the layout of the file in case you need to hack
-one manually eg to promote or demote someone.
-All times are in seconds.
+As of version 2.2.0, the userfile have undergone a fundemental change.  I
+have listed below the new format.  All times are in seconds.
 
-Line
-1: encrypted password
-2: version control number
-3: promotion/demotion date
-4: <last login time> <total login time> <time last logged in for> 
-   <last time he read his mail> <level> <prompt on/off> <muzzle level> 
-   <charmode echo on/off> <command mode on/off> <vis no/yes> 
-   <monitor on/off> <unarrest level> <logons> <accreq> <mail verified>
-   <arresting level>
-5: <gender> <age> <wrap> <pager length> <hide email> <colour> 
-   <log into last room> <alert> <autofwd or smail> <show password>
-   <show room descs> <help command list type> <ICQ number>
-6: [ignores]
-   <all> <tells> <shouts> <pics> <logons> <wiz> <greets> <beeps>
-6: <hits> <misses> <deaths> <kills> <bullets> <hit points>
-7: <expires yes/no> <expire time>
-8: <last login site> <last room in> <verification code>
-9: description
-10: enter into room phrase
-11: exit from room phrase
-12: email address
-13: web page address
-14: recapped name
+format
+------
 
-eg
+version       <user format version>
+password      <encrypted password>
+promote_date  <date user was promoted - as a string>
+times         <last login time> <total login time> <time last on for>
+              <time mail was last read>
+levels        <user level> <user unarrest level> <arrest level>
+              <muzzle level>
+general       <accreq> <character mode echo> <command mode> <prompt>
+              <visibility> <monitor> <mail verified> <logon count>
+user_set      <gender> <age> <line wrap> <pager length> <hide email>
+              <colour on/off> <log into last room> <friend alert>
+              <autoforward smail> <show password> <show room descs>
+              <command list type> <icq number>
+user_ignores  <all> <tells> <shouts> <pics> <logons/offs> <wzitells>
+              <greets> <beeps>
+fighting      <hits> <misses> <died> <kills> <bullets> <hit points>
+purging       <purge yes/no> <time to purge>
+last_site     <user's site> <logout room name>
+mail_verify   <email verification code>
+description   <user description>
+in_phrase     <room entrance phrase>
+out_phrase    <room exit phrase>
+email         <email address>
+homepage      <homepage address>
+recap_name    <recapped name>
 
-NUKyNCCLvgLH.
-2.1.1
-on Sunday 22nd November 1998 at 08:35pm
-911767070 100 1 911766933 6 0 0 0 0 1 0 6 3 1 0 0
-0 0 0 23 1 1 0 0 0 0 1 0 #UNSET
-0 0 0 0 0 0 0 0
-0 0 0 0 6 10
-1 915223070
-localhost drive #NONE
-is a newbie needing a desc.
-enters
-goes
-#UNSET
-#UNSET
-Test
+
+example
+-------
+
+version       0.2
+password      NUKyNCCLvgLH.
+promote_date  on Friday 3rd September 1999 at 09:37pm
+times         937862914 30890 149 937861377
+levels        6 6 0 0
+general       -1 0 0 0 1 0 0 8
+user_set      0 0 0 23 1 1 0 1 0 0 1 0 #UNSET
+user_ignores  0 0 0 0 0 0 0 0
+fighting      0 0 0 0 6 10
+purging       1 941318914
+last_site     localhost reception
+mail_verify   amnuts196
+description   should be nuked asap
+in_phrase     enters
+out_phrase    goes
+email         a_b-d@me.you
+homepage      #UNSET
+recap_name    ~OL~FTt~FRE~FGs~FYT
+
 
 +------------------------------------------------------------------------------+
