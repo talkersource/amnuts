@@ -1,0 +1,4 @@
+Command : shackle
+Usage   : shackle <user>
+
+This will stop a user from moving out of the room they are currently in.

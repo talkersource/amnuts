@@ -1,0 +1,47 @@
+~OL~FM*** Help for New Users ***
+
+Welcome to the ~OL~FGObservatory!~RS If you are new to talkers or
+just need some general help, this file will give some guidance in
+how to use this talker. Nearly every command on this talker begins
+with a period (.) .
+
+To see a list of commands, type ~OL.help ~RS. To learn about each
+command in your list, type ~OL.help <command name> ~RS.
+
+If you would like a basic user account here, you must do the following:
+first, change your ~OLdesc.~RS This is the description that appears
+after your name when you type ~OL.who~RS . To do this, type
+~OL.desc <message>~RS where <message> is anything you want up to a
+certain length. Once you have done this, type ~OL.accreq <your email>
+where <your email> is a valid email address where the administration
+can contact you. After that, a member of the administration will
+promote you when they log in, or if one of them is on, they will
+promote you (to see a list of the administration and which of them
+are currently on, type ~OL.wizlist~RS).
+
+----------------------------------------------------------------- 
+~OL~BRBasic Commands:
+-----------------------------------------------------------------
+
+~OL~FRTo speak:~RS To speak, just type what you want to say.
+
+~OL~FRTo emote:~RSThe emote command is the ; character. For example, if
+Astarte wants to emote something to the room, she would type the 
+following: ~OL;smiles
+The following would appear to all users in that room:  ~OLAstarte smiles.
+
+~OL~FRTo read mail:~RS You may see a message when you log in that says
+you have mail. To read your mail, type ~OL.rmail~RS . To see other
+commands related to mail, see the ~OL.help~RS listing.
+
+~OL~FRTo send mail:~RS To send mail to another user, you can use one
+of two ways: to send a short message, type ~OL.smail <username>
+<message>~RS . To use the editor (for when your mail message will
+be a few lines), type ~OL.smail <username>~RS and hit return. This
+will bring up the editor. Just follow the instructions.
+
+All other commands can be found in the ~OL.help~RS listing. A list
+of abbreviations can be found in the ~OL.news~RS. Good luck, have fun,
+and don't hesitate to ask a wizard for help!
+
+~OL~FB******************************************************************* 

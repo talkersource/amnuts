@@ -2,4 +2,4 @@ Command : sing
 Usage   : sing <text>
 
 Displays the text enclosed in musical notes to the room you are currently in.
-For example,    Andy sings o//~ lalala o//~
+For example,    Andy sings o/~ lalala o/~

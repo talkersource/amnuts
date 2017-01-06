@@ -1,0 +1,4 @@
+Command : guess
+Usage   : guess <letter>
+
+Gives a letter as a guess for your current hangman game.

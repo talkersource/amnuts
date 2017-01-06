@@ -1,4 +1,10 @@
-/****************** Header file for NUTS version 3.3.3 ******************/
+/*****************************************************************************
+                   Header file for Amnuts version 1.4.0
+                        by Andrew Collington (1997)
+     (based on NUTS version 3.3.3 - Copyright (C) Neil Robertson 1996)
+
+                      Last Updated: 2nd November, 1997
+ *****************************************************************************/
 
 /* directories */
 #define DATAFILES "datafiles"
@@ -13,6 +19,7 @@
 #define MAPFILE "mapfile"
 #define SITEBAN "siteban"
 #define USERBAN "userban"
+#define NEWBAN "newban"
 #define MOTD1 "motd1"
 #define MOTD2 "motd2"
 #define USERLIST "userlist"
@@ -35,7 +42,7 @@
 #define NUM_CMDS 200
 
 #define USER_NAME_LEN 12
-#define USER_DESC_LEN 30
+#define USER_DESC_LEN 35
 #define AFK_MESG_LEN 60
 #define PHRASE_LEN 40
 #define PASS_LEN 20 /* only the 1st 8 chars will be used by crypt() though */
@@ -44,7 +51,7 @@
 #define ROOM_LABEL_LEN 5
 #define ROOM_DESC_LEN 810 /* 10 lines of 80 chars each + 10 nl */
 #define TOPIC_LEN 60
-#define MAX_LINKS 10
+#define MAX_LINKS 20
 #define SERV_NAME_LEN 80
 #define SITE_NAME_LEN 80
 #define VERIFY_LEN 20
@@ -64,12 +71,12 @@
 
 /* levels */
 #define JAILED 0
-#define NEW 1
-#define USER 2
-#define SUPER 3
-#define WIZ 4
-#define ARCH 5
-#define GOD 6
+#define NEW    1
+#define USER   2
+#define SUPER  3
+#define WIZ    4
+#define ARCH   5
+#define GOD    6
 #define JAILED_LIST "jailed.lst"
 #define NEW_LIST    "new.lst"
 #define USER_LIST   "user.lst"
@@ -87,16 +94,18 @@
 #define CLONE_HEAR_ALL 2
 
 /* misc stuff */
-#define USER_EXPIRES 40 /* days */
-#define NEWBIE_EXPIRES 20 /* days */
 #define NEUTER 0
-#define MALE 1
+#define MALE   1
 #define FEMALE 2
+#define NEWBIE_EXPIRES 20 /* days */
+#define USER_EXPIRES   40 /* days */
 #define SCREEN_WRAP 80 /* how many characters to wrap to */
 #define MAX_COPIES 6 /* of smail */
 #define MACRO_LEN 65
 #define MAX_FRIENDS 10
 #define MAX_IGNORES 5 /* number of users you can ignore */
+#define HANGDICT "hangman_words"
+
 
 /* The elements vis, ignall, prompt, command_mode etc could all be bits in 
    one flag variable as they're only ever 0 or 1, but I tried it and it
@@ -114,7 +123,7 @@ struct user_struct {
 	int vis,ignall,prompt,command_mode,muzzled,charmode_echo; 
 	int level,misc_op,remote_com,edit_line,charcnt,warned;
 	int accreq,last_login_len,ignall_store,clone_hear,afk;
-	int edit_op,colour,ignshout,igntell,revline;
+	int edit_op,colour,ignshouts,igntells,revline;
 	time_t last_input,last_login,total_login,read_mail;
 	char *malloc_start,*malloc_end;
 	struct netlink_struct *netlink,*pot_netlink;
@@ -126,11 +135,13 @@ struct user_struct {
 	char copyto[MAX_COPIES][USER_NAME_LEN],invite_by[USER_NAME_LEN];
 	char email[80],homepage[80],ignoreuser[MAX_IGNORES][USER_NAME_LEN];
         char call[USER_NAME_LEN],macros[10][MACRO_LEN],friend[MAX_FRIENDS][USER_NAME_LEN];
-	char verify_code[80];
+	char verify_code[80],afkbuff[REVTELL_LINES][REVIEW_LEN+2],editbuff[REVTELL_LINES][REVIEW_LEN+2];
+        char samesite_check_store[ARR_SIZE],hang_word[WORD_LEN],hang_word_show[WORD_LEN],hang_guess[WORD_LEN];
 	time_t t_expire;
-	int gender,age,hideemail,misses,hits,kills,deaths,bullets,hps,hears[10],alert;
-	int lmail_lev,welcomed,mail_verified,autofwd,editing,hwrap_lev,hwrap_com;
 	struct room_struct *wrap_room;
+	int gender,age,hideemail,misses,hits,kills,deaths,bullets,hps,alert,afkline,editline;
+	int lmail_lev,welcomed,mail_verified,autofwd,editing,hwrap_lev,hwrap_com,show_pass;
+	int ignpics,ignlogons,ignwiz,igngreets,ignbeeps,samesite_all_store,hang_stage;
 	};
 
 typedef struct user_struct* UR_OBJECT;
@@ -195,7 +206,7 @@ char *nosuchroom="There is no such room.\n";
 char *nosuchuser="There is no such user.\n";
 char *notloggedon="There is no one of that name logged on.\n";
 char *invisenter="A presence enters the room...\n";
-char *invisleave="A presence leaves the room.\n";
+char *invisleave="A presence leaves the room...\n";
 char *invisname="A presence";
 char *noswearing="Swearing is not allowed here.\n";
 
@@ -208,33 +219,38 @@ char *level_alias[]={
 };
 
 char *command[]={
-"quit",    "look",      "mode",      "say",      "shout [",
-"tell >",  "emote ;:",  "semote &!", "pemote </","echo -",
-"go",      "ignall",    "prompt",    "desc",     "inmsg",
-"outmsg",  "public",    "private",   "knock",    "invite",
-"topic",   "move",      "bcast",     "who @",    "people",
-"help",    "shutdown",  "news",      "read",     "write",
-"wipe",    "search",    "review",    "home",     "ustat",
-"version", "rmail",     "smail",     "dmail",    "from",
-"entpro",  "examine",   "rooms",     "rnet",     "netstat",
-"netdata", "connect",   "disconnect","passwd",   "kill",
-"promote", "demote",    "lban",      "ban",      "unban",
-"vis",     "invis",     "site",      "wake",     "twiz",
-"muzzle",  "unmuzzle",  "map",       "logging",  "minlogin",
-"system",  "charecho",  "clearline", "fix",      "unfix",
-"viewlog", "accreq",    "cbuff *",   "clone",    "destroy",
-"myclones","allclones", "switch",    "csay",     "chear",
-"rstat",   "swban",     "afk",       "cls",      "colour",
-"ignshout","igntell",   "suicide",   "nuke",     "reboot",
-"recount", "revtell",   "purge",     "history",  "expire",
-"bbcast",  "show '",    "ranks",     "wizlist",  "time",
-"ctopic",  "copyto",    "nocopys",   "set",      "mutter",
-"makevis", "makeinvis", "plead",     "ptell",    "preview",
-"picture", "greet",     "think",     "sing",     "ewiz",
-"suggest", "rsug",      "dsug",      "last",     "macros",
-"rules",   "uninvite",  "lmail",     "arrest",   "unarrest",
-"verify",  "addhistory","forwarding","revshout", "cshout",
-"ctells",  "monitor",   "call ,",    "uncall",   "*"
+"quit",     "look",      "mode",      "say",      "shout [",
+"tell >",   "emote ;:",  "semote &!", "pemote </","echo -",
+"go",       "ignall",    "prompt",    "desc",     "inmsg",
+"outmsg",   "public",    "private",   "knock",    "invite",
+"topic",    "move",      "bcast",     "who @",    "people",
+"help",     "shutdown",  "news",      "read",     "write",
+"wipe",     "search",    "review",    "home",     "ustat",
+"version",  "rmail",     "smail",     "dmail",    "from",
+"entpro",   "examine",   "rooms",     "rnet",     "netstat",
+"netdata",  "connect",   "disconnect","passwd",   "kill",
+"promote",  "demote",    "lban",      "ban",      "unban",
+"vis",      "invis",     "site",      "wake",     "twiz",
+"muzzle",   "unmuzzle",  "map",       "logging",  "minlogin",
+"system",   "charecho",  "clearline", "fix",      "unfix",
+"viewlog",  "accreq",    "cbuff *",   "clone",    "destroy",
+"myclones", "allclones", "switch",    "csay",     "chear",
+"rstat",    "swban",     "afk",       "cls",      "colour",
+"ignshout", "igntell",   "suicide",   "nuke",     "reboot",
+"recount",  "revtell",   "purge",     "history",  "expire",
+"bbcast",   "show '",    "ranks",     "wizlist",  "time",
+"ctopic",   "copyto",    "nocopys",   "set",      "mutter",
+"makevis",  "makeinvis", "plead",     "ptell",    "preview",
+"picture",  "greet",     "think",     "sing",     "ewiz",
+"suggest",  "rsug",      "dsug",      "last",     "macros",
+"rules",    "uninvite",  "lmail",     "arrest",   "unarrest",
+"verify",   "addhistory","forwarding","revshout", "cshout",
+"ctells",   "monitor",   "call ,",    "uncall",   "ignlist",
+"ignpics",  "ignwiz",    "igngreets", "ignlogons","ignuser",
+"create",   "bfrom",     "samesite",  "save",     "shackle",
+"unshackle","join",      "cemote",    "revafk",   "cafk",
+"revedit",  "cedit",     "listen",    "hangman",  "guess",
+"*"
 };
 
 
@@ -257,7 +273,7 @@ SYSTEM,   CHARECHO,   CLEARLINE,  FIX,      UNFIX,
 VIEWLOG,  ACCREQ,     REVCLR,     CREATE,   DESTROY,
 MYCLONES, ALLCLONES,  SWITCH,     CSAY,     CHEAR,
 RSTAT,    SWBAN,      AFK,        CLS,      COLOUR,
-IGNSHOUT, IGNTELL,    SUICIDE,    DELETE,   REBOOT,
+IGNSHOUTS,IGNTELLS,   SUICIDE,    DELETE,   REBOOT,
 RECOUNT,  REVTELL,    PURGE,      HISTORY,  EXPIRE,
 BBCAST,   SHOW,       RANKS,      WIZLIST,  TIME,
 CTOPIC,   COPYTO,     NOCOPIES,   SET,      MUTTER,
@@ -266,40 +282,48 @@ PICTURE,  GREET,      THINK,      SING,     WIZEMOTE,
 SUG,      RSUG,       DSUG,       LAST,     MACROS,
 RULES,    UNINVITE,   LMAIL,      ARREST,   UNARREST,
 VERIFY,   ADDHISTORY, FORWARDING, REVSHOUT, CSHOUT,
-CTELLS,   MONITOR,    QCALL,      UNQCALL
+CTELLS,   MONITOR,    QCALL,      UNQCALL,  IGNLIST,
+IGNPICS,  IGNWIZ,     IGNGREETS,  IGNLOGONS,IGNUSER,
+ACCOUNT,  BFROM,      SAMESITE,   SAVEALL,  SHACKLE,
+UNSHACKLE,JOIN,       CEMOTE,     REVAFK,   CAFK,
+REVEDIT,  CEDIT,      LISTEN,     HANGMAN,  GUESS
 } com_num;
 
 
 /* These are the minimum levels at which the commands can be executed. 
    Alter to suit. */
 int com_level[]={
-JAILED, NEW,    NEW,    JAILED, USER,
-NEW,    NEW,    USER,   USER,   SUPER,
-USER,   USER,   NEW,    NEW,    USER,
-USER,   USER,   USER,   USER,   USER,
-USER,   WIZ,    WIZ,    JAILED, WIZ,
-JAILED, GOD,    USER,   NEW,    USER,
-WIZ,    SUPER,  USER,   USER,   USER,
-NEW,    NEW,    USER,   USER,   USER,
-USER,   USER,   USER,   USER,   SUPER,
-ARCH,   GOD,    GOD,    USER,   ARCH,
-WIZ,    WIZ,    WIZ,    ARCH,   ARCH,
-ARCH,   ARCH,   WIZ,    USER,   WIZ,
-WIZ,    WIZ,    USER,   GOD,    GOD,
-SUPER,  NEW,    ARCH,   GOD,    GOD,
-WIZ,    NEW,    USER,   ARCH,   ARCH,
-ARCH,   SUPER,  ARCH,   ARCH,   ARCH,
-WIZ,    ARCH,   USER,   NEW ,   NEW,
-USER,   USER,   NEW,    GOD,    ARCH,
-GOD,    USER,   GOD,    WIZ,    GOD,
-ARCH,   SUPER,  NEW,    NEW,    USER,
-SUPER,  USER,   USER,   NEW,    USER,
-ARCH,   ARCH,   JAILED, USER,   USER,
-SUPER,  SUPER,  USER,   USER,   WIZ,
-USER,   WIZ,    GOD,    USER,   USER,
-JAILED, USER,   ARCH,   WIZ,    WIZ,
-NEW,    WIZ,    ARCH,   USER,   SUPER,
-USER,   WIZ,    USER,   USER
+JAILED,  NEW,     NEW,     JAILED,  SUPER,
+NEW,     NEW,     SUPER,   USER,    USER,
+USER,    USER,    NEW,     NEW,     USER,
+USER,    USER,    USER,    USER,    USER,
+USER,    WIZ,     WIZ,     JAILED,  WIZ,
+JAILED,  GOD,     USER,    NEW,     USER,
+USER,    SUPER,   USER,    USER,    USER,
+NEW,     NEW,     USER,    USER,    USER,
+USER,    USER,    USER,    USER,    SUPER,
+ARCH,    GOD,     GOD,     USER,    ARCH,
+WIZ,     WIZ,     WIZ,     ARCH,    ARCH,
+ARCH,    ARCH,    WIZ,     USER,    WIZ,
+WIZ,     WIZ,     USER,    GOD,     GOD,
+SUPER,   NEW,     ARCH,    GOD,     GOD,
+WIZ,     NEW,     USER,    ARCH,    ARCH,
+ARCH,    SUPER,   ARCH,    ARCH,    ARCH,
+WIZ,     ARCH,    USER,    NEW,     NEW,
+USER,    USER,    NEW,     GOD,     ARCH,
+GOD,     USER,    GOD,     WIZ,     GOD,
+ARCH,    SUPER,   NEW,     NEW,     USER,
+SUPER,   USER,    USER,    NEW,     USER,
+ARCH,    ARCH,    JAILED,  USER,    USER,
+SUPER,   SUPER,   USER,    USER,    WIZ,
+USER,    WIZ,     GOD,     USER,    USER,
+JAILED,  USER,    ARCH,    WIZ,     WIZ,
+NEW,     WIZ,     GOD,     USER,    SUPER,
+USER,    WIZ,     USER,    USER,    USER,
+USER,    WIZ,     USER,    USER,    USER,
+WIZ,     USER,    WIZ,     WIZ,     ARCH,
+ARCH,    SUPER,   ARCH,    USER,    USER,
+USER,    USER,    USER,    USER,    USER
 };
 
 /* 
@@ -346,15 +370,19 @@ char *noyes2[]={ "NO ","YES" };
 char *offon[]={ "OFF","ON " };
 
 char *sex[]={"Neuter","Male","Female"};
+
+/* default rooms */
 char *default_jail="jail";
 char *default_warp="drive";
+
+/* The rooms listed here are just examples of what can be added
+   You may add more or remove as many as you like, but you MUST
+   keep the stopping clause in */
 struct { 
   char *name; int level; 
   } priv_room[]={
-      { "gods_room",GOD },
-      { "archs_room",ARCH },
-      { "wizroom",WIZ },
-      { "another_god_rm",GOD },
+      { "wizzes",WIZ }, /* a room for wizzes+ only */
+      { "gods_place",GOD }, /* only top people can get in this place! */
       { "*",0 } /* stopping clause */
     };
 
@@ -362,9 +390,9 @@ struct {
 /* These MUST be in lower case - the contains_swearing() function converts
    the string to be checked to lower case before it compares it against
    these. Also even if you dont want to ban any words you must keep the 
-   star as the first element in the array. */
+   GOD as the first element in the array. */
 char *swear_words[]={
-"fuck","shit","cunt","*"
+"fuck","shit","cunt","cock","bastard","dyke","fag","pussy","bitch","*"
 };
 
 char verification[SERV_NAME_LEN+1];
@@ -386,7 +414,7 @@ int ignore_mp_level,rem_user_maxlevel,rem_user_deflevel;
 int destructed,mesg_check_hour,mesg_check_min,net_idle_time;
 int keepalive_interval,auto_connect,ban_swearing,crash_action;
 int time_out_afks,allow_caps_in_name,rs_countdown;
-int charecho_def,time_out_maxlevel;
+int charecho_def,time_out_maxlevel,auto_purge;
 time_t rs_announce,rs_which;
 UR_OBJECT rs_user;
 
@@ -398,7 +426,7 @@ int wiz_cnt,arch_cnt,god_cnt,purge_count,users_purged,sug_num;
 time_t purge_date;
 struct { char name[30]; int level; } ordcom[NUM_CMDS];
 char shoutbuff[REVIEW_LINES][REVIEW_LEN+2];
-int sbuffline,forwarding;
+int sbuffline,forwarding,logon_flag;
 
 /* for setting of attributes */
 struct {
@@ -416,13 +444,24 @@ struct {
         {"colour","display in colour or not (toggle)"},
         {"room","lets you log back into the room you left from, if public (toggle)"},
 	{"autofwd","lets you receive smails via your email address."},
+	{"password","lets you see your password when entering it at the login (toggle)"},
         {"*",""}
     };
 enum setval {
     SETSHOW,        SETGEND,    SETAGE,     SETEMAIL,       SETHOMEP,
     SETHIDEEMAIL,   SETWRAP,    SETPAGER,   SETCOLOUR,      SETROOM,
-    SETFWD
+    SETFWD,         SETPASSWD
     } set_val;
+
+
+char *talker_signature=
+"+--------------------------------------------------------------------------+
+|  This message has been smailed to you on The Amnuts Talker, and this is  |
+|      your auto-forward.  Please do not reply directly to this email.     |
+|                                                                          |
+|               Amnuts - A talker running at foo.bar.com 666               |
+|         email 'me@my.place' if you have any questions/comments           |
++--------------------------------------------------------------------------+\n";
 
 
 /* Big letter array map - for greet() */
@@ -455,9 +494,58 @@ int biglet[26][5][5] = {
     1,1,1,1,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,1,1,1,1
     };
 
-char *talker_signature=
-"+--------------------------------------------------------------------------+
-|           AmNUTS - A talker running at this.here.site 666                |
-|    email 'andyc@dircon.co.uk' if you have any questions or comments      |
-+--------------------------------------------------------------------------+\n";
+/* Symbol array map - for greet() */
+int bigsym[32][5][5] = {
+    0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,
+    0,1,0,1,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,
+    0,1,1,1,1,1,0,1,0,0,0,1,1,1,0,0,0,1,0,1,1,1,1,1,0,
+    1,1,0,0,1,1,1,0,1,0,0,0,1,0,0,0,1,0,1,1,1,0,0,1,1,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,1,1,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1,1,0,
+    0,1,1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,1,1,0,0,
+    1,0,1,0,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1,0,1,0,1,
+    0,0,1,0,0,0,0,1,0,0,1,1,1,1,1,0,0,1,0,0,0,0,1,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1,1,0,0,0,
+    0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,
+    0,1,1,1,0,1,0,0,1,1,1,0,1,0,1,1,1,0,0,1,0,1,1,1,0,
+    0,0,1,0,0,0,1,1,0,0,0,0,1,0,0,0,0,1,0,0,0,1,1,1,0,
+    1,1,1,1,0,0,0,0,0,1,0,1,1,1,0,1,0,0,0,0,1,1,1,1,1,
+    1,1,1,1,0,0,0,0,0,1,0,1,1,1,0,0,0,0,0,1,1,1,1,1,0,
+    0,0,1,1,0,0,1,0,0,0,1,0,0,1,0,1,1,1,1,1,0,0,0,1,0,
+    1,1,1,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,1,1,1,1,1,0,
+    0,1,1,1,0,1,0,0,0,0,1,1,1,1,0,1,0,0,0,1,0,1,1,1,0,
+    1,1,1,1,1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,
+    0,1,1,1,0,1,0,0,0,1,0,1,1,1,0,1,0,0,0,1,0,1,1,1,0,
+    1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0,0,0,0,1,0,0,0,0,1,
+    0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,
+    0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,
+    0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,
+    0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,
+    0,1,1,1,1,0,0,0,0,1,0,0,1,1,1,0,0,0,0,0,0,0,1,0,0,
+    0,1,0,0,0,1,0,1,1,1,1,0,1,0,1,1,0,1,1,1,0,1,1,1,0
+    };
+
+
+
+/* hangman picture for the hangman game */
+char *hanged[8]={
+  "~FY~OL+~RS~FY---~OL+  \n~FY|      \n~FY|~RS           ~OLWord:~RS %s\n~FY|~RS           ~OLLetters guessed:~RS %s\n~FY|~RS      \n~FY|______\n",
+  "~FY~OL+~RS~FY---~OL+  \n~FY|   |  \n~FY|~RS           ~OLWord:~RS %s\n~FY|~RS           ~OLLetters guessed:~RS %s\n~FY|~RS      \n~FY|______\n",
+  "~FY~OL+~RS~FY---~OL+  \n~FY|   |  \n~FY|~RS   O       ~OLWord:~RS %s\n~FY|~RS           ~OLLetters guessed:~RS %s\n~FY|~RS      \n~FY|______\n",
+  "~FY~OL+~RS~FY---~OL+  \n~FY|   |  \n~FY|~RS   O       ~OLWord:~RS %s\n~FY|~RS   |       ~OLLetters guessed:~RS %s\n~FY|~RS      \n~FY|______\n",
+  "~FY~OL+~RS~FY---~OL+  \n~FY|   |  \n~FY|~RS   O       ~OLWord:~RS %s\n~FY|~RS  /|       ~OLLetters guessed:~RS %s\n~FY|~RS      \n~FY|______\n",
+  "~FY~OL+~RS~FY---~OL+  \n~FY|   |  \n~FY|~RS   O       ~OLWord:~RS %s\n~FY|~RS  /|\\      ~OLLetters guessed:~RS %s\n~FY|~RS      \n~FY|______\n",
+  "~FY~OL+~RS~FY---~OL+  \n~FY|   |  \n~FY|~RS   O       ~OLWord:~RS %s\n~FY|~RS  /|\\      ~OLLetters guessed:~RS %s\n~FY|~RS  /   \n~FY|______\n",
+  "~FY~OL+~RS~FY---~OL+  \n~FY|   |  \n~FY|~RS   O       ~OLWord:~RS %s\n~FY|~RS  /|\\      ~OLLetters guessed:~RS %s\n~FY|~RS  / \\ \n~FY|______\n"
+};
+
+
+
+
+
 

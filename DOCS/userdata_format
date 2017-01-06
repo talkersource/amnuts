@@ -1,0 +1,41 @@
+*** Format of the user data file ***
+
+This is a short description of the layout of the file in case you need to hack
+one manually eg to promote or demote someone.
+All times are in seconds.
+
+Line
+1: encrypted password
+2: <last login time> <total login time> <time last logged in for> 
+   <last time he read his mail> <level> <prompt on/off> <muzzle level> 
+   <charmode echo on/off> <command mode on/off> <vis no/yes> 
+   <monitor on/off> <vote> <unarrest level> <logons> <accreq> 
+   <mail verified>
+3: <gender> <age> <wrap> <pager length> <hide email> <colour> 
+   <log into last room> <alert> <autofwd or smail> <show password>
+4: [ignores]
+   <all> <tells> <shouts> <pics> <logons> <wiz> <greets> <beeps>
+5: <hits> <misses> <deaths> <kills> <bullets> <hit points>
+6: <expires yes/no> <expire time>
+7: <last login site> <last room in> <verification code>
+8: description
+9: enter into room phrase
+10: exit from room phrase
+11: email address
+12: web page address
+
+eg
+
+NUKyNCCLvgLH.
+878484443 2000 1956 875129382 6 0 0 0 0 1 0 0 6 3 0 0
+0 0 0 23 1 1 0 0 0 0
+0 0 0 0 0 0 0 0
+0 0 0 0 6 10
+1 881940443
+localhost drive #NONE
+the ~OL~FRnew~RS user
+enters
+goes
+#UNSET
+#UNSET
+

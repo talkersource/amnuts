@@ -1,0 +1,4 @@
+Command : igngreets
+Usage   : igngreets
+
+This will allow you to ignore all greets.  Acts as a toggle on/off.

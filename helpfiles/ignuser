@@ -1,0 +1,7 @@
+Command : ignuser
+Usage   : ignuser [<name>]
+
+This allows you to ignore tells, pemotes, shouts, etc, from any one
+user.  If you omit the <name> then you will be shown a list of all
+users you are currently ignoring.
+See ~FTversion~RS for the amount of users you can ignore.
