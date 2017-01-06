@@ -1,7 +1,7 @@
-# Main config file for Amnuts 2.0.1
+# Main config file for Amnuts 2.1.0
 
 INIT:
-verification       amnuts201
+verification       amnuts210
 mainport           7000
 wizport            7001
 linkport           7002
@@ -32,30 +32,36 @@ time_out_maxlevel  WIZ
 crash_action       REBOOT
 auto_purge         NO
 allow_recaps       YES
-verbose_boot       YES
+auto_promote       YES
+personal_rooms     YES
 
 ROOMS:
-dr drive    ha        PUB  CONNECT talker1
-ha hallway  dr,co,wz  PUB  
-wz wizroom  ha        PRIV
-co corridor ha,lg,ra     
-lg lounge   co        BOTH ACCEPT
-ja jail     wz        PRIV
-ra range    co        PUB
+re  reception      cp,s1,mo,cu        PUB
+cp  car_park       re                 PUB CONNECT talker1
+s1  store_room     re,mo,s2,wr        
+mo  main_office    re,s1,li,cr,to,dr  PUB
+s2  back_store     s1,to,cr           
+li  library        mo,cr,ac           
+cr  conference     li,mo,s2           
+to  toilets        mo,s2              
+dr  directors      mo                 PUB
+wr  wizroom        s1                 PRIV
+cu  cupboard       re                 PRIV
+ac  andys_computer li                 PRIV
 
 TOPICS:
-drive       Welcome to the talker!
-lounge      Chill and be cool.
-range       Bang! Bang!
+reception       Welcome to the talker!
+library         Ssshhhhhh....
+directors       Shoot, kill, destory...
+andys_computer  (A)bort  (R)etry  (K)ill Bill
 
 # Link to the 2nd talker. You may need to put the machine name rather than
 # localhost here when you're running the 2nd talker on the same machine, it
 # depends on how the /etc/hosts file is set up and also the resolver.
-
 # none of these are real talkers or sites!
 
 SITES:
-talker1        localhost 5002        bloggs456
+talker1        localhost 5002        test123
 darkroom       foo.bar.com 3456      Bloggs456
 palace         11.11.11.11 7401      NotReal
 

@@ -1,11 +1,20 @@
-
-*** A somewhat uninspired map ***
-
-                  lounge
-                     |
-drive - hallway - corridor - range
-           |
-        wizroom
-
-
-                      [ jail ]
++---------------------------------------------------------------------------+
+|            a slightly more inspired map of where it's at                  |
++---------------------------------------------------------------------------+
+|                                                                           |
+|                                car_park           wizroom                 |
+|                                    |                 |                    |
+|                 [cupboard] ----,   |                 |                    |
+|                                |   |                 |                    |
+|                       ,------- reception ------- store_room               |
+|        directors ----'             |             |     |                  |
+|                                    |   ,---------'     |                  |
+|                                    |   |               |                  |
+|                     ,-------- main_office ----,        |                  |
+|                     |              |          |        |                  |
+|           ,------ library          |      toilets -- back_store           |
+|           |         |              |                   |                  |
+|    andys_computer   |              |                   |                  |
+|                     `-------- conference --------------'                  |
+|                                                                           |
++---------------------------------------------------------------------------+

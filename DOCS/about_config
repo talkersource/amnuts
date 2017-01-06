@@ -115,6 +115,19 @@ auto_purge - YES or NO.  If YES then user files will be checked for
    be purged on the purge date, else they will only be purged when a user
    specifically uses the 'purge' command.
 
+allow_recaps - YES or NO.  If YES then a user can change the case of any
+   letters in their name (such as UsEr).
+
+auto_promote - YES or NO.  If YES then new users can enter some information
+   on the talker to be promoted up to the next level automatically by the
+   talker.  This takes away the need for wizzes to be present to make
+   newbies USER level.
+
+personal_rooms - YES or NO.  If yes then users can have access to any of
+   the personal room commands.  Personal rooms will also be processed when
+   the talker boots up.  If it's set to NO then the personal rooms will not
+   be processed at all and the user cannot user any of the personal room
+   commands.
 
 The ROOMS section
 -----------------

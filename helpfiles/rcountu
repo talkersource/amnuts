@@ -1,6 +1,7 @@
 ~OLCommand :~RS rcountu
 ~OLUsage   :~RS rcountu
 
-This command allows you to re-check the user directory strucure.  This is
-used when, for example, you change a users file names, or manual move them
-to another directory.
+This command allows you to re-check the nodes in the complete linked list
+of users to see if any should be added or removed, and also check the
+recorded levels of users. This would mainly be used if you had manually
+altered the user files, or added any file or deleted them.

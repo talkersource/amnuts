@@ -1,7 +1,7 @@
 ~OLCommand :~RS clearline
 ~OLUsage   :~RS clearline <#>
 
-It is possible to clear the line of a user whilst they are in the loggin stage
+It is possible to clear the line of a user whilst they are in the login stage
 (as shown on "people").  This is useful if that line has been stuck in the
-loggin stage for too long, or you want to clear the line quickly before the
+login stage for too long, or you want to clear the line quickly before the
 user logs in.

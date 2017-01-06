@@ -4,5 +4,5 @@
 
 This command will display the helpfile for any command given, or if you omit
 the command then a list of all the commands you have use of will be listed.
-Alternativly, if you use "help files" then a list of further files that you
+Alternatively, if you use "help files" then a list of further files that you
 can read will be listed.

@@ -16,13 +16,13 @@ The codes for the text colour are:
 
     ~~RSFK - black,         ~~RSFR - red,       ~~RSFG - green,
     ~~RSFY - yellow,        ~~RSFB - blue,      ~~RSFM - magenta,
-    ~~RSFT - turquiose,     ~~RSFW - white
+    ~~RSFT - turquoise,     ~~RSFW - white
 
 The codes for the background colour are:
 
     ~~RSBK - black,         ~~RSBR - red,       ~~RSBG - green,
     ~~RSBY - yellow,        ~~RSBB - blue,      ~~RSBM - magenta,
-    ~~RSBT - turquiose,     ~~RSBW - white
+    ~~RSBT - turquosse,     ~~RSBW - white
 
 The codes for other text effects are:
 
@@ -47,7 +47,7 @@ which would result in: (you can only see this is you have colour on)
 
     say ~FBHi!~RS  I can ~FTnow~RS talk in ~FRdifferent~RS ~BBcolours~RS!!!!!
 
-Mixing the codes would have an effect somthing:
+Mixing the codes would have an effect something like this:
 
     say Th~~RSFGis~~RSRS is j~~RSLIust~~RSRS to ~~RSBY~~RSFB~~RSOLsho~~RSBGw ~~RSFRyou~~RSRS.
 

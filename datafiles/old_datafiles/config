@@ -1,0 +1,63 @@
+# Main config file for Amnuts 2.1.0
+
+INIT:
+verification       amnuts210
+mainport           7000
+wizport            7001
+linkport           7002
+max_users          50
+max_clones         5
+heartbeat          2
+login_idle_time    180
+user_idle_time     3600
+time_out_afks      YES
+ban_swearing       MIN
+auto_connect       YES
+password_echo      NO
+ignore_sigterm     NO
+system_logging     ON
+colour_def         ON
+prompt_def         OFF
+charecho_def       OFF
+minlogin_level     NONE
+mesg_life          10
+mesg_check_time    01:00
+min_private        2
+ignore_mp_level    ARCH
+rem_user_maxlevel  SUPER
+rem_user_deflevel  USER
+wizport_level      WIZ
+gatecrash_level    GOD
+time_out_maxlevel  WIZ
+crash_action       REBOOT
+auto_purge         NO
+allow_recaps       YES
+auto_promote       YES
+personal_rooms     YES
+
+ROOMS:
+dr drive    ha        PUB  CONNECT talker1
+ha hallway  dr,co,wz  PUB  
+wz wizroom  ha        PRIV
+co corridor ha,lg,ra     
+lg lounge   co        BOTH ACCEPT
+ja jail     wz        PRIV
+ra range    co        PUB
+
+TOPICS:
+drive       Welcome to the talker!
+lounge      Chill and be cool.
+range       Bang! Bang!
+
+# Link to the 2nd talker. You may need to put the machine name rather than
+# localhost here when you're running the 2nd talker on the same machine, it
+# depends on how the /etc/hosts file is set up and also the resolver.
+
+# none of these are real talkers or sites!
+
+SITES:
+talker1        localhost 5002        test123
+darkroom       foo.bar.com 3456      Bloggs456
+palace         11.11.11.11 7401      NotReal
+
+

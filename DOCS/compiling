@@ -1,6 +1,6 @@
 +------------------------------------------------------------------------------+
      COMPILING - COMPILING - COMPILING - COMPILING - COMPILING - COMPILING
-               Compiling and running the Amnuts 2.0.0 talker
+               Compiling and running the Amnuts 2.1.0 talker
 +------------------------------------------------------------------------------+
 
 I had thought of dividing this version of NUTS up into separate source files
@@ -21,9 +21,13 @@ HP-UX          : cc -Ae amnuts200.c  (you need the ANSI compiler)
 SCO 3.2        : cc amnuts200.c -lsocket -lcrypt_i  
 DYNIX 4        : cc amnuts200.c -lsocket -lnsl
 Solaris        : cc -lsocket -lnsl amnuts200.c  (not guaranteed to work)
-SunOS 4        : dont even bother unless you have gcc
+SunOS 4        : don't even bother unless you have gcc
+               : gcc -lsocket -lnsl amnuts200.c   (IF you have gcc)
 FreeBSD        : cc -lcrypt amnuts200.c
 RedHat Linux 5 : gcc -lcrypt amnuts200.c
+
+If you get errors about the sys_errlist, then comment the relevant section
+out in the amnuts210.h file and it should compile ok with one of the above.
 
 Running...
 

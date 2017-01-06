@@ -11,7 +11,7 @@ To set a macros you have to first chose which 'slot' it has to go into.  A
 Once you have done this then you can enter whatever you want to have as the
 macro into that slot.  And to do that you would type:
 
-    .<slot numer>=<whatever you want to have as the macro>
+    .<slot number>=<whatever you want to have as the macro>
 
 And example of this would be:
 

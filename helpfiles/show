@@ -2,5 +2,5 @@
 ~OLUsage   :~RS show <text>
 ~OLAliases :~RS '
 
-This is used to show a person what to type.  The text is preceeded with
+This is used to show a person what to type.  The text is preceded with
 "Type --> " and it will be display to all the users in the room you are in.

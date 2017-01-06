@@ -1,4 +1,7 @@
-*** Format of the user data file for Amnuts 1.5.0 ***
++------------------------------------------------------------------------------+
+   USERFILE - USERFILE - USERFILE - USERFILE - USERFILE - USERFILE - USERFILE
+     User file information for the Unix talker code Amnuts (version 2.1.0)
++------------------------------------------------------------------------------+
 
 This is a short description of the layout of the file in case you need to hack
 one manually eg to promote or demote someone.
@@ -6,36 +9,43 @@ All times are in seconds.
 
 Line
 1: encrypted password
-2: <last login time> <total login time> <time last logged in for> 
+2: version control number
+3: promotion/demotion date
+4: <last login time> <total login time> <time last logged in for> 
    <last time he read his mail> <level> <prompt on/off> <muzzle level> 
    <charmode echo on/off> <command mode on/off> <vis no/yes> 
-   <monitor on/off> <vote> <unarrest level> <logons> <accreq> 
-   <mail verified>
-3: <gender> <age> <wrap> <pager length> <hide email> <colour> 
+   <monitor on/off> <unarrest level> <logons> <accreq> <mail verified>
+5: <gender> <age> <wrap> <pager length> <hide email> <colour> 
    <log into last room> <alert> <autofwd or smail> <show password>
-4: [ignores]
+   <show room descs> <help command list type> <ICQ number>
+6: [ignores]
    <all> <tells> <shouts> <pics> <logons> <wiz> <greets> <beeps>
-5: <hits> <misses> <deaths> <kills> <bullets> <hit points>
-6: <expires yes/no> <expire time>
-7: <last login site> <last room in> <verification code>
-8: description
-9: enter into room phrase
-10: exit from room phrase
-11: email address
-12: web page address
+6: <hits> <misses> <deaths> <kills> <bullets> <hit points>
+7: <expires yes/no> <expire time>
+8: <last login site> <last room in> <verification code>
+9: description
+10: enter into room phrase
+11: exit from room phrase
+12: email address
+13: web page address
+14: recapped name
 
 eg
 
 NUKyNCCLvgLH.
-878484443 2000 1956 875129382 6 0 0 0 0 1 0 0 6 3 0 0
-0 0 0 23 1 1 0 0 0 0
+2.1.0
+on Sunday 22nd November 1998 at 08:35pm
+911767070 100 1 911766933 6 0 0 0 0 1 0 6 3 1 0
+0 0 0 23 1 1 0 0 0 0 1 0 #UNSET
 0 0 0 0 0 0 0 0
 0 0 0 0 6 10
-1 881940443
+1 915223070
 localhost drive #NONE
-the ~OL~FRnew~RS user
+is a newbie needing a desc.
 enters
 goes
 #UNSET
 #UNSET
+Test
 
++------------------------------------------------------------------------------+

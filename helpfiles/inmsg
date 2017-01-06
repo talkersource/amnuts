@@ -2,6 +2,6 @@
 ~OLUsage   :~RS inmsg [<message>]
 
 This sets the message that is displayed following your name when you enter
-a room. eg if your name is Andy and you set it to "enters fast" other people
+a room. ie, if your name is Andy and you set it to "enters fast" other people
 will see "Andy enters fast" when you enter a room. If you omit the message
 it shows you your current message.

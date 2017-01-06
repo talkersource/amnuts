@@ -1,18 +1,19 @@
 +------------------------------------------------------------------------------+
  README - README - README - README - README - README - README - README - README
-   Introductory information for the Unix talker code Amnuts (version 2.0.1)
+   Introductory information for the Unix talker code Amnuts (version 2.1.0)
 +------------------------------------------------------------------------------+
 
-Welcome to the Amnuts talker code, version 2.0.1!  Or, if you have already used
-Amnuts, then welcome back!  This is the latest version of Amnuts (as of May '98)
-and many things have changed.  If you are already familiar with Amnuts then you
-may want to skip down to the next section, else please keep reading.
+Welcome to the Amnuts talker code, version 2.1.0!  Or, if you have already used
+Amnuts, then welcome back!  This is the latest version of Amnuts (as of
+November '98) and many things have changed.  If you are already familiar with
+Amnuts then you may want to skip down to the next section, else please keep
+reading.
 
 What is Amnuts?  Well, you may have already seen the Amnuts website and read all
 about what Amnuts is (it may even be where you got the code from), but for those
 that haven't Amnuts is a talker server which is to be used on Unix systems (and
 clones of Unix).  It has been written in C because of a few reasons, but mainly
-because it is one of the best lanuages for the 'newbie' to get to grips with.
+because it is one of the best languages for the 'newbie' to get to grips with.
 What is a talker server?  Well, basically, it's a program that can have people
 from all over the world connect to it, talk, send and receive messages.  The
 talker usually takes on a theme of some kind (my own is the wild west!) and is
@@ -24,8 +25,16 @@ moved Neil's NUTS readme to the DOCs directory ('nuts_readme').
 And that is Amnuts in a nutshell.  (ok, ok.. But I had to get ONE bad pun in
 this readme somewhere!!)
 
+Yet again there have been some directory structure changes.  I've gone back
+again to more the pre-2.0.0 structure, yet with a number of new
+directories.  Yeah, yeah, I know.. I just can't seem to make up my mind,
+can I?  Well I honestly believe that this directory structure will now stay
+as it is throughout any further versions of Amnuts.
+To all those that are new to Amnuts, this being your first version, then
+you won't know what I mean.  But trust me on this - it's easier now ;)
+
 There have been a lot of changes in this version of Amnuts, not all of which
-are really visable to the end user.  Most of the code changes have been made
+are really visible to the end user.  Most of the code changes have been made
 to make the code easier to update (such as add new levels), faster (a lot less
 reading from files, now reading more from memory), and just optimizing the
 code a little (like removing redundant procedures, or making existing ones
@@ -34,19 +43,20 @@ some directory structure changes too (this is particularly important for those
 who are upgrading from a previous version of Amnuts).
 Please read the 'IMPORTANT' message to find out more about the directory
 structure change, and the 'amnuts_changes' in the DOCs directory for more
-information on what changes have been made since version 1.4.2 (the previous
+information on what changes have been made since version 2.0.0 (the previous
 release to this one).
 
-Please always refer to Amnuts *as* Amnuts or amnuts (not AMNUTS, AmNUTS, or
-anything else along those lines).  You might think this a bit petty, but there
-are good reasons, I assure you!
-
-I've put a fair amount of time into Amnuts, its documents and the website, so
-I would appreciate it if you don't add a few small commands and then think
-that gives you the right to rename the code.  This is very unfair and, I think,
-pretty damn disrespectful of the amount of time that has been put into giving
-you this code free, and also providing you with documents and the website.
-Please see the COPYRIGHT information
+I've put a fair amount of time into Amnuts (well, actually, I've put shit
+loads of time into it... Why beat around the bush, huh?), its documents and
+the website, so I would appreciate it if you don't add a few small commands
+and then think that gives you the right to rename the code.  This is very
+unfair and, I think, pretty damn disrespectful of the amount of time that
+has been put into giving you this code free, and also providing you with
+documents and the website.  The same goes for if you nick bits of the code
+to put into your own talker - a mention in the credits of where the code
+came from would be nice!  Especially if it's a feature you don't find on
+anything else other than Amnuts, or is obvious it came from Amnuts.  Please
+see the COPYRIGHT information for more information.
 
 The above was the only bitch part that I needed to do.  Other than that, I hope
 that you enjoy the code, and if you have any questions or comments, ideas or
@@ -57,7 +67,7 @@ Thanks for using Amnuts!  Enjoy!  (Damn! This was a long README! ;-)
 
 
                                                               Andrew Collington
-                                                                 1st July, 1998
+                                                            28th November, 1998
 +------------------------------------------------------------------------------+
 email: amnuts@iname.com                  web: http://www.talker.com/west/amnuts/
 +------------------------------------------------------------------------------+

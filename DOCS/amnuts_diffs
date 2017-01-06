@@ -3,6 +3,70 @@
         Information on the changes between different version of Amnuts
 +------------------------------------------------------------------------------+
 
+2.1.0
+-----
+
+Added the option 'key' to the .people command to show what the logon stages are.
+Corrected some spelling mistakes in code, and lots in the docs (thanks Dmoney for pointing them all out!)
+Updated the purge command to use a command line now: -d, -s and -t (default, site and time)
+Added the procedure user_logged_on() to give a quick check to see if a user is currently logged on.
+Updated 'expire()' a little bit.
+Added MAX_GCOM, MAX_XCOMS as defines in the header, gcoms[] and xcoms[] to the user structure.
+Added procedures has_gcom() and has_xcom(), and updated exec_com() to call them.
+Added the commands 'xcom' and 'gcom', and the procedures get_xgcom(), set_xgcom(), user_xcom(), user_gcom()
+Added swear check for (b)bcast
+Fixed slight bug in create_clone so it now displays the clone's name properly recapped
+Moved the wiping of messages into one procedure 'wipe_messages' and updated 'dmail()', 'wipe_board()' and 'delete_suggestions()' to incorporate this.  Also added proper grammer to these procedures. All of this should fix some funny deletion counts that people used to get.
+Updated 'suggestions()' to check for a remote user (remote users shouldn't use this command), and also some cosmetic changes.
+Added the command 'sfrom' - does the equiv. of from/bfrom but for suggestions.  Added the procedure 'suggestions_from()'.
+Fixed it so that if a user is invis and logged on then they won't show up in the '.last' list to any user under their level
+Added am/pm indicator for long date instead of 24-hour clock (as shown on mail messages, board, etc)
+Updated the procedure 'login()' so that motd2 is displayed until the user presses return to continue.
+Added bounds checking when entering an email or homepage with the .set command
+Added command 'rloadrm' to reload a room's description - added the procedure 'reload_room_description()' for this command
+Changed .cmdcount so that a user can only see the commands they have access to.
+Altered .setcmdlev so you can give abbreviated command names (as in xcom/gcom)
+Added a prompt when user does '.dmail all' so that they can decide to delete all their mail or not.
+Some cosemetic changes made
+Fixed a bug with the viewing of pictures
+Fixed the problem with 'censor_swear_words' in that it would only censor words all in lower case.  Now, with the addition of the 'istrstr' fuction it performs the censor without worrying about case.
+Fixed a bug in the quick call section of tell() that could cause a crash
+Added the ability to have users auto-promoted after they enter a desc, gender and use the accreq command.  I also added the ability to toggle the default setting (stored in the config file as 'auto_promote') with the command .autopromo
+Made the making of strings plural much better by now using pre-processor macros
+Made .grepu ignore case
+Converted the code more over to ANSI standard and added the prototype header file.  (thanks to 'Rudder' for the ANSI converted Amnuts 2.0.1 which I worked from).  And also fixed a couple conflictions along the way.
+Added a new structre called wiz_list_struct and the two procedures 'add_wiz_node' and 'rem_wiz_node'.  I found that if you have a lot of users (say, 700 or more) in total than doing a wizlist may produce slow results as it has to go through all the user list.  With just scrolling through the wiz_list_struct than the results are a lot faster (though at the cost of a little more memory).  Updated wiz_list() to use this new structure and also fixed the bug that would mean if only 4 wizzes are of a level (eg, 4 users of WIZ level) then it would display "[none listed]" on the .wizlist.  Now it'll display them as normal.
+Added the command 'sayto' and gave it the alias '-'.  This has meant that the alias for echo has now changed to '+'.  Also at this point have updated the command 'say' so that if a user puts :) ;) :( 8) etc at the end of their message, then it will say "User smiles:", "User winks:", "User frowns", etc.
+Have made it so that if a user is in a private room then they can still swear even if swearban is on.  (I changed this because I had soooo many people ask for it on my own talker that I took a guess that it might happen anywhere else)
+Users can now store their ICQ numbers (entered with the 'set' command)
+Added the commands 'friend', 'fsay' and 'femote' - you can add people to your friends list and have the talker alert you if they log on.  Also updated the 'set' command to include 'alert'
+Changed the name of the function 'find_user_directory' to 'find_user_listed' as it now just returns 1 or 0 - if the user is on the user linked list of not (respectively).  This change has come about because the directory structure has been changed once again to make it easier for people to code and also to cut out a few function calls.  All the .D files are now in USERFILES and the mail, profiles, etc are all in their own directories.
+Removed the 'verbose_mode' from the config file and the reading of it.
+Removed the procedure 'move_files' and any references to it as it has been made obsolete by storing the userfiles in one directory.  Also wrote a program to move all the userfiles if you are using a version previous to 2.1.0.
+Renamed the procedure (and calls to) 'change_user_directory' to 'user_list_level' to make it more obvious (though I guess that's open to conjecture ;)
+Added the command 'force' and the procedures to go with it.
+Change the procedure 'mail_count' to 'mail_sizes' and updated its input and return values.
+Changed the way mail files are saved slightly so that now the number of new mails and the size of the file is saved at the beginning of the mail file.  Have also changed the login and ustat, etc, to display how many new mails hte user has.  Also have updated the 'rmail' command so that a user can enter 'rmail new' and just read their new mail.
+Added the 'calendar' command, along with updating the header file for compenents of this command and adding the procedures is_leap, month_to_days, year_to_days, ymd_to_scalar, scalar_to_ymd, is_ymd_today and show_calendar.
+Added the command 'fwho' to list your friends who are logged on.
+Added the preprocessor macro 'PLTEXT_IS' to give better is/are gramatical text.  And also one called PLTEXT_WAS for better was/were grammer.
+Have added personal rooms (due to much asking for this feature).  This includes the command myroom, mylock, mypaint, visit.  has_room_access has been updated to take the personal room lock status into consideration.  The procedures/functions 'personal_room', 'personal_room_lock', 'personal_room_visit', 'personal_room_decorate', 'personal_room_store', 'is_personal_room', 'is_my_room', 'get_room_full' and 'destruct_room' have been added, as well as the defines PERSONAL_UNLOCKED and PERSONAL_LOCKED.  The room_struct has been updated to make it a doubly linked list and the function (for future updates).  The rooms and rnet command will not display the personal rooms, only the config set rooms.  The wipe command has also been updated so that users can wipe any messages in their own room.  I have made it so that any message boards in personal room are stored in the same directory as the personal room files (ie, USERFILES/USERROOMS).  The lock status and title and room desc are all saved.  If users want to remove their own rooms then they can use the '-d' option with the myroom command.
+When a user swaps session the site of their new session will be recorded in the syslog.
+Updated the check_directories function to check for the new structure.
+Added the option 'personal_rooms' to the config file so you can turn them on/off (as well as the commands) at boot time.
+Updated the commands 'promote' and 'demote' to take an optional <level> attribute to set a user directly to that level.  Also works without the <level> option.
+Now if you use an emote command (emote, semote, pemote, femote and cemote) with the string "'s" then it will space it correctly.  Eg, ";'s talker" will result in "Andy's talker" rather than "Andy 's talker".
+Updated the command memcount to show even more structures.
+Improved the 'last command' logs.  As a result, I added the new directory 'lastcmdlogs' and I changed the procedure name 'write_last_command' to 'record_last_command' and added the procedure 'dump_commands'.
+Updated all of the helpfiles and create a new set of rooms and a new map.
+Added the ability to have multiple MOTD files for pre- and post-login.  This has meant an extra directory, motds, has been created with the dirs motd1 and motd2 in it.  Each of the motd files HAS to be named such as 'motdn' where n is the next consequtive number.  motd files start from 1, ie, motd1, motd2, motd2, etc.
+Have updated the command 'recount' so that it can take the option 'motds' incase you manually update the motds.
+Changed the levels of some commands
+Stopped remote users from executing a few more certain commands that could cause a security problem (eg, shutdown, reboot, nuke, etc)
+Removed slight bug in parse_room_topics
+Made load_oldversion_user fuction compatible with file version from 2.0.1, 2.0.0 and 1.4.2.  It defaults to loading user files from version 1.4.2 if no other version number can be determined.
+
+
 2.0.1
 -----
 
@@ -37,7 +101,7 @@ changed all calls to open USERFILES to incorporate the level name
 added command line variables for when booting the talker, also allowing automatic setup of the directories and quiet boot up.
 added procedure: process_command_line(), setup_directory_structure()
 added procedure: move_files(), change_user_directory()
-added proper grammer (eg, '1 message' instead of '1 messages', or 'there is 1' rather than 'there are 1')
+added proper grammar (eg, '1 message' instead of '1 messages', or 'there is 1' rather than 'there are 1')
 added an ! to the prompt to show if ignoring anything (though doesn't represent what)
 changed toggle_colour() to display_colour
 added the command 'memcount'
@@ -175,7 +239,7 @@ Ignores are saved when logging out
 Send copies of mail to users on the talker or a remote talker
 Send one mail message to individual levels, admin or all users
 Can views users stats when they are not logged on
-General apperance changes
+General appearance changes
 Levels can have aliases (when listed in .who, etc)
 Can check users of the same site when they are logged on or not
 Abbreviations for commands shown on the command list, and also more added

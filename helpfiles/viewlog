@@ -1,5 +1,6 @@
 ~OLCommand :~RS viewlog
 ~OLUsage   :~RS viewlog sys/net/req/retired/<level name> [<lines from end>]
 
-Shows various logs.  If lines from the end is specified it only shows the
-last n lines of the log so you don't have to page through the whole thing.
+Shows various logs.  If lines from the end is specified then you will only
+view those amount of lines from the end of the log.  In doing this you do
+not have to page through the log.

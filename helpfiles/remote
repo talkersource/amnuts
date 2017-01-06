@@ -13,12 +13,12 @@ talker, which might mean you no longer have certain command that are found on
 Way Out West, or the commands on the remote talker act in a different way.
 To get back to the talker you started from, your home talker, you simply use
 the "home" command.
-So how do you know if there are remote users on the talker you are on?  When
-using "who" may see a @ next to the persons name, this indicates that they are
-remote users.
+So how do you know if there are remote users on the talker that you are on?
+When using "who" may see a @ next to the persons name, this indicates that 
+they are remote users.
 You can smail a remote user on another talker (providing it is link to the
 talker you are on) by smailing to their name @ their talker, for example,
-smail aahz@another_talker.
+smail andy@another_talker.
 When you are on a remote system it may take a little while to get adjusted to
 the way that talker works and the commands it uses, but it is worth it in the
 end.
