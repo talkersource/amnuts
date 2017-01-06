@@ -1,6 +1,6 @@
 +------------------------------------------------------------------------------+
    USERFILE - USERFILE - USERFILE - USERFILE - USERFILE - USERFILE - USERFILE
-     User file information for the Unix talker code Amnuts (version 2.1.0)
+     User file information for the Unix talker code Amnuts (version 2.1.1)
 +------------------------------------------------------------------------------+
 
 This is a short description of the layout of the file in case you need to hack
@@ -15,6 +15,7 @@ Line
    <last time he read his mail> <level> <prompt on/off> <muzzle level> 
    <charmode echo on/off> <command mode on/off> <vis no/yes> 
    <monitor on/off> <unarrest level> <logons> <accreq> <mail verified>
+   <arresting level>
 5: <gender> <age> <wrap> <pager length> <hide email> <colour> 
    <log into last room> <alert> <autofwd or smail> <show password>
    <show room descs> <help command list type> <ICQ number>
@@ -33,9 +34,9 @@ Line
 eg
 
 NUKyNCCLvgLH.
-2.1.0
+2.1.1
 on Sunday 22nd November 1998 at 08:35pm
-911767070 100 1 911766933 6 0 0 0 0 1 0 6 3 1 0
+911767070 100 1 911766933 6 0 0 0 0 1 0 6 3 1 0 0
 0 0 0 23 1 1 0 0 0 0 1 0 #UNSET
 0 0 0 0 0 0 0 0
 0 0 0 0 6 10

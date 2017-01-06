@@ -1,6 +1,6 @@
 +------------------------------------------------------------------------------+
-       DIRECTORY STRUCTURE - DIRECTORY STRUCTURE - DIRECTORY STRUCTURE
-    Directory information for the Unix talker code Amnuts (version 2.1.0)
+        DIRECTORY STRUCTURE - DIRECTORY STRUCTURE - DIRECTORY STRUCTURE
+      Directory information for the Unix talker code Amnuts version 2.1.1
 +------------------------------------------------------------------------------+
 
 The server has a fixed directory structure and expects certain files to be
@@ -37,8 +37,8 @@ There is also a sub-structure of directories which are as follows:
    mail     : User's mail files (.M)
    macros   : Any macros the user has set (.MAC)
    profiles : Profiles is the user has made them (.P)
-   rooms    : Stores the user's room information (.R) and rooms board
-              information (.B)
+   rooms    : Stores the user's room information (.R), rooms board
+              information (.B) and key information (.K)
    xgcoms   : Any commands the user has been restricted from using of given
               access to (.C)
 

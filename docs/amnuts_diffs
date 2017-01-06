@@ -3,6 +3,58 @@
         Information on the changes between different version of Amnuts
 +------------------------------------------------------------------------------+
 
+2.1.1
+-----
+
+Fixed bug in wipe_messages() when deleting mail messages.  Removed 'DNL' define from the main header file.
+Fixed the wizlist display bug
+Added checks to see that there are positive motd1/2 counts before displaying them.
+Fixed auto purge_date time (as shown in .system) and also updated results output slightly to make more sense on the counts.
+Removed obsolete function 'has_unread_mail'
+Fixed small bug in function 'colour_com_count'
+Added better grammer output in 'check_messages' and 'check_reboot_shutdown'
+Fixed bug in the mutter function
+Added the 'ignbeeps' and 'beep' commands.  Also adapted the 'wake' function to take into consideration the ignbeep setting
+Added a few bounds checks
+Moved the commands into one big table (except the enum command values) to make it easier to add commands.  Also split into seperate .h file
+Slightly altered the help_command functions and the command structs to add the alias from the command_table
+Attempted to fix .quit bug
+Changed the personal rooms so that they are now viewed as "(<name>)" in the who listing when someone is in there.  eg, (andy)
+Fixed long_date bug (wouldn't display 12pm correctly)
+Added the function smiley_type() which is now called to parse :) ;) etc
+Added the command 'rmadmin' to give some admin control over rooms.  Also added the procedures 'personal_room_admin' and 'room_visitor_count'.  Also updated a few other functions so that they handle the new '(name)' correctly.  Update personal_room() so that it attempts to read an existing room description first before setting it to default.
+Added the ability to scroll back or redisplay pages when viewing text files (as well as the standard 'e' to exit and <return> to continue).  Also added percentage of file  looked at.
+Changed a little text in 'sos' command.
+Added random kill messages for the .kill command due to request.
+Fixed small problem in create_account function.
+Updated the text output for the '.last <user>' command, including better grammer.
+Updated validate_email so that you can now use '_' and '-' in your email address.
+Made it so that the talker will compile without netlink facilities unless otherwise specifically compiled in with the option '-DNETLINKS'.  Bit of a hack, but it works well and I have had so MANY people want netlinks taken out.  So here is the best of both worlds!  Also placed the netlink functions into their own .c file and the prototypes into their own .h file.  These are #included within the main .c file if needed.  ie, if compile with the -DNETLINKS option.
+Altered 'clean_files()' so that it only takes user name as a passed variable.
+Added the command "mykey".  The functions 'personal_room_key', 'personal_key_add', 'personal_key_remove' and 'has_room_key' were created for this command, and 'has_room_access' was updated to take the key into consideration.
+Fixed bug with "-d" option of the "myroom" command.
+Moved the colour codes into one table.
+Added the option 'random_motds' to the config file.  If this is YES then it'll pick a random motd from those stored in the correct directories.  If NO, then it'll just use motd1.
+A user will be correctly removed off the retire list if demoted below WIZ, nuked, suicided, etc.
+Added the command 'mybgone' to bounce people from a user's personal room.  The function 'personal_room_bgone' was added for this command.
+Changed the 'examine' command so that it will default to examining the user if not name was given.
+Added a check for ignoring users in picture_tell and wake.  Also reworked the position of the ignore use check in tell, pemote, and such like functions.
+Added the config option 'startup_room_parse' to allow personal rooms to be active, but not parsed and put into memory at startup.  (this is overridden by the 'personal_rooms' config option)
+Changed 'switch' command so that the room is optional.  If the user only has one clone then they will switch to that one.
+Updated the quick_call() function to do some more checks.
+Fixed a small glitch that would not allow a user to wipe their own message if they have a recapped name.
+Added the ability to have ~$ in message boards, smails, profiles (anything parsed by 'more()') to show the user's name. (eg: 'hi ~$' whould show 'hi Andy' if read by me).  Use ^~$ if you want to display just ~$.
+Attempt to cure time freeze problem that can occur with glibc207+ (thanks to Arny, and Cygnus, for this)
+Removed the function 'get_ip_address' and placed it within accept_connections().  In there I've also added a call to the new function 'resolve_ip()' (thanks to tref for this one) when using the compile option -DRESOLVEIP.  This is to attempt to fix the problem with some BSD users lagging when using gethostbyaddr().
+Added 'ipsite' to the user structure, and also updated the site command to display this for user's currently online.
+Added 'arrestby' to the user structure, and made the arrest command dependant on level, much like the muzzle command.  (ie, if an ARCH arrests someone, then only an ARCH or above can unarrest them).  Updated load_old_userfile() to compensate for this new addition which is a saved variable.  Also updated the arrest and unarrest commands.  Also updated the 'ustat' output to display the arrested level.
+The help commands can now be abbreviated.  So typing '.help mem' will show the helpfile for memcount.  If more than one command matches the given string (eg, 'rec' would match recountu and recaps) then they will be listed out.  If a user has not got access to that command (ie, their level is too low) then the command will not be listed.
+/** MANY thanks to Arny for his debugging and showing me where these bugs where and also for some fixes!
+The account_request() function now checks for a valid email format
+Fixed structure destruction bug in destroy_user_clones(), talker_shutdown(), main()
+**/
+
+
 2.1.0
 -----
 

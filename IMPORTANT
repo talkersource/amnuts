@@ -1,36 +1,39 @@
 +------------------------------------------------------------------------------+
     IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT - IMPORTANT
-        Information for the running of a talker based on Amnuts 2.1.0
+        Information for the running of a talker based on Amnuts 2.1.1
 +------------------------------------------------------------------------------+
 
 Ok, now I know how most of you just loathe reading these things, but as you may
-have gathered by now, this one is important.  Please, no groaning!  This is
-information that will help you setup and run your talker - or rather it concerns
-the setup of the directory structure.
+have gathered by now, this one is important.  Please, no groaning!
 
-Where as Amnuts 2.0.x stored its userfiles in directories named after the
-user levels, 2.1.0 has gone back to storing all the userfiles in the same
-directory.  This was chosen to make it easier for people to add/change
-levels, and also to cut out quite a few extra function calls just to get a
-level name.  However, only the .D files are stored in the USERFILES
-directory.  The mail files, profiles, , macros, etc, are all stored in
-their own directories.
+The most notable thing to put here is about the Netlinks function.  There
+have been many requests for me to remove the Netlinks system, but I've also
+had people ask me to keep it.  Obviously, a problem.  But I think I've
+managed to work a way around it.  If you compile in the normal way (eg;
+'gcc -lcrypt amnuts211.c') then the talker will run without any Netlink
+functions.  The port that Netlinks normally uses will not be used in any
+way.  The commands associated with Netlinks will not be in the command
+listing... Nothing!  This should make the people happy who didn't want
+Netlinks in the code.
+If you WANT Netlinks then, when compiling, you have to compile with the
+switch '-DNETLINKS'.  eg; 'gcc -lcrypt -DNETLINKS amnuts211.c'.  If you do
+this then you will have the Netlink functions as normal.  The commands
+will the there, the port will be used, and all that.  But note, the code
+AS DEFAULT will not have the Netlink code active.
 
-If you are coming from using Amnuts 2.0.x then you will need to change your
-directory structure into this new setup.  I have created a utility for you
-to do this with.  The utility (called move20x_210.c) is located in the
-utils directory.  It will NOT alter the user files themselves.  This I
-have left up to the talker itself to do, and will load the old user files
-version (2.0.1, 2.0.0 and 1.4.2) providing you have made no changes to
-their setup.  If you have then you need to alter the function
-load_oldversion_user in the amnuts210.c file.
-If you are new to using Amnuts and this version is your first then the
-directories are all set up for you so you don't have to do anything.
+I'll say that again because there are always people who ask me about
+something I've put in this document... The Netlink functions HAVE to be
+COMPILE IN by YOU!
 
-For further information on the directory structure, please see 'about_dirs', in
-the DOCS directory.  Also, please read the other very useful information
-while you're there.
+The next important thing is about the talker hanging severely when someone
+is trying to log on.  This usually happens on a BSD system, and it occurs
+because of the gethostbyaddr() function.  I've attempted to fix this
+little problem by adding a little bit of code (written by tref, updated for
+Amnuts by me) that you, again, have to compile to activate.  If you find
+you are having a problem with the talker just hanging for ages when
+someone is logging in, then recompile your code with the '-DRESOLVEIP'
+option.
 
                                                               Andrew Collington
-                                                            28th November, 1998
+                                                                 20th May, 1999
 +------------------------------------------------------------------------------+

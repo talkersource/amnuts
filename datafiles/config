@@ -1,7 +1,7 @@
-# Main config file for Amnuts 2.1.0
+# Main config file for Amnuts 2.1.1
 
 INIT:
-verification       amnuts210
+verification       amnuts211
 mainport           7000
 wizport            7001
 linkport           7002
@@ -29,11 +29,14 @@ rem_user_deflevel  USER
 wizport_level      WIZ
 gatecrash_level    GOD
 time_out_maxlevel  WIZ
-crash_action       REBOOT
+crash_action       NONE
 auto_purge         NO
 allow_recaps       YES
 auto_promote       YES
 personal_rooms     YES
+startup_room_parse NO
+random_motds       YES
+
 
 ROOMS:
 re  reception      cp,s1,mo,cu        PUB

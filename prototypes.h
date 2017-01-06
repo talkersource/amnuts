@@ -1,6 +1,6 @@
 /*****************************************************************************
-               Prototypes header file for Amnuts version 2.1.0
-      Copyright (C) Andrew Collington - Last update: 28th November, 1998
+                Prototypes header file for Amnuts version 2.1.1
+        Copyright (C) Andrew Collington - Last update: 25th May, 1999
  *****************************************************************************/
 
 #define args(list) list
@@ -25,13 +25,14 @@ int       colour_com_count args((char *str));
 char *    colour_com_strip args((char *str));
 void      strtoupper args((char *str));
 void      strtolower args((char *str));
-int       isnumber args((char *str));
+int       is_number args((char *str));
 char *    istrstr args((char *str, char *pat));
 char *    replace_string args((char *inpstr,char *old,char *new));
 int       instr args((char *s1,char *s2));
 void      midcpy args((char *strf,char *strt,int fr,int to));
 char *    ordinal_text args((int num));
 char *    long_date args((int which));
+void      smiley_type args((char *str, char *type));
 
 /* Object functions */
 
@@ -40,8 +41,6 @@ void      reset_user args((UR_OBJECT user));
 void      destruct_user args((UR_OBJECT user));
 RM_OBJECT create_room args((void));
 void      destruct_room args((RM_OBJECT rm));
-NL_OBJECT create_netlink args((void));
-void      destruct_netlink args((NL_OBJECT nl));
 int       add_command args((int cmd_id));
 int       rem_command args((int cmd_id));
 int       add_user_node args((char *name,int level));
@@ -55,7 +54,7 @@ int       user_list_level args((char *name, int lvl));
 
 void      check_directories args((void));
 int       pattern_match args((char *str,char *pat));
-int       site_banned args((char *site,int new));
+int       site_banned args((char *sbanned,int new));
 int       user_banned args((char *name));
 void      reset_access args((RM_OBJECT rm));
 UR_OBJECT get_user args((char *name));
@@ -64,7 +63,6 @@ RM_OBJECT get_room args((char *name));
 RM_OBJECT get_room_full args((char *name));
 int       get_level args((char *name));
 int       has_room_access args((UR_OBJECT user,RM_OBJECT rm));
-int       has_unread_mail args((UR_OBJECT user));
 void      check_start_room args((UR_OBJECT user));
 int       find_user_listed args((char *name));
 int       validate_email args((char *email));
@@ -74,12 +72,15 @@ int       has_gcom args((UR_OBJECT user,int cmd_id));
 int       has_xcom args((UR_OBJECT user,int cmd_id));
 int       is_personal_room args((RM_OBJECT rm));
 int       is_my_room args((UR_OBJECT user,RM_OBJECT rm));
+int       room_visitor_count args((RM_OBJECT rm));
+int       has_room_key args((char *visitor,RM_OBJECT rm));
 
 /* setting up of sockets */
 
 void      setup_readmask args((fd_set *mask));
 void      accept_connection args((int lsock,int num));
 char *    get_ip_address args((struct sockaddr_in acc_addr));
+char *    resolve_ip args((char *host));
 void      init_sockets args((void));
 
 /* loading up and parsing of the configuration files */
@@ -88,7 +89,9 @@ void      load_and_parse_config args((void));
 void      parse_init_section args((void));
 void      parse_rooms_section args((void));
 void      parse_topics_section args((char *topic));
-void      parse_sites_section args((void));
+#ifdef NETLINKS
+  void      parse_sites_section args((void));
+#endif
 void      parse_user_rooms args((void));
 
 /* signal handlers and exit functions */
@@ -103,15 +106,13 @@ void      do_events args((int sig));
 void      reset_alarm args((void));
 void      check_reboot_shutdown args((void));
 void      check_idle_and_timeout args((void));
-void      check_nethangs_send_keepalives args((void));
-void      check_messages args((UR_OBJECT user, int force));
+void      check_messages args((UR_OBJECT user, int chforce));
 void      record_last_login args((char *name));
 void      record_last_logout args((char *name));
 
 /* initializing of the globals and other stuff */
 
 void      init_globals args((void));
-void      init_connections args((void));
 int       load_user_details args((UR_OBJECT user));
 int       save_user_details args((UR_OBJECT user,int save_current));
 int       load_oldversion_user args((UR_OBJECT user,int version));
@@ -120,36 +121,12 @@ void      process_users args((void));
 void      count_users args((void));
 void      parse_commands args((void));
 void      count_suggestions args((void));
-int       count_motds args((int force));
+int       count_motds args((int forcecnt));
 int       get_motd_num args((int motd));
-int       connect_to_site args((NL_OBJECT nl));
-
-/* NUTS Netlink protocol */
-
-void      accept_server_connection args((int sock,struct sockaddr_in acc_addr));
-void      exec_netcom args((NL_OBJECT nl, char *inpstr));
-void      nl_transfer args((NL_OBJECT nl,char *name,char *pass,int lev,char *inpstr));
-void      nl_release args((NL_OBJECT nl,char *name));
-void      nl_action args((NL_OBJECT nl,char *name, char *inpstr));
-void      nl_granted args((NL_OBJECT nl,char *name));
-void      nl_denied args((NL_OBJECT nl,char *name, char *inpstr));
-void      nl_mesg args((NL_OBJECT nl,char *name));
-void      nl_prompt args((NL_OBJECT nl,char *name));
-void      nl_verification args((NL_OBJECT nl,char *w2,char *w3,int com));
-void      nl_removed args((NL_OBJECT nl,char *name));
-void      nl_error args((NL_OBJECT nl));
-void      nl_checkexist args((NL_OBJECT nl,char *to,char *from));
-void      nl_user_notexist args((NL_OBJECT nl,char *to,char *from));
-void      nl_user_exist args((NL_OBJECT nl,char *to,char *from));
-void      nl_mail args((NL_OBJECT nl,char *to,char *from));
-void      nl_endmail args((NL_OBJECT nl));
-void      nl_mailerror args((NL_OBJECT nl,char *to,char *from));
-void      nl_rstat args((NL_OBJECT nl,char *to));
-void      shutdown_netlink args((NL_OBJECT nl));
 
 /* file functions - reading, writing, counting of lines, etc */
 
-void      clean_files args((char *name, int level));
+void      clean_files args((char *name));
 int       remove_top_bottom args((char *filename,int where));
 int       count_lines args((char *filename));
 
@@ -162,12 +139,12 @@ void      write_room args((RM_OBJECT rm,char *str));
 void      write_room_except args((RM_OBJECT rm,char *str,UR_OBJECT user));
 void      write_friends args((UR_OBJECT user,char *str,int revt));
 void      write_syslog args((char *str,int write_time,int type));
-void      record_last_command args((UR_OBJECT user,int com_num));
+void      record_last_command args((UR_OBJECT user,int comnum));
 void      dump_commands args((int foo));
 void      write_monitor args((UR_OBJECT user,RM_OBJECT rm,int rec));
 int       more args((UR_OBJECT user,int sock,char *filename));
 int       more_users args((UR_OBJECT user));
-void      add_history args((char *name,int time,char *str));
+void      add_history args((char *name,int showtime,char *str));
 
 /* logon/off functions */
 
@@ -201,7 +178,9 @@ void      clear_shouts args((void));
 void      clear_edit args((UR_OBJECT user));
 void      cls args((UR_OBJECT user));
 int       send_mail args((UR_OBJECT user,char *to,char *ptr,int iscopy));
-void      send_external_mail args((NL_OBJECT nl,UR_OBJECT user,char *to,char *ptr));
+#ifdef NETLINKS
+  void      send_external_mail args((NL_OBJECT nl,UR_OBJECT user,char *to,char *ptr));
+#endif
 void      smail args((UR_OBJECT user, char *inpstr,int done_editing));
 void      rmail args((UR_OBJECT user));
 void      read_specific_mail args((UR_OBJECT user));
@@ -266,6 +245,7 @@ void      think_it args((UR_OBJECT user, char *inpstr));
 void      sing_it args((UR_OBJECT user, char *inpstr));
 void      bcast args((UR_OBJECT user, char *inpstr,int beeps));
 void      wake args((UR_OBJECT user));
+void      beep args((UR_OBJECT user,char *inpstr));
 void      quick_call args((UR_OBJECT user));
 void      revedit args((UR_OBJECT user));
 void      revafk args((UR_OBJECT user));
@@ -322,12 +302,6 @@ void      join args((UR_OBJECT user));
 void      shackle args((UR_OBJECT user));
 void      unshackle args((UR_OBJECT user));
 void      set_topic args((UR_OBJECT user, char *inpstr));
-void      home args((UR_OBJECT user));
-void      netstat args((UR_OBJECT user));
-void      netdata args((UR_OBJECT user));
-void      connect_netlink args((UR_OBJECT user));
-void      disconnect_netlink args((UR_OBJECT user));
-void      remote_stat args((UR_OBJECT user));
 void      check_autopromote args((UR_OBJECT user,int attrib));
 void      promote args((UR_OBJECT user));
 void      demote args((UR_OBJECT user));
@@ -379,7 +353,7 @@ void      reload_gun args((UR_OBJECT user));
 void      set_command_level args((UR_OBJECT user));
 void      user_xcom args((UR_OBJECT user));
 void      user_gcom args((UR_OBJECT user));
-int       set_xgcom args((UR_OBJECT user,UR_OBJECT u,int id,int ban,int set));
+int       set_xgcom args((UR_OBJECT user,UR_OBJECT u,int id,int banned,int set));
 int       get_xgcoms args((UR_OBJECT user));
 void      reload_room_description args((UR_OBJECT user));
 
@@ -391,18 +365,17 @@ void      get_friends args((UR_OBJECT user));
 void      friends args((UR_OBJECT user));
 void      friend_say args((UR_OBJECT user, char *inpstr));
 void      friend_emote args((UR_OBJECT user, char *inpstr));
-
 void      bring args((UR_OBJECT user));
 void      force args((UR_OBJECT user,char *inpstr));
 
 /* calendar stuff */
 
 int       is_leap args((unsigned yr));
-unsigned  month_to_days args((unsigned month));
+unsigned  months_to_days args((unsigned mn));
 long      years_to_days args((unsigned yr));
-long      ymd_to_scalar args((unsigned yr,unsigned mo,unsigned day));
-void      scalar_to_ymd args((long scalar,unsigned *yr,unsigned *mo,unsigned *day));
-int       is_ymd_today args((unsigned yr,unsigned mo,unsigned day));
+long      ymd_to_scalar args((unsigned yr,unsigned mo,unsigned dy));
+void      scalar_to_ymd args((long scalar,unsigned *yr,unsigned *mo,unsigned *dy));
+int       is_ymd_today args((unsigned yr,unsigned mo,unsigned dy));
 void      show_calendar args((UR_OBJECT user));
 
 /* personal rooms stuff */
@@ -412,5 +385,8 @@ void      personal_room_lock args((UR_OBJECT user));
 void      personal_room_visit args((UR_OBJECT user));
 void      personal_room_decorate args((UR_OBJECT user,int done_editing));
 int       personal_room_store args((char *name,int store,RM_OBJECT rm));
-
-
+void      personal_room_admin args((UR_OBJECT user));
+void      personal_room_key args((UR_OBJECT user));
+int       personal_key_add args((UR_OBJECT user, char *name));
+int       personal_key_remove args((UR_OBJECT user, char *name));
+void      personal_room_bgone args((UR_OBJECT user));

@@ -1,0 +1,5 @@
+~OLCommand :~RS beep
+~OLUsage   :~RS beep <user> [<message>]
+
+Allows you to send an audioable message to a user.  If no message is
+supplied then a standard 'beep' message will be show to the user.
